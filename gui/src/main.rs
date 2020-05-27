@@ -2,7 +2,6 @@ extern crate gtk;
 
 use anyhow::Context;
 use gtk::prelude::*;
-use std::fs;
 
 fn main() -> Result<(), anyhow::Error> {
     gtk::init()

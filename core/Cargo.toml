@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 midir = "0.6.0"
-hocon = { version = "0.3.3", default-features = false, features = ["serde-support"] }
 serde = { version = "1.0.110", features = ["derive"] }
 log = "0.4.8"
 anyhow = "1.0.31"
 arrayref = "0.3.6"
+lazy_static = "1.4.0"
