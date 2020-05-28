@@ -20,6 +20,8 @@ fn main() -> Result<(), anyhow::Error> {
     info!("Loaded {} POD configs", pods.count());
 
     let pod = pods.detect(&mut midi)?;
+    pods.dump_all(&mut midi, &pod)?;
+    pods.dump_edit(&mut midi, &pod)?;
 
     let mut buffer: [u8; 1] = [0];
     stdin().read(&mut buffer)?;

@@ -5,6 +5,11 @@ pub struct Config {
     pub name: String,
     pub family: u16,
     pub member: u16,
+
+    pub program_size: usize,
+    pub all_programs_size: usize,
+    pub pod_id: u8, // used in sysex dump messages
+
     pub amp_models: Vec<String>,
     pub cab_models: Vec<String>,
     pub controls: HashMap<String, Control>

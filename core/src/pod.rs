@@ -1,9 +1,9 @@
 use midir::*;
-use anyhow::{Result, Context};
+use anyhow::{Result, Context, Error};
+use std::sync::mpsc::Receiver;
 use log::*;
 
 use crate::midi::*;
-use std::sync::mpsc::Receiver;
 use crate::config::PODS;
 use crate::model::Config;
 
@@ -77,27 +77,59 @@ impl PodConfigs {
     }
 
     pub fn count(&self) -> usize {
-        PODS.len()
+        PODS().len()
     }
 
     pub fn detect(&self, midi: &mut Midi) -> Result<&Config> {
         midi.send(MidiMessage::UniversalDeviceInquiry { channel: Channel::all() }.to_bytes().as_slice())?;
-        midi.recv(move |ts, data| {
-            let event = MidiResponse::from_bytes(data);
-            trace!("-- {}: {:?}", ts, event);
-
-            event.map(|event| {
-                match event {
-                    MidiResponse::UniversalDeviceInquiry { channel: _, family, member, ver: _ } => {
-                        let pod = PODS.iter().find(|config| {
-                            family == config.family && member == config.member
-                        }).unwrap();
-                        info!("Discovered: {}", pod.name);
-                        pod
-                    }
+        midi.recv(move |_ts, data| {
+            let event = MidiResponse::from_bytes(data)?;
+            match event {
+                MidiResponse::UniversalDeviceInquiry { channel: _, family, member, ver: _ } => {
+                    let pod = PODS().iter().find(|config| {
+                        family == config.family && member == config.member
+                    }).unwrap();
+                    info!("Discovered: {}", pod.name);
+                    Ok(pod)
                 }
-            })
+                _ => Err(anyhow!("Incorrect MIDI response"))
+            }
         })
     }
 
+    pub fn dump_all(&self, midi: &mut Midi, config: &Config) -> Result<Vec<u8>> {
+        midi.send(MidiMessage::AllProgramsDumpRequest.to_bytes().as_slice())?;
+        midi.recv(move |_ts, data| {
+            let event = MidiResponse::from_bytes(data)?;
+            match event {
+                MidiResponse::AllProgramsDump { ver: _, data } => {
+                    if data.len() == config.all_programs_size {
+                        Ok(data)
+                    } else {
+                        error!("Program size mismatch: expected {}, got {}", config.all_programs_size, data.len());
+                        Err(anyhow!("Program size mismatch"))
+                    }
+                }
+                _ => Err(anyhow!("Incorrect MIDI response"))
+            }
+        })
+    }
+
+    pub fn dump_edit(&self, midi: &mut Midi, config: &Config) -> Result<Vec<u8>> {
+        midi.send(MidiMessage::ProgramEditBufferDumpRequest.to_bytes().as_slice())?;
+        midi.recv(move |_ts, data| {
+            let event = MidiResponse::from_bytes(data)?;
+            match event {
+                MidiResponse::ProgramEditBufferDump { ver: _, data } => {
+                    if data.len() == config.program_size {
+                        Ok(data)
+                    } else {
+                        error!("Program size mismatch: expected {}, got {}", config.program_size, data.len());
+                        Err(anyhow!("Program size mismatch"))
+                    }
+                }
+                _ => Err(anyhow!("Incorrect MIDI response"))
+            }
+        })
+    }
 }
