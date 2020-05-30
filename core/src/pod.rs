@@ -1,5 +1,5 @@
 use midir::*;
-use anyhow::{Result, Context, Error};
+use anyhow::{Result, Context};
 use std::sync::mpsc::Receiver;
 use log::*;
 
@@ -38,7 +38,7 @@ impl Midi {
         let (tx, rx) = std::sync::mpsc::channel();
 
         let conn_in = midi_in.connect(&in_port, "pod midi in conn", move |ts, data, _| {
-            trace!("<< {}: {:02x?}", ts, data);
+            trace!("<< {}: {:02x?} len={}", ts, data, data.len());
             tx.send((ts, Vec::from(data))).unwrap();
 
         }, ())
@@ -54,7 +54,7 @@ impl Midi {
     }
 
     pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
-        trace!(">> {:02x?}", bytes);
+        trace!(">> {:02x?} len={}", bytes, bytes.len());
         self.conn_out.send(bytes)
             .map_err(|e| anyhow!("Midi send error: {:?}", e))
     }

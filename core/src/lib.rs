@@ -3,12 +3,10 @@ extern crate midir;
 
 #[macro_use]
 extern crate anyhow;
-
 #[macro_use]
 extern crate arrayref;
-
 #[macro_use]
-extern crate lazy_static;
+extern crate maplit;
 
 mod model;
 mod midi;

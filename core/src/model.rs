@@ -15,14 +15,32 @@ pub struct Config {
     pub controls: HashMap<String, Control>
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Control {
-    SwitchControl {
-        cc: u8
-    },
-    RangeControl {
-        cc: u8,
-        from: u8,
-        to: u8
+    SwitchControl(SwitchControl),
+    RangeControl(RangeControl)
+}
+
+#[derive(Clone, Debug)]
+pub struct SwitchControl { cc: u8 }
+#[derive(Clone, Debug)]
+pub struct RangeControl { pub cc: u8, pub from: u8, pub to: u8 }
+
+impl From<SwitchControl> for Control {
+    fn from(c: SwitchControl) -> Self {
+        Control::SwitchControl(c)
     }
 }
+
+impl Default for RangeControl {
+    fn default() -> Self {
+        RangeControl { cc: 0, from: 0, to: 127 }
+    }
+}
+impl From<RangeControl> for Control {
+    fn from(c: RangeControl) -> Self {
+        Control::RangeControl(c)
+    }
+}
+
+

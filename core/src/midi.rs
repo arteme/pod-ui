@@ -1,6 +1,5 @@
 
 use anyhow::{Result, Context};
-use std::fs::read_to_string;
 use crate::util::nibbles_to_u8_vec;
 
 pub struct Channel {}
