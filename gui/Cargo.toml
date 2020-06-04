@@ -5,9 +5,12 @@ authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+glib = "0.9.3"
 gdk = "0.12.1"
-gtk = "0.8.1"
+gtk = { version = "0.8.1", feautes = [ "v3_18" ] }
 anyhow = "1.0.31"
+
+pod-core = { path = "../core" }
 
 [[bin]]
 name = "pod-gui"

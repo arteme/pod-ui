@@ -80,6 +80,10 @@ impl PodConfigs {
         PODS().len()
     }
 
+    pub fn by_name(&self, name: &String) -> Option<&Config> {
+        PODS().iter().find(|config| &config.name == name)
+    }
+
     pub fn detect(&self, midi: &mut Midi) -> Result<&Config> {
         midi.send(MidiMessage::UniversalDeviceInquiry { channel: Channel::all() }.to_bytes().as_slice())?;
         midi.recv(move |_ts, data| {

@@ -14,3 +14,4 @@ mod util;
 
 pub mod pod;
 pub mod config;
+pub mod controller;
