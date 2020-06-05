@@ -80,8 +80,8 @@ impl PodConfigs {
         PODS().len()
     }
 
-    pub fn by_name(&self, name: &String) -> Option<&Config> {
-        PODS().iter().find(|config| &config.name == name)
+    pub fn by_name(&self, name: &String) -> Option<Config> {
+        PODS().iter().find(|config| &config.name == name).map(|c| c.clone())
     }
 
     pub fn detect(&self, midi: &mut Midi) -> Result<&Config> {

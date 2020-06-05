@@ -8,10 +8,10 @@ extern crate arrayref;
 #[macro_use]
 extern crate maplit;
 
-mod model;
 mod midi;
 mod util;
 
+pub mod model;
 pub mod pod;
 pub mod config;
 pub mod controller;

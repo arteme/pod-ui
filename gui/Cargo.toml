@@ -9,6 +9,8 @@ glib = "0.9.3"
 gdk = "0.12.1"
 gtk = { version = "0.8.1", feautes = [ "v3_18" ] }
 anyhow = "1.0.31"
+log = "0.4.8"
+simple_logger = "1.6.0"
 
 pod-core = { path = "../core" }
 

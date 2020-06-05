@@ -223,6 +223,7 @@
                     <child>
                       <object class="GtkScale">
                         <property name="name">drive</property>
+                        <property name="height_request">200</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="hexpand">True</property>
@@ -240,6 +241,7 @@
                     </child>
                     <child>
                       <object class="GtkScale">
+                        <property name="name">bass</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="hexpand">True</property>
