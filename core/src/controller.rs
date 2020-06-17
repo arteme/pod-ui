@@ -43,4 +43,8 @@ impl Controller {
     pub fn get_config(&self, name: &str) -> Option<&Control> {
         self.config.controls.get(name)
     }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<String> {
+        self.tx.subscribe()
+    }
 }

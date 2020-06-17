@@ -8,6 +8,7 @@ use pod_core::controller::Controller;
 use log::*;
 use std::sync::{Arc, Mutex};
 use pod_core::model::{Config, Control};
+use std::collections::HashMap;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -17,7 +18,11 @@ fn clamp(v: f64) -> u16 {
     }
 }
 
-fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<()> {
+type Callbacks = HashMap<String, Box<dyn Fn() -> ()>>;
+
+fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callbacks> {
+    let mut callbacks = Callbacks::new();
+
     let object_name = | o: &Object | o.get_property("name")
         .map(|p| p.get::<String>().unwrap())
         .unwrap_or(None)
@@ -40,6 +45,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<()> {
                     let adj = scale.get_adjustment();
                     info!("adj {:?}", adj);
                     let controller = controller.clone();
+                    let rx;
                     {
                         let controller = controller.lock().unwrap();
                         match controller.get_config(&name) {
@@ -51,13 +57,38 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<()> {
                                 warn!("Control {:?} is not a range control!", name)
                             }
                         }
+
+                        rx = controller.subscribe();
+                    }
+
+                    // wire gui -> controller
+                    {
+                        let controller = controller.clone();
+                        let name = name.clone();
+                        adj.connect_value_changed(move |adj| {
+                            let mut controller = controller.lock().unwrap();
+                            controller.set(&name, adj.get_value() as u16);
+                        });
                     }
 
 
-                    adj.connect_value_changed(move |adj| {
-                        let mut controller = controller.lock().unwrap();
-                        controller.set(&name, adj.get_value() as u16);
-                    })
+                    // wire controller -> gui
+                    {
+                        let controller = controller.clone();
+                        let name = name.clone();
+                        callbacks.insert(
+                            name.clone(),
+                            Box::new(move || {
+                                // TODO: would be easier if value is passed in the message and
+                                //       into this function without the need to look it up from the controller
+                                let v = {
+                                    let controller = controller.lock().unwrap();
+                                    controller.get(&name).unwrap()
+                                };
+                                adj.set_value(v as f64);
+                            })
+                        )
+                    }
                 });
 
             });
@@ -70,8 +101,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<()> {
         println!("{:?}", object_name(obj));
     }
 
-
-    Ok(())
+    Ok(callbacks)
 }
 
 
@@ -86,7 +116,7 @@ fn main() -> Result<()> {
 
     let builder = gtk::Builder::new_from_file("src/pod.glade");
     let objects = builder.get_objects();
-    wire_all(controller, &objects)?;
+    let callbacks = wire_all(controller.clone(), &objects)?;
     /*
     for o in objects {
         println!("{:?}", o);
@@ -105,6 +135,25 @@ fn main() -> Result<()> {
     });
 
     window.show_all();
+    let mut rx = {
+        let controller = controller.lock().unwrap();
+        controller.subscribe()
+    };
+    gtk::idle_add(move || {
+        match rx.try_recv() {
+            Ok(name) => {
+                let cb = callbacks.get(&name);
+                match cb {
+                    None => { panic!("WTF"); },
+                    Some(cb) => cb(),
+                }
+            },
+            Err(_) => {},
+        }
+
+        Continue(true)
+    });
+
     gtk::main();
     /*
     loop {
