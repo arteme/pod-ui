@@ -43,4 +43,23 @@ impl From<RangeControl> for Control {
     }
 }
 
+pub trait GetCC {
+    fn get_cc(&self) -> Option<u8>;
+}
 
+impl GetCC for RangeControl {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+}
+
+impl GetCC for SwitchControl {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+}
+
+impl GetCC for Control {
+    fn get_cc(&self) -> Option<u8> {
+        match self {
+            Control::SwitchControl(c) => { c.get_cc() },
+            Control::RangeControl(c) => { c.get_cc() },
+        }
+    }
+}

@@ -9,8 +9,10 @@ glib = "0.9.3"
 gdk = "0.12.1"
 gtk = { version = "0.8.1", feautes = [ "v3_18" ] }
 anyhow = "1.0.31"
+clap = "3.0.0-beta.1"
 log = "0.4.8"
 simple_logger = "1.6.0"
+tokio = { version = "0.2.21", features = ["sync", "macros", "rt-core", "rt-util", "rt-threaded", "stream", "time"] }
 
 pod-core = { path = "../core" }
 

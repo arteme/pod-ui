@@ -14,6 +14,8 @@ pub enum MidiMessage {
     ProgramPatchDumpRequest { patch: u8 },
     ProgramEditBufferDumpRequest,
     AllProgramsDumpRequest,
+
+    ControlChange { channel: u8, control: u8, value: u8 },
 }
 impl MidiMessage {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -26,6 +28,10 @@ impl MidiMessage {
                 [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x01, 0xf7].to_vec(),
             MidiMessage::AllProgramsDumpRequest =>
                 [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x02, 0xf7].to_vec(),
+
+            MidiMessage::ControlChange { channel, control, value } =>
+                [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
+
             _ => unimplemented!()
         }
     }
@@ -89,11 +95,11 @@ impl MidiResponse {
         }
         if (bytes[0] & 0xf0) == 0xb0 {
             // control change
-            return Ok(MidiResponse::ProgramChange { channel: bytes[0] & 0x0f, program: bytes[1] })
+            return Ok(MidiResponse::ControlChange { channel: bytes[0] & 0x0f, control: bytes[1], value: bytes[2] })
         }
         if (bytes[0] & 0xf0) == 0xc0 {
             // program change
-            return Ok(MidiResponse::ControlChange { channel: bytes[0] & 0x0f, control: bytes[1], value: bytes[2] })
+            return Ok(MidiResponse::ProgramChange { channel: bytes[0] & 0x0f, program: bytes[1] })
         }
 
         Err(anyhow!("Failed to parse MIDI message"))

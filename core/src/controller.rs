@@ -1,4 +1,4 @@
-use crate::model::{Config, Control};
+use crate::model::{Config, Control, GetCC};
 use std::collections::HashMap;
 use tokio::sync::broadcast;
 use log::*;
@@ -35,13 +35,24 @@ impl Controller {
         info!("set {:?} = {}", name, value);
         let ref tx = self.tx;
         self.values.get_mut(name).map(|mut v| {
-            *v = value;
-            tx.send(name.to_string());
+            if (*v != value) {
+                *v = value;
+                tx.send(name.to_string());
+            }
         });
     }
 
     pub fn get_config(&self, name: &str) -> Option<&Control> {
         self.config.controls.get(name)
+    }
+
+    pub fn get_config_by_cc(&self, cc: u8) -> Option<(&String, &Control)> {
+        self.config.controls.iter().find(|&(_name, control)| {
+           match control.get_cc() {
+               Some(v) if v == cc => true,
+               _ => false
+           }
+        })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<String> {

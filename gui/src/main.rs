@@ -1,14 +1,20 @@
 extern crate gtk;
 
+mod opts;
+
+use tokio::prelude::*;
 use anyhow::*;
 use gtk::prelude::*;
 use glib::Object;
-use pod_core::pod::PodConfigs;
+use pod_core::pod::{MidiIn, MidiOut, PodConfigs};
 use pod_core::controller::Controller;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{Config, Control};
+use pod_core::model::{Config, Control, GetCC};
 use std::collections::HashMap;
+use crate::opts::*;
+use pod_core::midi::{MidiResponse, MidiMessage};
+use tokio::sync::broadcast::RecvError;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -104,9 +110,17 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
     Ok(callbacks)
 }
 
-
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     simple_logger::init()?;
+
+    let opts: Opts = Opts::parse();
+    let mut midi_in = MidiIn::new(opts.input)
+        .context("Failed to initialize MIDI").unwrap();
+    let mut midi_out = MidiOut::new(opts.output)
+        .context("Failed to initialize MIDI").unwrap();
+
+
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
@@ -134,6 +148,68 @@ fn main() -> Result<()> {
         Inhibit(false)
     });
 
+    // midi ----------------------------------------------------
+    {
+        let controller = controller.clone();
+        let mut rx = {
+            let controller = controller.lock().unwrap();
+            controller.subscribe()
+        };
+        tokio::spawn(async move {
+            loop {
+                let name = match rx.recv().await {
+                    Ok(name) => name,
+                    Err(RecvError::Lagged(_)) => continue,
+                    Err(RecvError::Closed) => return Ok(())
+                };
+                let (config, val) = {
+                    let controller = controller.lock().unwrap();
+                    let config = controller.get_config(&name).unwrap();
+                    let val = controller.get(&name).unwrap();
+                    (config.clone(), val)
+                };
+                let message = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: val as u8 };
+                midi_out.send(&message.to_bytes());
+            }
+            Err(anyhow!("Never reached")) // helps with inferring E for Result<T,E>
+        });
+    }
+
+    {
+        let controller = controller.clone();
+        tokio::spawn(async move {
+            loop {
+                let data = midi_in.recv().await;
+                if data.is_none() {
+                    return Ok(()); // shutdown
+                }
+                let event = MidiResponse::from_bytes(data.unwrap())?;
+                match event {
+                    MidiResponse::ControlChange { channel: _, control, value } => {
+                        let mut controller = controller.lock().unwrap();
+                        let (name, _) = controller.get_config_by_cc(control).unwrap();
+                        let name = name.clone();
+                        controller.set(&name, value as u16);
+                    }
+
+                    /*
+                MidiResponse::C { channel: _, family, member, ver: _ } => {
+                    let pod = PODS().iter().find(|config| {
+                        family == config.family && member == config.member
+                    }).unwrap();
+                    info!("Discovered: {}", pod.name);
+                    Ok(pod)
+                }
+
+                 */
+                    _ => {} //Err(anyhow!("Incorrect MIDI response"))
+                }
+            }
+            Err(anyhow!("Never reached")) // helps with inferring E for Result<T,E>
+        });
+    }
+    // ---------------------------------------------------------
+
     window.show_all();
     let mut rx = {
         let controller = controller.lock().unwrap();
@@ -155,13 +231,13 @@ fn main() -> Result<()> {
     });
 
     gtk::main();
+
     /*
     loop {
         gtk::main_iteration_do(false);
         sleep_ms(1);
     }
      */
-
 
     Ok(())
 }

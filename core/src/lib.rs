@@ -8,7 +8,7 @@ extern crate arrayref;
 #[macro_use]
 extern crate maplit;
 
-mod midi;
+pub mod midi;
 mod util;
 
 pub mod model;
