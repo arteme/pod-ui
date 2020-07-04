@@ -47,6 +47,7 @@
             <child>
               <object class="GtkCheckButton" id="gate_check">
                 <property name="label" translatable="yes">Gate</property>
+                <property name="name">noise_gate_enable</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
@@ -54,12 +55,13 @@
               </object>
               <packing>
                 <property name="left_attach">0</property>
-                <property name="top_attach">0</property>
+                <property name="top_attach">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkCheckButton" id="amp_check">
                 <property name="label" translatable="yes">Amp</property>
+                <property name="name">amp_enable</property>
                 <property name="visible">True</property>
                 <property name="sensitive">False</property>
                 <property name="can_focus">False</property>
@@ -70,20 +72,24 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">0</property>
+                <property name="top_attach">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkCheckButton" id="volume_check">
                 <property name="label" translatable="yes">Volume</property>
+                <property name="name">volume_enable</property>
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
+                <property name="sensitive">False</property>
+                <property name="can_focus">False</property>
+                <property name="has_default">True</property>
                 <property name="receives_default">False</property>
+                <property name="active">True</property>
                 <property name="draw_indicator">True</property>
               </object>
               <packing>
                 <property name="left_attach">2</property>
-                <property name="top_attach">0</property>
+                <property name="top_attach">1</property>
               </packing>
             </child>
             <child>
@@ -96,12 +102,13 @@
               </object>
               <packing>
                 <property name="left_attach">3</property>
-                <property name="top_attach">0</property>
+                <property name="top_attach">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkCheckButton" id="delay_check">
                 <property name="label" translatable="yes">Delay</property>
+                <property name="name">delay_enable</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
@@ -109,12 +116,13 @@
               </object>
               <packing>
                 <property name="left_attach">4</property>
-                <property name="top_attach">0</property>
+                <property name="top_attach">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkCheckButton" id="reverb_check">
                 <property name="label" translatable="yes">Reverb</property>
+                <property name="name">reverb_enable</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
@@ -122,8 +130,34 @@
               </object>
               <packing>
                 <property name="left_attach">5</property>
-                <property name="top_attach">0</property>
+                <property name="top_attach">1</property>
               </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">&gt;</property>
+                <property name="name">volume_pedal_location_button</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">0</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
             </child>
           </object>
           <packing>

@@ -21,14 +21,22 @@ pub static _PODS: Lazy<Vec<Config>> = Lazy::new(|| {
            amp_models: vec![],
            cab_models: vec![],
            controls: convert_args!(hashmap!(
+               // switches
+               "delay_enable" => SwitchControl { cc: 28 },
+               "reverb_enable" => SwitchControl { cc: 36 },
+               "noise_gate_enable" => SwitchControl { cc: 22 },
+               "bright_switch_enable" => SwitchControl { cc: 75 },
+
                // 12: amp model
                "drive" => RangeControl { cc: 13, ..def!() },
                // drive 2 (no transmit)
                "bass" => RangeControl { cc: 14, ..def!() },
                "mid" => RangeControl { cc: 15, ..def!() },
                "treble" => RangeControl { cc: 16, ..def!() },
-               "bright switch" => RangeControl { cc: 73, ..def!() }
+               "bright switch" => RangeControl { cc: 73, ..def!() },
                // 21: presence | tx on/off | rx 0-127
+
+               "volume_pedal_location" => SwitchControl { cc: 47 }
 
 
            ))

@@ -2,7 +2,6 @@ extern crate gtk;
 
 mod opts;
 
-use tokio::prelude::*;
 use anyhow::*;
 use gtk::prelude::*;
 use glib::Object;
@@ -15,6 +14,7 @@ use std::collections::HashMap;
 use crate::opts::*;
 use pod_core::midi::{MidiResponse, MidiMessage};
 use tokio::sync::broadcast::RecvError;
+use std::borrow::BorrowMut;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -26,6 +26,82 @@ fn clamp(v: f64) -> u16 {
 
 type Callbacks = HashMap<String, Box<dyn Fn() -> ()>>;
 
+fn obj_by_name(objs: &[Object], name: &str) -> Object {
+    objs.iter()
+        .find(|o|
+            o.get_property("name")
+                .map(|p| p.get::<String>().unwrap())
+                .unwrap_or(None)
+                .unwrap_or("".into()) == name)
+        .unwrap()
+        .clone()
+}
+
+fn ref_by_name<T: ObjectType>(objs: &[Object], name: &str) -> T {
+    obj_by_name(objs, name).dynamic_cast_ref::<T>().unwrap().clone()
+}
+
+
+fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) {
+    let volume_pedal_location = ref_by_name::<gtk::Button>(objs, "volume_pedal_location_button");
+    let amp_enable = ref_by_name::<gtk::Widget>(objs, "amp_enable");
+    let volume_enable = ref_by_name::<gtk::Widget>(objs, "volume_enable");
+
+    let set_in_order = {
+        let volume_pedal_location = volume_pedal_location.clone();
+
+        move |volume_pre_amp: bool| {
+            let ancestor = amp_enable.get_ancestor(gtk::Grid::static_type()).unwrap();
+            let grid = ancestor.dynamic_cast_ref::<gtk::Grid>().unwrap();
+            grid.remove(&amp_enable);
+            grid.remove(&volume_enable);
+
+            let (volume_left, amp_left) = match volume_pre_amp {
+                true => {
+                    volume_pedal_location.set_label(">");
+                    (1, 2)
+                },
+                false => {
+                    volume_pedal_location.set_label("<");
+                    (2, 1)
+                }
+            };
+            grid.attach(&amp_enable, amp_left, 1, 1, 1);
+            grid.attach(&volume_enable, volume_left, 1, 1, 1);
+        }
+    };
+
+    set_in_order(true);
+
+    // gui -> controller
+    {
+        let controller = controller.clone();
+        volume_pedal_location.connect_clicked(move |_| {
+            let mut controller = controller.lock().unwrap();
+            let v = controller.get("volume_pedal_location").unwrap() < 64; // 0..63 -- volume pre tube drive
+            let v = !v; // toggling
+            controller.set("volume_pedal_location", if v { 0 } else { 64 });
+        });
+    }
+
+    // controller -> gui
+    {
+        let controller = controller.clone();
+        let name = "volume_pedal_location".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let v = {
+                    let controller = controller.lock().unwrap();
+                    controller.get(&name).unwrap()
+                };
+                set_in_order(v < 64);
+            })
+        )
+    };
+
+}
+
 fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callbacks> {
     let mut callbacks = Callbacks::new();
 
@@ -34,70 +110,105 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
         .unwrap_or(None)
         .filter(|v| !v.is_empty());
 
-        objs.iter()
-            .flat_map(|obj| object_name(obj).map(|name| (obj, name)) )
-            .for_each(|(obj, name)| {
+    objs.iter()
+        .flat_map(|obj| object_name(obj).map(|name| (obj, name)) )
+        .for_each(|(obj, name)| {
+            {
+                let controller = controller.lock().unwrap();
+                if !controller.has(&name) {
+                    warn!("Not wiring {:?}", name);
+                    return;
+                }
+            }
+
+            info!("Wiring {:?} {:?}", name, obj);
+            obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
+                // wire GtkScale and its internal GtkAdjustment
+                let adj = scale.get_adjustment();
+                info!("adj {:?}", adj);
+                let controller = controller.clone();
                 {
                     let controller = controller.lock().unwrap();
-                    if !controller.has(&name) {
-                        warn!("Not wiring {:?}", name);
-                        return;
+                    match controller.get_config(&name) {
+                        Some(Control::RangeControl(c)) => {
+                            adj.set_lower(c.from as f64);
+                            adj.set_upper(c.to as f64);
+                        },
+                        _ => {
+                            warn!("Control {:?} is not a range control!", name)
+                        }
                     }
                 }
 
-                info!("Wiring {:?} {:?}", name, obj);
-                obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
-                    // wire gtk::Scale and its internal gtk::Adjustment
-                    let adj = scale.get_adjustment();
-                    info!("adj {:?}", adj);
+                // wire gui -> controller
+                {
                     let controller = controller.clone();
-                    let rx;
-                    {
-                        let controller = controller.lock().unwrap();
-                        match controller.get_config(&name) {
-                            Some(Control::RangeControl(c)) => {
-                                adj.set_lower(c.from as f64);
-                                adj.set_upper(c.to as f64);
-                            },
-                            _ => {
-                                warn!("Control {:?} is not a range control!", name)
-                            }
-                        }
-
-                        rx = controller.subscribe();
-                    }
-
-                    // wire gui -> controller
-                    {
-                        let controller = controller.clone();
-                        let name = name.clone();
-                        adj.connect_value_changed(move |adj| {
-                            let mut controller = controller.lock().unwrap();
-                            controller.set(&name, adj.get_value() as u16);
-                        });
-                    }
-
-
-                    // wire controller -> gui
-                    {
-                        let controller = controller.clone();
-                        let name = name.clone();
-                        callbacks.insert(
-                            name.clone(),
-                            Box::new(move || {
-                                // TODO: would be easier if value is passed in the message and
-                                //       into this function without the need to look it up from the controller
-                                let v = {
-                                    let controller = controller.lock().unwrap();
-                                    controller.get(&name).unwrap()
-                                };
-                                adj.set_value(v as f64);
-                            })
-                        )
-                    }
-                });
-
+                    let name = name.clone();
+                    adj.connect_value_changed(move |adj| {
+                        let mut controller = controller.lock().unwrap();
+                        controller.set(&name, adj.get_value() as u16);
+                    });
+                }
+                // wire controller -> gui
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    callbacks.insert(
+                        name.clone(),
+                        Box::new(move || {
+                            // TODO: would be easier if value is passed in the message and
+                            //       into this function without the need to look it up from the controller
+                            let v = {
+                                let controller = controller.lock().unwrap();
+                                controller.get(&name).unwrap()
+                            };
+                            adj.set_value(v as f64);
+                        })
+                    )
+                }
             });
+            obj.dynamic_cast_ref::<gtk::CheckButton>().map(|check| {
+                // wire GtkCheckBox
+                let controller = controller.clone();
+                {
+                    let controller = controller.lock().unwrap();
+                    match controller.get_config(&name) {
+                        Some(Control::SwitchControl(_)) => {},
+                        _ => {
+                            warn!("Control {:?} is not a switch control!", name)
+                        }
+                    }
+                }
+
+                // wire gui -> controller
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    check.connect_toggled(move |check| {
+                        let mut controller = controller.lock().unwrap();
+                        controller.set(&name, if check.get_active() { 64 } else { 0 });
+                    });
+                }
+                // wire controller -> gui
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    let check = check.clone();
+                    callbacks.insert(
+                        name.clone(),
+                        Box::new(move || {
+                            let v = {
+                                let controller = controller.lock().unwrap();
+                                controller.get(&name).unwrap()
+                            };
+                            check.set_active(v > 63);
+                        })
+                    )
+                }
+            });
+        });
+
+    wire_volume_pedal_location(controller, objs, callbacks.borrow_mut());
 
     for obj in objs {
         let name = object_name(obj);
@@ -106,6 +217,8 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
 
         println!("{:?}", object_name(obj));
     }
+
+
 
     Ok(callbacks)
 }

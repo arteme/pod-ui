@@ -18,11 +18,11 @@ pub struct Config {
 #[derive(Clone, Debug)]
 pub enum Control {
     SwitchControl(SwitchControl),
-    RangeControl(RangeControl)
+    RangeControl(RangeControl),
 }
 
 #[derive(Clone, Debug)]
-pub struct SwitchControl { cc: u8 }
+pub struct SwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
 pub struct RangeControl { pub cc: u8, pub from: u8, pub to: u8 }
 
