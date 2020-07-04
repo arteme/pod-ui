@@ -50,18 +50,18 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
     let set_in_order = {
         let volume_pedal_location = volume_pedal_location.clone();
 
-        move |volume_pre_amp: bool| {
+        move |volume_post_amp: bool| {
             let ancestor = amp_enable.get_ancestor(gtk::Grid::static_type()).unwrap();
             let grid = ancestor.dynamic_cast_ref::<gtk::Grid>().unwrap();
             grid.remove(&amp_enable);
             grid.remove(&volume_enable);
 
-            let (volume_left, amp_left) = match volume_pre_amp {
-                true => {
+            let (volume_left, amp_left) = match volume_post_amp {
+                false => {
                     volume_pedal_location.set_label(">");
                     (1, 2)
                 },
-                false => {
+                true => {
                     volume_pedal_location.set_label("<");
                     (2, 1)
                 }
@@ -71,16 +71,16 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
         }
     };
 
-    set_in_order(true);
+    set_in_order(false);
 
     // gui -> controller
     {
         let controller = controller.clone();
         volume_pedal_location.connect_clicked(move |_| {
             let mut controller = controller.lock().unwrap();
-            let v = controller.get("volume_pedal_location").unwrap() < 64; // 0..63 -- volume pre tube drive
+            let v = controller.get("volume_pedal_location").unwrap() > 0;
             let v = !v; // toggling
-            controller.set("volume_pedal_location", if v { 0 } else { 64 });
+            controller.set("volume_pedal_location", v as u16);
         });
     }
 
@@ -95,7 +95,7 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
                     let controller = controller.lock().unwrap();
                     controller.get(&name).unwrap()
                 };
-                set_in_order(v < 64);
+                set_in_order(v > 0);
             })
         )
     };
@@ -186,7 +186,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
                     let name = name.clone();
                     check.connect_toggled(move |check| {
                         let mut controller = controller.lock().unwrap();
-                        controller.set(&name, if check.get_active() { 64 } else { 0 });
+                        controller.set(&name, check.get_active() as u16);
                     });
                 }
                 // wire controller -> gui
@@ -201,7 +201,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
                                 let controller = controller.lock().unwrap();
                                 controller.get(&name).unwrap()
                             };
-                            check.set_active(v > 63);
+                            check.set_active(v > 0);
                         })
                     )
                 }
@@ -213,7 +213,6 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
     for obj in objs {
         let name = object_name(obj);
         if name.is_none() { continue; }
-
 
         println!("{:?}", object_name(obj));
     }
@@ -281,7 +280,11 @@ async fn main() -> Result<()> {
                     let val = controller.get(&name).unwrap();
                     (config.clone(), val)
                 };
-                let message = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: val as u8 };
+                let scale= match &config {
+                    Control::SwitchControl(_) => 64u16,
+                    Control::RangeControl(c) => 127 / c.to as u16
+                };
+                let message = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 };
                 midi_out.send(&message.to_bytes());
             }
             Err(anyhow!("Never reached")) // helps with inferring E for Result<T,E>
@@ -300,21 +303,15 @@ async fn main() -> Result<()> {
                 match event {
                     MidiResponse::ControlChange { channel: _, control, value } => {
                         let mut controller = controller.lock().unwrap();
-                        let (name, _) = controller.get_config_by_cc(control).unwrap();
+                        let (name, config) = controller.get_config_by_cc(control).unwrap();
                         let name = name.clone();
-                        controller.set(&name, value as u16);
+                        let scale= match &config {
+                            Control::SwitchControl(_) => 64u16,
+                            Control::RangeControl(c) => 127 / c.to as u16,
+                        };
+                        controller.set(&name, value as u16 / scale);
                     }
 
-                    /*
-                MidiResponse::C { channel: _, family, member, ver: _ } => {
-                    let pod = PODS().iter().find(|config| {
-                        family == config.family && member == config.member
-                    }).unwrap();
-                    info!("Discovered: {}", pod.name);
-                    Ok(pod)
-                }
-
-                 */
                     _ => {} //Err(anyhow!("Incorrect MIDI response"))
                 }
             }
