@@ -2,6 +2,8 @@
   <dictionary name="arteme">
     <words>
       <w>midir</w>
+      <w>objs</w>
+      <w>recv</w>
       <w>serde</w>
       <w>sysex</w>
     </words>

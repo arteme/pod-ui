@@ -31,8 +31,6 @@ impl MidiMessage {
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
-
-            _ => unimplemented!()
         }
     }
 }

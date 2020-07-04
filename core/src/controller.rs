@@ -14,7 +14,7 @@ pub struct Controller {
 impl Controller {
     pub fn new(config: Config) -> Self {
         let mut values: HashMap<String, u16> = HashMap::new();
-        for (name, control) in config.controls.iter() {
+        for (name, _) in config.controls.iter() {
             values.insert(name.clone(), 0);
         }
 
@@ -34,11 +34,19 @@ impl Controller {
     pub fn set(&mut self, name: &str, value: u16) -> () {
         info!("set {:?} = {}", name, value);
         let ref tx = self.tx;
-        self.values.get_mut(name).map(|mut v| {
-            if (*v != value) {
+        self.values.get_mut(name).map(|v| {
+            if *v != value {
                 *v = value;
                 tx.send(name.to_string());
             }
+        });
+    }
+
+    pub fn set_nosignal(&mut self, name: &str, value: u16) -> () {
+        info!("set {:?} = {} (no signal)", name, value);
+        let ref tx = self.tx;
+        self.values.get_mut(name).map(|mut v| {
+            *v = value;
         });
     }
 
