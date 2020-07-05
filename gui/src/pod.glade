@@ -232,6 +232,7 @@
                     </child>
                     <child>
                       <object class="GtkLabel">
+                        <property name="name">presence_label</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="valign">center</property>
@@ -327,6 +328,7 @@
                     </child>
                     <child>
                       <object class="GtkScale">
+                        <property name="name">presence</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="hexpand">True</property>
@@ -366,18 +368,11 @@
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
-                        <property name="top_attach">0</property>
+                        <property name="top_attach">1</property>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="left_attach">1</property>
-                        <property name="top_attach">1</property>
-                      </packing>
+                      <placeholder/>
                     </child>
                   </object>
                   <packing>
@@ -404,6 +399,7 @@
                     </child>
                     <child>
                       <object class="GtkComboBoxText" id="amp_list">
+                        <property name="name">amp_select</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                       </object>
@@ -427,6 +423,7 @@
                     </child>
                     <child>
                       <object class="GtkComboBoxText" id="cab_list">
+                        <property name="name">cab_select</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                       </object>

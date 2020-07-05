@@ -15,6 +15,7 @@ use crate::opts::*;
 use pod_core::midi::{MidiResponse, MidiMessage};
 use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
+use std::ops::Deref;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -99,8 +100,56 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
             })
         )
     };
-
 }
+
+fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) {
+    let presence_widget = ref_by_name::<gtk::Widget>(objs, "presence");
+    let presence_label_widget = ref_by_name::<gtk::Label>(objs, "presence_label");
+
+    // controller -> gui
+    {
+        let controller = controller.clone();
+        let name = "amp_select".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let (presence, bright_switch) = {
+                    let controller = controller.lock().unwrap();
+                    let v = controller.get(&name).unwrap();
+                    let amp = controller.config.amp_models.get(v as usize).unwrap();
+                    (amp.presence, amp.bright_switch)
+                };
+
+                presence_widget.set_visible(presence);
+                // If I hide all widgets in the column, the others will spread out. Instead
+                // I set presence label opacity to 0.
+                //presence_label_widget.set_visible(presence);
+                presence_label_widget.set_opacity(presence as i8 as f64 * 1.0);
+            })
+        )
+    };
+}
+
+fn init_cab_select(config: &Config, controller: &Controller, objs: &[Object]) {
+    let select = ref_by_name::<gtk::ComboBoxText>(objs, "cab_select");
+    for name in config.cab_models.iter() {
+        select.append_text(name.as_str());
+    }
+
+    let v = controller.get("cab_select").unwrap();
+    select.set_active(Some(v as u32));
+}
+
+fn init_amp_select(config: &Config, controller: &Controller, objs: &[Object]) {
+    let select = ref_by_name::<gtk::ComboBoxText>(objs, "amp_select");
+    for amp in config.amp_models.iter() {
+        select.append_text(amp.name.as_str());
+    }
+
+    let v = controller.get("amp_select").unwrap();
+    select.set_active(Some(v as u32));
+}
+
 
 fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callbacks> {
     let mut callbacks = Callbacks::new();
@@ -206,9 +255,51 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
                     )
                 }
             });
+            obj.dynamic_cast_ref::<gtk::ComboBoxText>().map(|combo| {
+                // wire GtkComboBox
+                let controller = controller.clone();
+                {
+                    let controller = controller.lock().unwrap();
+                    match controller.get_config(&name) {
+                        Some(Control::Select(_)) => {},
+                        _ => {
+                            warn!("Control {:?} is not a select control!", name)
+                        }
+                    }
+                }
+
+                // wire gui -> controller
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    combo.connect_changed(move |combo| {
+                        combo.get_active().map(|v| {
+                            let mut controller = controller.lock().unwrap();
+                            controller.set(&name, v as u16);
+                        });
+                    });
+                }
+                // wire controller -> gui
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    let combo = combo.clone();
+                    callbacks.insert(
+                        name.clone(),
+                        Box::new(move || {
+                            let v = {
+                                let controller = controller.lock().unwrap();
+                                controller.get(&name).unwrap()
+                            };
+                            combo.set_active(Some(v as u32));
+                        })
+                    )
+                }
+            });
         });
 
-    wire_volume_pedal_location(controller, objs, callbacks.borrow_mut());
+    wire_volume_pedal_location(controller.clone(), objs, callbacks.borrow_mut());
+    wire_amp_select(controller, objs, callbacks.borrow_mut());
 
     for obj in objs {
         let name = object_name(obj);
@@ -216,8 +307,6 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
 
         println!("{:?}", object_name(obj));
     }
-
-
 
     Ok(callbacks)
 }
@@ -238,11 +327,16 @@ async fn main() -> Result<()> {
 
     let configs = PodConfigs::new()?;
     let config: Config = configs.by_name(&"POD 2.0".into()).context("Config not found by name 'POD 2.0'")?;
-    let controller = Arc::new(Mutex::new(Controller::new(config)));
+    let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
 
     let builder = gtk::Builder::new_from_file("src/pod.glade");
     let objects = builder.get_objects();
+
+    init_cab_select(&config, controller.lock().unwrap().deref(), &objects);
+    init_amp_select(&config, controller.lock().unwrap().deref(), &objects);
+
     let callbacks = wire_all(controller.clone(), &objects)?;
+
     /*
     for o in objects {
         println!("{:?}", o);
@@ -282,7 +376,8 @@ async fn main() -> Result<()> {
                 };
                 let scale= match &config {
                     Control::SwitchControl(_) => 64u16,
-                    Control::RangeControl(c) => 127 / c.to as u16
+                    Control::RangeControl(c) => 127 / c.to as u16,
+                    _ => 1
                 };
                 let message = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 };
                 midi_out.send(&message.to_bytes());
@@ -308,6 +403,7 @@ async fn main() -> Result<()> {
                         let scale= match &config {
                             Control::SwitchControl(_) => 64u16,
                             Control::RangeControl(c) => 127 / c.to as u16,
+                            _ => 1
                         };
                         controller.set(&name, value as u16 / scale);
                     }
@@ -340,6 +436,7 @@ async fn main() -> Result<()> {
         Continue(true)
     });
 
+    debug!("starting gtk main loop");
     gtk::main();
 
     /*

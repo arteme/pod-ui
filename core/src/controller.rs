@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 use log::*;
 
 pub struct Controller {
-    config: Config,
+    pub config: Config,
     values: HashMap<String, u16>,
 
     tx: broadcast::Sender<String>,

@@ -10,21 +10,31 @@ pub struct Config {
     pub all_programs_size: usize,
     pub pod_id: u8, // used in sysex dump messages
 
-    pub amp_models: Vec<String>,
+    pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
     pub controls: HashMap<String, Control>
+}
+
+#[derive(Clone, Debug)]
+pub struct Amp {
+    pub name: String,
+    pub bright_switch: bool,
+    pub presence: bool
 }
 
 #[derive(Clone, Debug)]
 pub enum Control {
     SwitchControl(SwitchControl),
     RangeControl(RangeControl),
+    Select(Select)
 }
 
 #[derive(Clone, Debug)]
 pub struct SwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
 pub struct RangeControl { pub cc: u8, pub from: u8, pub to: u8 }
+#[derive(Clone, Debug)]
+pub struct Select { pub cc: u8 }
 
 impl From<SwitchControl> for Control {
     fn from(c: SwitchControl) -> Self {
@@ -43,6 +53,12 @@ impl From<RangeControl> for Control {
     }
 }
 
+impl From<Select> for Control {
+    fn from(c: Select) -> Self {
+        Control::Select(c)
+    }
+}
+
 pub trait GetCC {
     fn get_cc(&self) -> Option<u8>;
 }
@@ -55,11 +71,18 @@ impl GetCC for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
 }
 
+impl GetCC for Select {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+}
+
 impl GetCC for Control {
     fn get_cc(&self) -> Option<u8> {
-        match self {
-            Control::SwitchControl(c) => { c.get_cc() },
-            Control::RangeControl(c) => { c.get_cc() },
-        }
+        let cc: &GetCC = match self {
+            Control::SwitchControl(c) => c,
+            Control::RangeControl(c) => c,
+            Control::Select(c) => c
+        };
+        cc.get_cc()
+
     }
 }
