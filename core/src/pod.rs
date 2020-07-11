@@ -84,11 +84,11 @@ impl PodConfigs {
     }
 
     pub fn count(&self) -> usize {
-        PODS().len()
+        PODS.len()
     }
 
     pub fn by_name(&self, name: &String) -> Option<Config> {
-        PODS().iter().find(|config| &config.name == name).map(|c| c.clone())
+        PODS.iter().find(|config| &config.name == name).map(|c| c.clone())
     }
 
     /*

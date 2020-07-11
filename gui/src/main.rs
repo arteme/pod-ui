@@ -27,29 +27,34 @@ fn clamp(v: f64) -> u16 {
 
 type Callbacks = HashMap<String, Box<dyn Fn() -> ()>>;
 
-fn obj_by_name(objs: &[Object], name: &str) -> Object {
+fn obj_by_name(objs: &[Object], name: &str) -> Result<Object> {
     objs.iter()
         .find(|o|
             o.get_property("name")
                 .map(|p| p.get::<String>().unwrap())
                 .unwrap_or(None)
                 .unwrap_or("".into()) == name)
-        .unwrap()
-        .clone()
+        .with_context(|| format!("Object not found by name {:?}", name))
+        .map(|obj| obj.clone())
 }
 
-fn ref_by_name<T: ObjectType>(objs: &[Object], name: &str) -> T {
-    obj_by_name(objs, name).dynamic_cast_ref::<T>().unwrap().clone()
+fn ref_by_name<T: ObjectType>(objs: &[Object], name: &str) -> Result<T> {
+    let obj = obj_by_name(objs, name)?;
+    let cast = obj.dynamic_cast_ref::<T>()
+        .with_context(|| format!("Object by name {:?} is can not be cast to type {:?}", name, T::static_type()))?
+        .clone();
+    Ok(cast)
 }
 
 
-fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) {
-    let volume_pedal_location = ref_by_name::<gtk::Button>(objs, "volume_pedal_location_button");
-    let amp_enable = ref_by_name::<gtk::Widget>(objs, "amp_enable");
-    let volume_enable = ref_by_name::<gtk::Widget>(objs, "volume_enable");
+fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) -> Result<()> {
+    let name = "vol_pedal_position".to_string();
+    let vol_pedal_position = ref_by_name::<gtk::Button>(objs, &name)?;
+    let amp_enable = ref_by_name::<gtk::Widget>(objs, "amp_enable")?;
+    let volume_enable = ref_by_name::<gtk::Widget>(objs, "volume_enable")?;
 
     let set_in_order = {
-        let volume_pedal_location = volume_pedal_location.clone();
+        let vol_pedal_position = vol_pedal_position.clone();
 
         move |volume_post_amp: bool| {
             let ancestor = amp_enable.get_ancestor(gtk::Grid::static_type()).unwrap();
@@ -59,11 +64,11 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
 
             let (volume_left, amp_left) = match volume_post_amp {
                 false => {
-                    volume_pedal_location.set_label(">");
+                    vol_pedal_position.set_label(">");
                     (1, 2)
                 },
                 true => {
-                    volume_pedal_location.set_label("<");
+                    vol_pedal_position.set_label("<");
                     (2, 1)
                 }
             };
@@ -77,18 +82,18 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
     // gui -> controller
     {
         let controller = controller.clone();
-        volume_pedal_location.connect_clicked(move |_| {
+        let name = name.clone();
+        vol_pedal_position.connect_clicked(move |_| {
             let mut controller = controller.lock().unwrap();
-            let v = controller.get("volume_pedal_location").unwrap() > 0;
+            let v = controller.get(&name).unwrap() > 0;
             let v = !v; // toggling
-            controller.set("volume_pedal_location", v as u16);
+            controller.set(&name, v as u16);
         });
     }
 
     // controller -> gui
     {
         let controller = controller.clone();
-        let name = "volume_pedal_location".to_string();
         callbacks.insert(
             name.clone(),
             Box::new(move || {
@@ -100,11 +105,12 @@ fn wire_volume_pedal_location(controller: Arc<Mutex<Controller>>, objs: &[Object
             })
         )
     };
+    Ok(())
 }
 
-fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) {
-    let presence_widget = ref_by_name::<gtk::Widget>(objs, "presence");
-    let presence_label_widget = ref_by_name::<gtk::Label>(objs, "presence_label");
+fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) -> Result<()> {
+    let presence_widget = ref_by_name::<gtk::Widget>(objs, "presence")?;
+    let presence_label_widget = ref_by_name::<gtk::Label>(objs, "presence_label")?;
 
     // controller -> gui
     {
@@ -128,26 +134,31 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &[Object], callback
             })
         )
     };
+    Ok(())
 }
 
-fn init_cab_select(config: &Config, controller: &Controller, objs: &[Object]) {
-    let select = ref_by_name::<gtk::ComboBoxText>(objs, "cab_select");
+fn init_cab_select(config: &Config, controller: &Controller, objs: &[Object]) -> Result<()> {
+    let select = ref_by_name::<gtk::ComboBoxText>(objs, "cab_select")?;
     for name in config.cab_models.iter() {
         select.append_text(name.as_str());
     }
 
     let v = controller.get("cab_select").unwrap();
     select.set_active(Some(v as u32));
+
+    Ok(())
 }
 
-fn init_amp_select(config: &Config, controller: &Controller, objs: &[Object]) {
-    let select = ref_by_name::<gtk::ComboBoxText>(objs, "amp_select");
+fn init_amp_select(config: &Config, controller: &Controller, objs: &[Object]) -> Result<()> {
+    let select = ref_by_name::<gtk::ComboBoxText>(objs, "amp_select")?;
     for amp in config.amp_models.iter() {
         select.append_text(amp.name.as_str());
     }
 
     let v = controller.get("amp_select").unwrap();
     select.set_active(Some(v as u32));
+
+    Ok(())
 }
 
 
@@ -298,8 +309,8 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
             });
         });
 
-    wire_volume_pedal_location(controller.clone(), objs, callbacks.borrow_mut());
-    wire_amp_select(controller, objs, callbacks.borrow_mut());
+    wire_vol_pedal_position(controller.clone(), objs, callbacks.borrow_mut())?;
+    wire_amp_select(controller, objs, callbacks.borrow_mut())?;
 
     for obj in objs {
         let name = object_name(obj);
@@ -321,7 +332,6 @@ async fn main() -> Result<()> {
     let mut midi_out = MidiOut::new(opts.output)
         .context("Failed to initialize MIDI").unwrap();
 
-
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
@@ -332,27 +342,13 @@ async fn main() -> Result<()> {
     let builder = gtk::Builder::new_from_file("src/pod.glade");
     let objects = builder.get_objects();
 
-    init_cab_select(&config, controller.lock().unwrap().deref(), &objects);
-    init_amp_select(&config, controller.lock().unwrap().deref(), &objects);
+    init_cab_select(&config, controller.lock().unwrap().deref(), &objects)?;
+    init_amp_select(&config, controller.lock().unwrap().deref(), &objects)?;
 
     let callbacks = wire_all(controller.clone(), &objects)?;
 
-    /*
-    for o in objects {
-        println!("{:?}", o);
-        for p in o.list_properties() {
-            println!(" - {:?} {:?}", p.get_name(), p.get_value_type().name());
-        }
-        //let id: Option<String> = if o.has_property("id", None).is_ok() { o.get_property("id")?.get()? } else { None };
-        //println!("{:?} {:?}", id, o);
-    }
-     */
-
     let window: gtk::Window = builder.get_object("app_win").unwrap();
-    window.connect_delete_event(|_, _| {
-        gtk::main_quit();
-        Inhibit(false)
-    });
+    window.set_application(Some(&app));
 
     // midi ----------------------------------------------------
     {
@@ -380,7 +376,7 @@ async fn main() -> Result<()> {
                     _ => 1
                 };
                 let message = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 };
-                midi_out.send(&message.to_bytes());
+                midi_out.send(&message.to_bytes()).unwrap();
             }
             Err(anyhow!("Never reached")) // helps with inferring E for Result<T,E>
         });
