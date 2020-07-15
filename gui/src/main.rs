@@ -348,7 +348,10 @@ async fn main() -> Result<()> {
     let callbacks = wire_all(controller.clone(), &objects)?;
 
     let window: gtk::Window = builder.get_object("app_win").unwrap();
-    window.set_application(Some(&app));
+    window.connect_delete_event(|_, _| {
+        gtk::main_quit();
+        Inhibit(false)
+    });
 
     // midi ----------------------------------------------------
     {
