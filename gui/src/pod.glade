@@ -42,7 +42,7 @@
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
   </object>
-  <object class="GtkAdjustment" id="trebble_adj">
+  <object class="GtkAdjustment" id="treble_adj">
     <property name="upper">100</property>
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
@@ -62,7 +62,7 @@
             <property name="can_focus">False</property>
             <property name="column_homogeneous">True</property>
             <child>
-              <object class="GtkCheckButton" id="gate_check">
+              <object class="GtkCheckButton" id="noise_gate_enable">
                 <property name="label" translatable="yes">Gate</property>
                 <property name="name">noise_gate_enable</property>
                 <property name="visible">True</property>
@@ -76,7 +76,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="amp_check">
+              <object class="GtkCheckButton" id="amp_enable">
                 <property name="label" translatable="yes">Amp</property>
                 <property name="name">amp_enable</property>
                 <property name="visible">True</property>
@@ -93,7 +93,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="volume_check">
+              <object class="GtkCheckButton" id="volume_enable">
                 <property name="label" translatable="yes">Volume</property>
                 <property name="name">volume_enable</property>
                 <property name="visible">True</property>
@@ -110,8 +110,9 @@
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="fx_check">
+              <object class="GtkCheckButton" id="effect_enable">
                 <property name="label" translatable="yes">FX</property>
+                <property name="name">effect_enable</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
@@ -123,7 +124,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="delay_check">
+              <object class="GtkCheckButton" id="delay_enable">
                 <property name="label" translatable="yes">Delay</property>
                 <property name="name">delay_enable</property>
                 <property name="visible">True</property>
@@ -137,7 +138,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="reverb_check">
+              <object class="GtkCheckButton" id="reverb_enable">
                 <property name="label" translatable="yes">Reverb</property>
                 <property name="name">reverb_enable</property>
                 <property name="visible">True</property>
@@ -151,7 +152,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="vol_pedal_position">
                 <property name="label" translatable="yes">&gt;</property>
                 <property name="name">vol_pedal_position</property>
                 <property name="visible">True</property>
@@ -246,7 +247,7 @@
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                             <property name="valign">center</property>
-                            <property name="label" translatable="yes">Trebble</property>
+                            <property name="label" translatable="yes">Treble</property>
                           </object>
                           <packing>
                             <property name="left_attach">4</property>
@@ -279,7 +280,7 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkScale">
+                          <object class="GtkScale" id="drive">
                             <property name="name">drive</property>
                             <property name="height_request">200</property>
                             <property name="visible">True</property>
@@ -298,7 +299,7 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkScale">
+                          <object class="GtkScale" id="bass">
                             <property name="name">bass</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
@@ -316,7 +317,8 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkScale">
+                          <object class="GtkScale" id="mid">
+                            <property name="name">mid</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="hexpand">True</property>
@@ -333,13 +335,14 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkScale">
+                          <object class="GtkScale" id="treble">
+                            <property name="name">treble</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="hexpand">True</property>
                             <property name="vexpand">True</property>
                             <property name="orientation">vertical</property>
-                            <property name="adjustment">trebble_adj</property>
+                            <property name="adjustment">treble_adj</property>
                             <property name="inverted">True</property>
                             <property name="round_digits">0</property>
                             <property name="digits">0</property>
@@ -350,7 +353,7 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkScale">
+                          <object class="GtkScale" id="presence">
                             <property name="name">presence</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
@@ -368,7 +371,8 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkScale">
+                          <object class="GtkScale" id="chan_volume">
+                            <property name="name">chan_volume</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="hexpand">True</property>
@@ -421,7 +425,7 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkComboBoxText" id="amp_list">
+                          <object class="GtkComboBoxText" id="amp_select">
                             <property name="name">amp_select</property>
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
@@ -445,7 +449,7 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkComboBoxText" id="cab_list">
+                          <object class="GtkComboBoxText" id="cab_select">
                             <property name="name">cab_select</property>
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
@@ -482,7 +486,7 @@
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <child>
-                  <object class="GtkScale">
+                  <object class="GtkScale" id="air">
                     <property name="name">air</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
@@ -536,7 +540,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkScale">
+                  <object class="GtkScale" id="gate_threshold">
                     <property name="name">gate_threshold</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
@@ -554,7 +558,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkScale">
+                  <object class="GtkScale" id="gate_decay">
                     <property name="name">gate_decay</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
