@@ -1,6 +1,7 @@
 extern crate gtk;
 
 mod opts;
+mod object_list;
 
 use anyhow::*;
 use gtk::prelude::*;
@@ -16,6 +17,7 @@ use pod_core::midi::{MidiResponse, MidiMessage};
 use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
 use std::ops::Deref;
+use crate::object_list::ObjectList;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -27,31 +29,11 @@ fn clamp(v: f64) -> u16 {
 
 type Callbacks = HashMap<String, Box<dyn Fn() -> ()>>;
 
-fn obj_by_name(objs: &[Object], name: &str) -> Result<Object> {
-    objs.iter()
-        .find(|o|
-            o.get_property("name")
-                .map(|p| p.get::<String>().unwrap())
-                .unwrap_or(None)
-                .unwrap_or("".into()) == name)
-        .with_context(|| format!("Object not found by name {:?}", name))
-        .map(|obj| obj.clone())
-}
-
-fn ref_by_name<T: ObjectType>(objs: &[Object], name: &str) -> Result<T> {
-    let obj = obj_by_name(objs, name)?;
-    let cast = obj.dynamic_cast_ref::<T>()
-        .with_context(|| format!("Object by name {:?} is can not be cast to type {:?}", name, T::static_type()))?
-        .clone();
-    Ok(cast)
-}
-
-
-fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) -> Result<()> {
+fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let name = "vol_pedal_position".to_string();
-    let vol_pedal_position = ref_by_name::<gtk::Button>(objs, &name)?;
-    let amp_enable = ref_by_name::<gtk::Widget>(objs, "amp_enable")?;
-    let volume_enable = ref_by_name::<gtk::Widget>(objs, "volume_enable")?;
+    let vol_pedal_position = objs.ref_by_name::<gtk::Button>(&name)?;
+    let amp_enable = objs.ref_by_name::<gtk::Widget>("amp_enable")?;
+    let volume_enable = objs.ref_by_name::<gtk::Widget>("volume_enable")?;
 
     let set_in_order = {
         let vol_pedal_position = vol_pedal_position.clone();
@@ -108,9 +90,9 @@ fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &[Object], 
     Ok(())
 }
 
-fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &[Object], callbacks: &mut Callbacks) -> Result<()> {
-    let presence_widget = ref_by_name::<gtk::Widget>(objs, "presence")?;
-    let presence_label_widget = ref_by_name::<gtk::Label>(objs, "presence_label")?;
+fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let presence_widget = objs.ref_by_name::<gtk::Widget>("presence")?;
+    let presence_label_widget = objs.ref_by_name::<gtk::Label>("presence_label")?;
 
     // controller -> gui
     {
@@ -137,8 +119,8 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &[Object], callback
     Ok(())
 }
 
-fn init_cab_select(config: &Config, controller: &Controller, objs: &[Object]) -> Result<()> {
-    let select = ref_by_name::<gtk::ComboBoxText>(objs, "cab_select")?;
+fn init_cab_select(config: &Config, controller: &Controller, objs: &ObjectList) -> Result<()> {
+    let select = objs.ref_by_name::<gtk::ComboBoxText>("cab_select")?;
     for name in config.cab_models.iter() {
         select.append_text(name.as_str());
     }
@@ -149,8 +131,8 @@ fn init_cab_select(config: &Config, controller: &Controller, objs: &[Object]) ->
     Ok(())
 }
 
-fn init_amp_select(config: &Config, controller: &Controller, objs: &[Object]) -> Result<()> {
-    let select = ref_by_name::<gtk::ComboBoxText>(objs, "amp_select")?;
+fn init_amp_select(config: &Config, controller: &Controller, objs: &ObjectList) -> Result<()> {
+    let select = objs.ref_by_name::<gtk::ComboBoxText>("amp_select")?;
     for amp in config.amp_models.iter() {
         select.append_text(amp.name.as_str());
     }
@@ -162,16 +144,10 @@ fn init_amp_select(config: &Config, controller: &Controller, objs: &[Object]) ->
 }
 
 
-fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callbacks> {
+fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Callbacks> {
     let mut callbacks = Callbacks::new();
 
-    let object_name = | o: &Object | o.get_property("name")
-        .map(|p| p.get::<String>().unwrap())
-        .unwrap_or(None)
-        .filter(|v| !v.is_empty());
-
-    objs.iter()
-        .flat_map(|obj| object_name(obj).map(|name| (obj, name)) )
+    objs.obj_iter()
         .for_each(|(obj, name)| {
             {
                 let controller = controller.lock().unwrap();
@@ -312,13 +288,6 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &[Object]) -> Result<Callb
     wire_vol_pedal_position(controller.clone(), objs, callbacks.borrow_mut())?;
     wire_amp_select(controller, objs, callbacks.borrow_mut())?;
 
-    for obj in objs {
-        let name = object_name(obj);
-        if name.is_none() { continue; }
-
-        println!("{:?}", object_name(obj));
-    }
-
     Ok(callbacks)
 }
 
@@ -340,7 +309,7 @@ async fn main() -> Result<()> {
     let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
 
     let builder = gtk::Builder::new_from_file("src/pod.glade");
-    let objects = builder.get_objects();
+    let objects = ObjectList::new(&builder);
 
     init_cab_select(&config, controller.lock().unwrap().deref(), &objects)?;
     init_amp_select(&config, controller.lock().unwrap().deref(), &objects)?;
