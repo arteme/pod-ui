@@ -242,6 +242,64 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     )
                 }
             });
+            obj.dynamic_cast_ref::<gtk::RadioButton>().map(|radio| {
+                // wire GtkRadioButton
+                let controller = controller.clone();
+                {
+                    let controller = controller.lock().unwrap();
+                    match controller.get_config(&name) {
+                        Some(Control::SwitchControl(_)) => {},
+                        _ => {
+                            warn!("Control {:?} is not a switch control!", name)
+                        }
+                    }
+                }
+
+                // this is a group, look up the children
+                let group = radio.get_group();
+
+                // wire gui -> controller
+                for radio in group.clone() {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    let radio_name = ObjectList::object_name(&radio).unwrap();
+                    let value = radio_name.find(':')
+                        .map(|pos| &radio_name[pos+1..]).map(|str| str.parse::<u16>().unwrap());
+                    if value.is_none() {
+                        // value not of "name:N" pattern, skip
+                        continue;
+                    }
+                    radio.connect_toggled(move |radio| {
+                        if !radio.get_active() { return; }
+                        let mut controller = controller.lock().unwrap();
+                        controller.set(&name, value.unwrap());
+                    });
+                }
+                // wire controller -> gui
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    callbacks.insert(
+                        name.clone(),
+                        Box::new(move || {
+                            let v = {
+                                let controller = controller.lock().unwrap();
+                                controller.get(&name).unwrap()
+                            };
+                            let item_name = format!("{}:{}", name, v);
+                            group.iter().find(|radio| ObjectList::object_name(*radio).unwrap_or_default() == item_name)
+                                .and_then(|item| {
+                                    item.set_active(true);
+                                    Some(())
+                                })
+                                .or_else( || {
+                                    error!("GtkRadioButton not found with name '{}'", name);
+                                    None
+                                });
+                        })
+                    )
+                }
+            });
             obj.dynamic_cast_ref::<gtk::ComboBoxText>().map(|combo| {
                 // wire GtkComboBox
                 let controller = controller.clone();

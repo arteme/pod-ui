@@ -15,7 +15,7 @@ impl ObjectList {
 
     pub fn obj_by_name(&self, name: &str) -> Result<Object> {
         self.objects.iter()
-            .find(|o| ObjectList::object_name(o).unwrap_or("".into()) == name)
+            .find(|o| ObjectList::object_name(*o).unwrap_or("".into()) == name)
             .with_context(|| format!("Object not found by name {:?}", name))
             .map(|obj| obj.clone())
     }
@@ -33,11 +33,10 @@ impl ObjectList {
             .flat_map(|obj| ObjectList::object_name(obj).map(|name| (obj, name)))
     }
 
-    pub fn object_name(obj: &Object) -> Option<String> {
+    pub fn object_name<T: ObjectType>(obj: &T) -> Option<String> {
         obj.get_property("name")
             .map(|p| p.get::<String>().unwrap())
             .unwrap_or(None)
             .filter(|v| !v.is_empty())
     }
-
 }
