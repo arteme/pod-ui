@@ -12,15 +12,24 @@ pub struct Config {
 
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
+    pub effects: Vec<Effect>,
     pub controls: HashMap<String, Control>
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Amp {
     pub name: String,
     pub bright_switch: bool,
-    pub presence: bool
+    pub presence: bool,
+    pub delay2: bool,
 }
+
+#[derive(Clone, Default, Debug)]
+pub struct Effect {
+    pub name: String,
+    pub delay: Option<bool>,
+}
+
 
 #[derive(Clone, Debug)]
 pub enum Control {

@@ -7,11 +7,34 @@ macro_rules! def {
     () => (::std::default::Default::default(););
 }
 
-macro_rules! amp {
-    (pb $name:expr) => (Amp { name: ($name).into(), bright_switch: true, presence: true });
-    (p $name:expr) => (Amp { name: ($name).into(), bright_switch: false, presence: true });
-    (b $name:expr) => (Amp { name: ($name).into(), bright_switch: true, presence: false });
-    ($name:expr) => (Amp { name: ($name).into(), bright_switch: false, presence: false });
+macro_rules! amps {
+    (@amp $name:tt + p + b + d2) => (Amp { name: ($name).into(), bright_switch: true, presence: true, delay2: false });
+    (@amp $name:tt + p + b)      => (Amp { name: ($name).into(), bright_switch: true, presence: true, ..def!() });
+    (@amp $name:tt + p)          => (Amp { name: ($name).into(), presence: true, ..def!() });
+    (@amp $name:tt + b)          => (Amp { name: ($name).into(), bright_switch: true, ..def!() });
+    (@amp $name:tt)              => (Amp { name: ($name).into(), ..def!() });
+
+    ( $($a:tt $(+ $b:tt)* ),+ $(,)* ) => {
+       vec![
+         $(
+           amps!(@amp $a $(+ $b)*),
+         )+
+       ]
+    }
+}
+
+macro_rules! fxs {
+    (@fx $name:tt + delay_off) => (Effect { name: ($name).into(), delay: Some(false) });
+    (@fx $name:tt + delay_on)  => (Effect { name: ($name).into(), delay: Some(true) });
+    (@fx $name:tt)             => (Effect { name: ($name).into(), ..def!() });
+
+    ( $($a:tt $(+ $b:tt)* ),+ $(,)* ) => {
+       vec![
+         $(
+           fxs!(@fx $a $(+ $b)*),
+         )+
+       ]
+    }
 }
 
 pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
@@ -25,36 +48,36 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
            all_programs_size: 71 * 36,
            pod_id: 0x01,
 
-           amp_models: vec![
-               amp!(p "Tube Preamp"),
-               amp!(pb "POD Clean"),
-               amp!(pb "POD Crunch"),
-               amp!(pb "POD Drive"),
-               amp!(pb "POD Layer"), // drive 2
-               amp!("Small Tweed"),
-               amp!(p "Tweed Blues"),
-               amp!("Black Panel"),
-               amp!(p "Modern Class A"),
-               amp!("Brit Class A"),
-               amp!(pb "Brit Blues"),
-               amp!(p "Brit Classic"),
-               amp!(p "Brit Hi Gain"),
-               amp!(p "Rectified"),
-               amp!("Modern Hi Gain"),
-               amp!(p "Fuzz Box"),
-               amp!(pb "Jazz Clean"),
-               amp!(p "Boutique #1"),
-               amp!("Boutique #2"),
-               amp!("Brit Class A #2"),
-               amp!("Brit Class A #3"),
-               amp!("Small Tweed #2"),
-               amp!(b "Black Panel #2"),
-               amp!(p "Boutique #3"),
-               amp!(pb "California Crunch #1"),
-               amp!(p"California Crunch #2"),
-               amp!(p"Rectified #2"),
-               amp!(p"Modern Hi Gain #2"),
-           ],
+           amp_models: amps!(
+               "Tube Preamp" +p,
+               "POD Clean" +p +b,
+               "POD Crunch" +p +b,
+               "POD Drive" +p +b,
+               "POD Layer" +p +b +d2,
+               "Small Tweed",
+               "Tweed Blues" +p,
+               "Black Panel",
+               "Modern Class A" +p,
+               "Brit Class A",
+               "Brit Blues" +p +b,
+               "Brit Classic" +p,
+               "Brit Hi Gain" +p,
+               "Rectified" +p,
+               "Modern Hi Gain",
+               "Fuzz Box" +p,
+               "Jazz Clean" +p +b,
+               "Boutique #1" +p,
+               "Boutique #2",
+               "Brit Class A #2",
+               "Brit Class A #3",
+               "Small Tweed #2",
+               "Black Panel #2" +b,
+               "Boutique #3" +p,
+               "California Crunch #1" +p +b,
+               "California Crunch #2" +p,
+               "Rectified #2" +p,
+               "Modern Hi Gain #2" +p,
+           ),
            cab_models: convert_args!(vec!(
                "1x8  '60 Fender Tweed Champ",
                "1x12 ’52 Fender Tweed Deluxe",
@@ -73,6 +96,17 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "4x12 ’98 Pod custom 4x12",
                "No Cabinet",
            )),
+           effects: fxs!(
+               "Bypass",
+               "Compressor",
+               "Auto Swell" + delay_on,
+               "Chorus 1",
+               "Chorus 2",
+               "Flanger 1",
+               "Flanger 2",
+               "Tremolo",
+               "Rotary" + delay_off
+           ),
            controls: convert_args!(hashmap!(
                // switches
                "distortion_enable" => SwitchControl { cc: 25 },
@@ -137,5 +171,5 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "trem_depth" => RangeControl { cc: 59, ..def!() },
            ))
        }
-   ]
+  ]
 });
