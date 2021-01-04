@@ -18,3 +18,20 @@ pub fn nibbles_to_u8_vec(bytes: &[u8]) -> Vec<u8> {
 
     arr
 }
+
+pub fn u8_to_nibble(byte: u8, buf: &mut [u8; 2]) {
+    buf[0] = (byte >> 4) & 0x0f;
+    buf[1] = byte & 0x0f;
+}
+
+pub fn u8_to_nibbles_vec(bytes: &[u8]) -> Vec<u8> {
+    let len = bytes.len() * 2;
+    let mut arr: Vec<u8> = vec![0; len];
+
+    for (i, v) in bytes.iter().enumerate() {
+        u8_to_nibble(*v, array_mut_ref![arr, i*2, 2]);
+    }
+
+    arr
+}
+

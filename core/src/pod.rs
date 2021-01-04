@@ -29,7 +29,7 @@ impl MidiIn {
         let (tx, rx) = mpsc::unbounded_channel();
 
         let conn_in = midi_in.connect(&in_port, "pod midi in conn", move |ts, data, _| {
-            trace!("<< {}: {:02x?} len={}", ts, data, data.len());
+            trace!("<< {:02x?} len={} ts={}", data, data.len(), ts);
             tx.send(Vec::from(data)).unwrap();
 
         }, ())

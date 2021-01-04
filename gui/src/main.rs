@@ -13,11 +13,14 @@ use std::sync::{Arc, Mutex};
 use pod_core::model::{Config, Control, GetCC};
 use std::collections::HashMap;
 use crate::opts::*;
-use pod_core::midi::{MidiResponse, MidiMessage};
+use pod_core::midi::MidiMessage;
 use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
 use std::ops::Deref;
 use crate::object_list::ObjectList;
+use tokio::sync::mpsc;
+use core::time;
+use std::thread;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -358,6 +361,7 @@ async fn main() -> Result<()> {
         .context("Failed to initialize MIDI").unwrap();
     let mut midi_out = MidiOut::new(opts.output)
         .context("Failed to initialize MIDI").unwrap();
+    let (midi_tx, mut midi_rx) = mpsc::unbounded_channel();
 
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
@@ -381,6 +385,8 @@ async fn main() -> Result<()> {
     });
 
     // midi ----------------------------------------------------
+
+    // controller / midi in -> midi out
     {
         let controller = controller.clone();
         let mut rx = {
@@ -388,14 +394,9 @@ async fn main() -> Result<()> {
             controller.subscribe()
         };
         tokio::spawn(async move {
-            loop {
-                let name = match rx.recv().await {
-                    Ok(name) => name,
-                    Err(RecvError::Lagged(_)) => continue,
-                    Err(RecvError::Closed) => return Ok(())
-                };
+
+            fn handle_cc(name: &str, controller: &Controller) -> MidiMessage {
                 let (config, val) = {
-                    let controller = controller.lock().unwrap();
                     let config = controller.get_config(&name).unwrap();
                     let val = controller.get(&name).unwrap();
                     (config.clone(), val)
@@ -405,24 +406,37 @@ async fn main() -> Result<()> {
                     Control::RangeControl(c) => 127 / c.to as u16,
                     _ => 1
                 };
-                let message = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 };
+                MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 }
+            }
+
+            loop {
+                let message: MidiMessage;
+                tokio::select! {
+                  Some(msg) = midi_rx.recv() => { message = msg },
+                  Ok(name) = rx.recv() => { message = handle_cc(name.as_str(), &controller.lock().unwrap()) },
+                }
                 midi_out.send(&message.to_bytes()).unwrap();
             }
-            Err(anyhow!("Never reached")) // helps with inferring E for Result<T,E>
         });
     }
 
+    // midi in -> controller / midi out
     {
         let controller = controller.clone();
+        let config = config.clone();
         tokio::spawn(async move {
             loop {
                 let data = midi_in.recv().await;
                 if data.is_none() {
-                    return Ok(()); // shutdown
+                    return; // shutdown
                 }
-                let event = MidiResponse::from_bytes(data.unwrap())?;
-                match event {
-                    MidiResponse::ControlChange { channel: _, control, value } => {
+                let event = MidiMessage::from_bytes(data.unwrap());
+                let msg: MidiMessage = match event {
+                    Ok(msg) =>  msg,
+                    Err(err) => { error!("Error parsing MIDI message: {:?}", err); continue }
+                };
+                match msg {
+                    MidiMessage::ControlChange { channel: _, control, value } => {
                         let mut controller = controller.lock().unwrap();
                         let (name, config) = controller.get_config_by_cc(control).unwrap();
                         let name = name.clone();
@@ -432,12 +446,25 @@ async fn main() -> Result<()> {
                             _ => 1
                         };
                         controller.set(&name, value as u16 / scale);
+                    },
+
+                    // pretend we're a POD
+                    MidiMessage::UniversalDeviceInquiry { channel } => {
+
+                        let res = MidiMessage::UniversalDeviceInquiryResponse {
+                            channel,
+                            family: config.family,
+                            member: config.member,
+                            ver: String::from("0200")
+                        };
+                        midi_tx.send(res);
                     }
 
-                    _ => {} //Err(anyhow!("Incorrect MIDI response"))
+                    _ => {
+                        warn!("Unhandled MIDI message: {:?}", msg);
+                    }
                 }
             }
-            Err(anyhow!("Never reached")) // helps with inferring E for Result<T,E>
         });
     }
     // ---------------------------------------------------------
@@ -455,8 +482,9 @@ async fn main() -> Result<()> {
                     None => { panic!("WTF"); },
                     Some(cb) => cb(),
                 }
+            Err(_) => {
+                thread::sleep(time::Duration::from_millis(100));
             },
-            Err(_) => {},
         }
 
         Continue(true)
