@@ -224,7 +224,6 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     let controller = controller.clone();
                     let name = name.clone();
                     check.connect_toggled(move |check| {
-                        let mut controller = controller.lock().unwrap();
                         controller.set(&name, check.get_active() as u16);
                     });
                 }
@@ -236,10 +235,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     callbacks.insert(
                         name.clone(),
                         Box::new(move || {
-                            let v = {
-                                let controller = controller.lock().unwrap();
-                                controller.get(&name).unwrap()
-                            };
+                            let v = controller.get(&name).unwrap();
                             check.set_active(v > 0);
                         })
                     )
@@ -322,7 +318,6 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     let name = name.clone();
                     combo.connect_changed(move |combo| {
                         combo.get_active().map(|v| {
-                            let mut controller = controller.lock().unwrap();
                             controller.set(&name, v as u16);
                         });
                     });
@@ -335,10 +330,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     callbacks.insert(
                         name.clone(),
                         Box::new(move || {
-                            let v = {
-                                let controller = controller.lock().unwrap();
-                                controller.get(&name).unwrap()
-                            };
+                            let v = controller.get(&name).unwrap();
                             combo.set_active(Some(v as u32));
                         })
                     )
