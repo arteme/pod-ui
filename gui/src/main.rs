@@ -7,16 +7,17 @@ use anyhow::*;
 use gtk::prelude::*;
 use glib::Object;
 use pod_core::pod::{MidiIn, MidiOut, PodConfigs};
-use pod_core::controller::Controller;
+use pod_core::controller::{Controller, GetSet};
+use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{Config, Control, GetCC};
+use pod_core::model::{Config, Control, AbstractControl};
 use std::collections::HashMap;
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
 use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use crate::object_list::ObjectList;
 use tokio::sync::mpsc;
 use core::time;
@@ -407,7 +408,10 @@ async fn main() -> Result<()> {
                   Some(msg) = midi_rx.recv() => { message = msg },
                   Ok(name) = rx.recv() => { message = handle_cc(name.as_str(), &controller.lock().unwrap()) },
                 }
-                midi_out.send(&message.to_bytes()).unwrap();
+                match midi_out.send(&message.to_bytes()) {
+                    Ok(_) => {}
+                    Err(err) => { error!("MIDI OUT error: {}", err); }
+                }
             }
         });
     }
@@ -438,6 +442,31 @@ async fn main() -> Result<()> {
                             _ => 1
                         };
                         controller.set(&name, value as u16 / scale);
+                    },
+                    MidiMessage::ProgramEditBufferDump { ver, data } => {
+                        let mut controller = controller.lock().unwrap();
+                        if data.len() != controller.config.program_size {
+                            warn!("Program size mismatch: expected {}, got {}",
+                                  controller.config.program_size, data.len());
+                        }
+                        program::load_dump(controller.deref_mut(), data.as_slice());
+                    },
+                    MidiMessage::ProgramEditBufferDumpRequest => {
+                        let controller = controller.lock().unwrap();
+                        let res = MidiMessage::ProgramEditBufferDump {
+                            ver: 0,
+                            data: program::dump(&controller) };
+                        midi_tx.send(res);
+                    },
+                    MidiMessage::ProgramPatchDumpRequest { patch } => {
+                        // TODO: For now answer with the contents of the edit buffer to any patch
+                        //       request
+                        let controller = controller.lock().unwrap();
+                        let res = MidiMessage::ProgramPatchDump {
+                            patch,
+                            ver: 0,
+                            data: program::dump(&controller) };
+                        midi_tx.send(res);
                     },
 
                     // pretend we're a POD
@@ -471,7 +500,7 @@ async fn main() -> Result<()> {
             Ok(name) => {
                 let cb = callbacks.get(&name);
                 match cb {
-                    None => { panic!("WTF"); },
+                    None => { warn!("No GUI callback for '{}'", name); },
                     Some(cb) => cb(),
                 }
             Err(_) => {

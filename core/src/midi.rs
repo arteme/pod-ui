@@ -102,6 +102,11 @@ impl MidiMessage {
             if id == &[0x00, 0x01, 0x0c, 0x01] {
                 // program dump response
                 match array_ref!(bytes, 5, 2) {
+                    &[0x00, 0x00] => return Ok(MidiMessage::ProgramPatchDumpRequest {
+                       patch: bytes[7]
+                    }),
+                    &[0x00, 0x01] => return Ok(MidiMessage::ProgramEditBufferDumpRequest {}),
+                    &[0x00, 0x02] => return Ok(MidiMessage::AllProgramsDumpRequest {}),
                     &[0x01, 0x00] => return Ok(MidiMessage::ProgramPatchDump {
                         patch: bytes[7],
                         ver: bytes[8],
@@ -115,7 +120,7 @@ impl MidiMessage {
                         ver: bytes[7],
                         data: nibbles_to_u8_vec(&bytes[8 .. len-1])
                     }),
-                    _ => return Err(anyhow!("Unknown program dump response"))
+                    _ => return Err(anyhow!("Unknown program dump message"))
                 }
             }
 
