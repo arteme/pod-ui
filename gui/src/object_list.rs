@@ -83,3 +83,11 @@ impl ObjectList {
             });
     }
 }
+
+impl Clone for ObjectList {
+    fn clone(&self) -> Self {
+        ObjectList {
+            objects: self.objects.clone()
+        }
+    }
+}

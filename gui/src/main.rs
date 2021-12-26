@@ -101,6 +101,7 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callba
 
     // controller -> gui
     {
+        let objs = objs.clone();
         let controller = controller.clone();
         let name = "amp_select".to_string();
         callbacks.insert(
@@ -113,11 +114,14 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callba
                     (amp.presence, amp.bright_switch)
                 };
 
-                presence_widget.set_visible(presence);
-                // If I hide all widgets in the column, the others will spread out. Instead
-                // I set presence label opacity to 0.
-                //presence_label_widget.set_visible(presence);
-                presence_label_widget.set_opacity(presence as i8 as f64 * 1.0);
+                // to have these animate calls after the callback animate call we
+                // schedule a one-off idle loop function
+                let objs = objs.clone();
+                gtk::idle_add(move || {
+                    animate(&objs, "presence", presence as u16);
+                    animate(&objs, "brightness_switch", bright_switch as u16);
+                    Continue(false)
+                });
             })
         )
     };

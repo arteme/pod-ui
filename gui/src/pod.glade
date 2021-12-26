@@ -367,6 +367,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Presence</property>
+                                <style>
+                                  <class name="presence=0:opacity=0"/>
+                                  <class name="presence=1:opacity=1"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1245,6 +1249,10 @@
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
                                 <property name="label" translatable="yes">Bright</property>
+                                <style>
+                                  <class name="brightness_switch=0:opacity=0"/>
+                                  <class name="brightness_switch=1:opacity=1"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1293,6 +1301,10 @@
                                 <child>
                                   <placeholder/>
                                 </child>
+                                <style>
+                                  <class name="brightness_switch=0:hide"/>
+                                  <class name="brightness_switch=1:show"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
