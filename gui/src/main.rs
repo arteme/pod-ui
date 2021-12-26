@@ -19,6 +19,7 @@ use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
 use std::ops::{Deref, DerefMut};
 use crate::object_list::ObjectList;
+use std::iter::repeat;
 use tokio::sync::mpsc;
 use core::time;
 use std::thread;
@@ -147,11 +148,35 @@ fn init_amp_select(config: &Config, controller: &Controller, objs: &ObjectList) 
     Ok(())
 }
 
+fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
+    let prefix = format!("{}={}:", control_name, control_value);
+    debug!("Animate: {:?}?", prefix);
+    objs.widgets_by_class_match(&|class_name| class_name.starts_with(prefix.as_str()))
+        .flat_map(|(widget, classes)| {
+            debug!("Animate: {:?} for {:?}", classes, widget);
+            let c: Vec<_> = classes.iter().map(|c| c[prefix.len()..].to_string()).collect();
+            repeat(widget.clone()).zip(c)
+        })
+        .for_each(|(widget, cls)| {
+            match cls.as_str() {
+                "show" => widget.show(),
+                "hide" => widget.hide(),
+                "opacity=0" => widget.set_opacity(0f64),
+                "opacity=1" => widget.set_opacity(1f64),
+                "enable" => widget.set_sensitive(true),
+                "disable" => widget.set_sensitive(false),
+                _ => {
+                    warn!("Unknown animation command {:?} for widget {:?}", cls, widget)
+                }
+            }
+        });
+}
+
 
 fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Callbacks> {
     let mut callbacks = Callbacks::new();
 
-    objs.obj_iter()
+    objs.named_objects()
         .for_each(|(obj, name)| {
             {
                 let controller = controller.lock().unwrap();
@@ -345,6 +370,13 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
     Ok(callbacks)
 }
 
+
+fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> () {
+    for name in &config.init_controls {
+        animate(objs, &name, controller.get(&name).unwrap());
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     simple_logger::init()?;
@@ -365,6 +397,7 @@ async fn main() -> Result<()> {
 
     let builder = gtk::Builder::new_from_file("src/pod.glade");
     let objects = ObjectList::new(&builder);
+    objects.dump_debug();
 
     init_cab_select(&config, controller.lock().unwrap().deref(), &objects)?;
     init_amp_select(&config, controller.lock().unwrap().deref(), &objects)?;
@@ -376,6 +409,8 @@ async fn main() -> Result<()> {
         gtk::main_quit();
         Inhibit(false)
     });
+
+    init_all(&config, controller.clone(), &objects);
 
     // midi ----------------------------------------------------
 
@@ -471,12 +506,11 @@ async fn main() -> Result<()> {
 
                     // pretend we're a POD
                     MidiMessage::UniversalDeviceInquiry { channel } => {
-
                         let res = MidiMessage::UniversalDeviceInquiryResponse {
                             channel,
                             family: config.family,
                             member: config.member,
-                            ver: String::from("0200")
+                            ver: String::from("0223")
                         };
                         midi_tx.send(res);
                     }
@@ -490,6 +524,7 @@ async fn main() -> Result<()> {
     }
     // ---------------------------------------------------------
 
+    // controller -> gui
     window.show_all();
     let mut rx = {
         let controller = controller.lock().unwrap();
@@ -503,6 +538,8 @@ async fn main() -> Result<()> {
                     None => { warn!("No GUI callback for '{}'", name); },
                     Some(cb) => cb(),
                 }
+                animate(&objects, &name, controller.get(&name).unwrap());
+            },
             Err(_) => {
                 thread::sleep(time::Duration::from_millis(100));
             },

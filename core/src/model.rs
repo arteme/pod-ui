@@ -14,6 +14,7 @@ pub struct Config {
     pub cab_models: Vec<String>,
     pub effects: Vec<Effect>,
     pub controls: HashMap<String, Control>,
+    pub init_controls: Vec<String>,
 
     pub program_name_addr: usize,
     pub program_name_length: usize

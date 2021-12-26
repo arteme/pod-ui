@@ -170,6 +170,16 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "trem_speed" => RangeControl { cc: 58, addr: 48, bytes: 2, ..def!() }, // 150 .. 65535 ms period (x * 25)
                "trem_depth" => RangeControl { cc: 59, addr: 50, ..def!() },
            )),
+           init_controls: convert_args!(vec!(
+               "distortion_enable",
+               "drive_enable",
+               "eq_enable",
+               "delay_enable",
+               "effect_enable",
+               "reverb_enable",
+               "noise_gate_enable",
+               "bright_switch_enable"
+           )),
            program_name_addr: 55,
            program_name_length: 16
        }

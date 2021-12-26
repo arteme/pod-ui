@@ -1,2 +1,5 @@
 [workspace]
-members = ["core", "cli", "gui"]
+#members = ["core", "cli", "gui"]
+# "cli" is alpha-quality and doesn't even compile
+exclude = ["cli"]
+members = ["core", "gui"]

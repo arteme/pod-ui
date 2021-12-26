@@ -1,9 +1,12 @@
 <component name="ProjectDictionaryState">
   <dictionary name="arteme">
     <words>
+      <w>addr</w>
+      <w>flanger</w>
       <w>midir</w>
       <w>objs</w>
       <w>recv</w>
+      <w>reverb</w>
       <w>serde</w>
       <w>sysex</w>
     </words>
