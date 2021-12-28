@@ -1,10 +1,13 @@
 use midir::*;
 use anyhow::{Result, Context};
+use regex::Regex;
+use std::str::FromStr;
 use log::*;
 
 use crate::midi::*;
 use crate::config::PODS;
 use crate::model::Config;
+use crate::util::OptionToResultsExt;
 use tokio::sync::mpsc;
 
 pub struct MidiIn {
@@ -14,7 +17,7 @@ pub struct MidiIn {
 }
 
 impl MidiIn {
-    pub fn new(in_port: Option<usize>) -> Result<Self> {
+    fn _new() -> Result<MidiInput> {
         let mut midi_in = MidiInput::new("pod midi in")?;
         midi_in.ignore(Ignore::None);
 
@@ -22,6 +25,10 @@ impl MidiIn {
             debug!("midi in {}: {:?}", i, midi_in.port_name(port)?);
         }
 
+        Ok(midi_in)
+    }
+
+    pub fn _new_for_input(midi_in: MidiInput, in_port: Option<usize>) -> Result<Self> {
         let in_port_n: usize = in_port.unwrap_or(0);
         let in_port = midi_in.ports().into_iter().nth(in_port_n)
             .with_context(|| format!("MIDI input port {} not found", in_port_n))?;
@@ -38,6 +45,25 @@ impl MidiIn {
         Ok(MidiIn { port: in_port, conn_in: conn_in, rx })
     }
 
+    pub fn new(in_port: Option<usize>) -> Result<Self> {
+        let midi_in = MidiIn::_new()?;
+        MidiIn::_new_for_input(midi_in, in_port)
+    }
+
+    pub fn new_for_address(in_port: Option<String>) -> Result<Self> {
+        let midi_in = MidiIn::_new()?;
+
+        let n = in_port.and_then_r(|port| {
+            let port_names: Result<Vec<_>, _> = midi_in.ports().iter()
+                .map(|port| midi_in.port_name(port))
+                .collect();
+
+            find_address(port_names?.iter().map(String::as_str), &port)
+        })?;
+
+        MidiIn::_new_for_input(midi_in, n)
+    }
+
     pub async fn recv(&mut self) -> Option<Vec<u8>>
     {
         self.rx.recv().await
@@ -51,13 +77,17 @@ pub struct MidiOut {
 }
 
 impl MidiOut {
-    pub fn new(out_port: Option<usize>) -> Result<Self> {
-        let midi_out = MidiOutput::new("pod midi out")?;
+    fn _new() -> Result<MidiOutput> {
+        let mut midi_out = MidiOutput::new("pod midi out")?;
 
         for (i, port) in midi_out.ports().iter().enumerate() {
             debug!("midi out {}: {:?}", i, midi_out.port_name(port)?);
         }
 
+        Ok(midi_out)
+    }
+
+    fn _new_for_output(midi_out: MidiOutput, out_port: Option<usize>) -> Result<Self> {
         let out_port_n: usize = out_port.unwrap_or(0);
         let out_port = midi_out.ports().into_iter().nth(out_port_n)
             .with_context(|| format!("MIDI output port {} not found", out_port_n))?;
@@ -68,11 +98,48 @@ impl MidiOut {
         Ok(MidiOut { port: out_port, conn: conn_out })
     }
 
+    pub fn new(out_port: Option<usize>) -> Result<Self> {
+        let midi_out = MidiOut::_new()?;
+        MidiOut::_new_for_output(midi_out, out_port)
+    }
+
+    pub fn new_for_address(out_port: Option<String>) -> Result<Self> {
+        let out = MidiOut::_new()?;
+
+        let n = out_port.and_then_r(|port| {
+            let port_names: Result<Vec<_>, _> = out.ports().iter()
+                .map(|port| out.port_name(port))
+                .collect();
+
+            find_address(port_names?.iter().map(String::as_str), &port)
+        })?;
+
+        MidiOut::_new_for_output(out, n)
+    }
+
     pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
         trace!(">> {:02x?} len={}", bytes, bytes.len());
         self.conn.send(bytes)
             .map_err(|e| anyhow!("Midi send error: {:?}", e))
     }
+}
+
+fn find_address<'a>(addresses: impl Iterator<Item = &'a str>, id: &'a str) -> Result<Option<usize>> {
+    let port_n_re = Regex::new(r"\d+").unwrap();
+    let port_id_re = Regex::new(r"\d+:\d+").unwrap();
+
+    if port_id_re.is_match(id) {
+        for (i, n) in addresses.enumerate() {
+            if n.ends_with(id) {
+                return Ok(Some(i));
+            }
+        }
+        bail!("MIDI device with address {:?} not found", id);
+    } else if port_n_re.is_match(id) {
+        return Ok(Some(usize::from_str(id).unwrap()));
+    }
+
+    bail!("Failed to parse {:?} as a MIDI device address or index", id)
 }
 
 pub struct PodConfigs {

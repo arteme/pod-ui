@@ -35,3 +35,18 @@ pub fn u8_to_nibbles_vec(bytes: &[u8]) -> Vec<u8> {
     arr
 }
 
+pub trait OptionToResultsExt {
+    type In;
+    fn and_then_r<U, E, F: FnOnce(Self::In) -> Result<Option<U>, E>>(self, f: F) -> Result<Option<U>, E>;
+}
+
+impl<T> OptionToResultsExt for Option<T> {
+    type In = T;
+    fn and_then_r<U, E, F: FnOnce(Self::In) -> Result<Option<U>, E>>(self, f: F) -> Result<Option<U>, E> {
+        match self {
+            Some(x) => f(x),
+            None => Ok(None)
+        }
+    }
+}
+

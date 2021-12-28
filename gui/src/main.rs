@@ -386,9 +386,9 @@ async fn main() -> Result<()> {
     simple_logger::init()?;
 
     let opts: Opts = Opts::parse();
-    let mut midi_in = MidiIn::new(opts.input)
+    let mut midi_in = MidiIn::new_for_address(opts.input)
         .context("Failed to initialize MIDI").unwrap();
-    let mut midi_out = MidiOut::new(opts.output)
+    let mut midi_out = MidiOut::new_for_address(opts.output)
         .context("Failed to initialize MIDI").unwrap();
     let (midi_tx, mut midi_rx) = mpsc::unbounded_channel();
 
