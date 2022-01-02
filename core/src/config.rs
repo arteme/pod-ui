@@ -1,6 +1,7 @@
 use crate::model::Config;
 use once_cell::sync::Lazy;
 use crate::model::*;
+use crate::model::RangeControl;
 
 
 macro_rules! def {
@@ -36,6 +37,19 @@ macro_rules! fxs {
        ]
     }
 }
+
+macro_rules! fmt {
+    ($f:tt) => ( Format::Callback($f) );
+}
+macro_rules! fmt_percent {
+    (signed) => ( Format::Callback(RangeControl::fmt_percent_signed) );
+    () => ( Format::Callback(RangeControl::fmt_percent) );
+}
+
+fn db_fmt(this: &RangeControl, v: f64) -> String {
+    format!("{:.0} db", v - (this.to as f64))
+}
+
 
 pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
    vec![
@@ -119,15 +133,23 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "bright_switch_enable" => SwitchControl { cc: 73, addr: 7 },
                // preamp
                "amp_select" => Select { cc: 12, addr: 8 },
-               "drive" => RangeControl { cc: 13, addr: 9, from: 0, to: 63, ..def!() },
-               "drive2" => RangeControl { cc: 20, addr: 10, from: 0, to: 63, ..def!() }, // only "pod layer"
-               "bass" => RangeControl { cc: 14, addr: 11, from: 0, to: 63, ..def!() },
-               "mid" => RangeControl { cc: 15, addr: 12, from: 0, to: 63, ..def!() },
-               "treble" => RangeControl { cc: 16, addr: 13, from: 0, to: 63, ..def!() },
-               "presence" => RangeControl { cc: 21, addr: 14, from: 0, to: 63, ..def!() },
-               "chan_volume" => RangeControl { cc: 17, addr: 15, from: 0, to: 63, ..def!() },
+               "drive" => RangeControl { cc: 13, addr: 9, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
+               "drive2" => RangeControl { cc: 20, addr: 10, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() }, // only "pod layer"
+               "bass" => RangeControl { cc: 14, addr: 11, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
+               "mid" => RangeControl { cc: 15, addr: 12, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
+               "treble" => RangeControl { cc: 16, addr: 13, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
+               "presence" => RangeControl { cc: 21, addr: 14, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
+               "chan_volume" => RangeControl { cc: 17, addr: 15, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
                // noise gate
-               "gate_threshold" => RangeControl { cc: 23, addr: 16, from: 0, to: 96, ..def!() }, // todo: -96 db .. 0 db
+               "gate_threshold" => RangeControl { cc: 23, addr: 16, from: 0, to: 96,
+                   format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
                "gate_decay" => RangeControl { cc: 24, addr: 17, from: 0, to: 63, ..def!() }, // todo: 8.1 msec .. 159 msec
                // wah wah
                // wah pedal on/off,  cc: 43 ??
@@ -158,13 +180,23 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "effect_tweak" => RangeControl { cc: 1, addr: 47, from: 0, to: 63, ..def!() },
                // effect parameters
                // volume swell on/off,  cc: 48 ??
-               "volume_swell_time" => RangeControl { cc: 49, addr: 48, from: 0, to: 63, ..def!() },
-               "compression_ratio" => RangeControl { cc: 42, addr: 48, from: 0, to: 6, ..def!() }, // off, 1.4:1, 2:1, 3:1, 6:1, inf:1
-               "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, bytes: 2, ..def!() }, // todo: 200 .. 65535 ms (x * 50)
+               "volume_swell_time" => RangeControl { cc: 49, addr: 48, from: 0, to: 63,
+                   format: fmt_percent!(), ..def!() },
+               "compression_ratio" => RangeControl { cc: 42, addr: 48, from: 0, to: 5,
+                   format: Format::Labels(convert_args!(vec!(
+                       "off", "1.4:1", "2:1", "3:1", "6:1", "inf:1"
+                   ))),
+                   ..def!() }, // off, 1.4:1, 2:1, 3:1, 6:1, inf:1
+               "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, bytes: 2,
+                   ..def!() }, // todo: 200 .. 65535 ms (x * 50)
                "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, bytes: 2, ..def!() }, // todo: 0..312 samples @ 31.2KHz (x * 256 / 104)
-               "chorus_flanger_feedback" => RangeControl { cc: 53, addr: 52, ..def!() }, // todo: 0(max)..63(min) negative, 64(min)..127(max) positive
-               "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, bytes: 2, ..def!() }, // todo: 1..780 samples @31.2KHz (x * 256 / 42) // todo2: flanger too?!
-               "rotary_speed" => SwitchControl { cc: 55, addr: 48, ..def!() }, // 0: slow, 1: fast
+               "chorus_flanger_feedback" => RangeControl { cc: 53, addr: 52,
+                   format: fmt_percent!(signed), ..def!() }, // 0(max)..63(min) negative, 64(min)..127(max) positive
+               "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, bytes: 2,
+                   format: fmt_percent!(), ..def!() }, // todo: 1..780 samples @31.2KHz (x * 256 / 42) // todo2: flanger too?!
+               "rotary_speed" => RangeControl { cc: 55, addr: 48, from: 0, to: 1,
+                   format: Format::Labels(convert_args!(vec!("slow", "fast"))),
+                   ..def!() }, // 0: slow, 1: fast // todo: SwitchControl?
                "rotary_fast_speed" => RangeControl { cc: 56, addr: 49, bytes: 2, ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
                "rotary_slow_speed" => RangeControl { cc: 57, addr: 51,  bytes: 2, ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
                "trem_speed" => RangeControl { cc: 58, addr: 48, bytes: 2, ..def!() }, // 150 .. 65535 ms period (x * 25)

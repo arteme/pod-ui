@@ -16,6 +16,7 @@ pub trait GetSet {
     fn has(&self, name: &str) -> bool;
     fn get(&self, name: &str) -> Option<u16>;
     fn set(&self, name: &str, value: u16) -> ();
+    fn get_config(&self, name: &str) -> Option<Control>;
 }
 
 impl Controller {
@@ -89,5 +90,10 @@ impl GetSet for Arc<Mutex<Controller>> {
     fn set(&self, name: &str, value: u16) -> () {
         let mut c = self.lock().unwrap();
         c.set(&name, value);
+    }
+
+    fn get_config(&self, name: &str) -> Option<Control> {
+        let c = self.lock().unwrap();
+        return c.get_config(name).map(|c| c.clone());
     }
 }

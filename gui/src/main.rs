@@ -5,13 +5,13 @@ mod object_list;
 
 use anyhow::*;
 use gtk::prelude::*;
-use glib::Object;
+use glib::{Object, spawn_command_line_async};
 use pod_core::pod::{MidiIn, MidiOut, PodConfigs};
 use pod_core::controller::{Controller, GetSet};
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{Config, Control, AbstractControl};
+use pod_core::model::{Config, Control, AbstractControl, Format};
 use std::collections::HashMap;
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
@@ -202,6 +202,24 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                         Some(Control::RangeControl(c)) => {
                             adj.set_lower(c.from as f64);
                             adj.set_upper(c.to as f64);
+
+                            match &c.format {
+                                Format::Callback(f) => {
+                                    let c = c.clone();
+                                    let f = f.clone();
+                                    scale.connect_format_value(move |_, val| f(&c, val));
+                                },
+                                Format::Data(data) => {
+                                    let data = data.clone();
+                                    scale.connect_format_value(move |_, val| data.format(val));
+                                },
+                                Format::Labels(labels) => {
+                                    let labels = labels.clone();
+                                    scale.connect_format_value(move |_, val| labels.get(val as usize).unwrap_or(&"".into()).clone());
+
+                                }
+                                Format::None | _ => {}
+                            }
                         },
                         _ => {
                             warn!("Control {:?} is not a range control!", name)

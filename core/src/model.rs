@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fmt;
+use log::warn;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -42,12 +44,49 @@ pub enum Control {
     Select(Select)
 }
 
+#[derive(Clone)]
+pub enum Format<T> {
+    None,
+    Callback(fn (&T, f64) -> String),
+    Data(FormatData),
+    Labels(Vec<String>)
+}
+
+impl<T> fmt::Debug for Format<T>  {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Format::None => write!(f, "<no format>"),
+            Format::Callback(_) => write!(f, "<callback>"),
+            Format::Data(_) => write!(f, "<data>"),
+            Format::Labels(_) => write!(f, "<labels>")
+        }
+    }
+}
+
+/// v = kx + b
+#[derive(Clone, Debug)]
+pub struct FormatData {
+    pub k: f64,
+    pub b: f64,
+    pub format: String
+}
+
+impl Default for FormatData {
+    fn default() -> Self {
+        FormatData { k: 1.0, b: 0.0, format: "{val}".into() }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SwitchControl { pub cc: u8, pub addr: u8 }
 #[derive(Clone, Debug)]
-pub struct RangeControl { pub cc: u8, pub addr: u8, pub bytes: u8, pub from: u8, pub to: u8 }
+pub struct RangeControl { pub cc: u8, pub addr: u8, pub bytes: u8, pub from: u8, pub to: u8,
+    pub format: Format<Self> }
 #[derive(Clone, Debug)]
 pub struct Select { pub cc: u8, pub addr: u8 }
+
+
+
 
 impl Default for SwitchControl {
     fn default() -> Self {
@@ -63,7 +102,8 @@ impl From<SwitchControl> for Control {
 
 impl Default for RangeControl {
     fn default() -> Self {
-        RangeControl { cc: 0, addr: 0, bytes: 1, from: 0, to: 127 }
+        RangeControl { cc: 0, addr: 0, bytes: 1, from: 0, to: 127,
+            format: Format::None }
     }
 }
 impl From<RangeControl> for Control {
@@ -116,5 +156,46 @@ impl AbstractControl for Control {
 
     fn get_addr(&self) -> Option<(u8, u8)> {
         self.abstract_control().get_addr()
+    }
+}
+
+// --
+
+impl RangeControl {
+    pub fn fmt_percent(&self, v: f64) -> String {
+        let from = self.from as f64;
+        let to = self.to as f64;
+        format!("{:1.0}%", (v - from) * 100.0 / (to - from))
+    }
+
+    pub fn fmt_percent_signed(&self, v: f64) -> String {
+        let from = self.from as f64;
+        let to = self.to as f64;
+
+        let n = ((to - from) / 2.0).floor();
+        let p = ((to - from) / 2.0).ceil();
+
+        let v1 = if v <= n { v - n } else { v - p };
+        format!("{:1.0}%", v1 * 100.0 / n)
+    }
+}
+
+impl FormatData {
+    pub fn format(&self, v: f64) -> String {
+        let val = self.k * v + self.b;
+
+        let mut vars: HashMap<String, f64> = HashMap::new();
+        vars.insert("val".into(), val);
+
+        let f = |mut fmt: strfmt::Formatter| {
+            fmt.f64(*vars.get(fmt.key).unwrap())
+        };
+
+        strfmt::strfmt_map(&self.format, &f)
+            .unwrap_or_else(|err| {
+                // TODO: format failed for which widget?
+                warn!("Format failed: {}", err);
+                "".into()
+            })
     }
 }
