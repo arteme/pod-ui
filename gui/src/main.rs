@@ -576,7 +576,12 @@ async fn main() -> Result<()> {
                 match msg {
                     MidiMessage::ControlChange { channel: _, control, value } => {
                         let mut controller = controller.lock().unwrap();
-                        let (name, config) = controller.get_config_by_cc(control).unwrap();
+                        let config = controller.get_config_by_cc(control);
+                        if config.is_none() {
+                            warn!("Control for CC={} not defined!", control);
+                            continue;
+                        }
+                        let (name, config) = config.unwrap();
                         let name = name.clone();
                         let scale= match &config {
                             Control::SwitchControl(_) => 64u16,
