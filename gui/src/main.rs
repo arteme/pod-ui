@@ -23,6 +23,7 @@ use std::iter::repeat;
 use tokio::sync::mpsc;
 use core::time;
 use std::thread;
+use multimap::MultiMap;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -32,7 +33,7 @@ fn clamp(v: f64) -> u16 {
     }
 }
 
-type Callbacks = HashMap<String, Box<dyn Fn() -> ()>>;
+type Callbacks = MultiMap<String, Box<dyn Fn() -> ()>>;
 
 fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let name = "vol_pedal_position".to_string();
@@ -96,9 +97,6 @@ fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList
 }
 
 fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let presence_widget = objs.ref_by_name::<gtk::Widget>("presence")?;
-    let presence_label_widget = objs.ref_by_name::<gtk::Label>("presence_label")?;
-
     // controller -> gui
     {
         let objs = objs.clone();
@@ -128,37 +126,121 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callba
     Ok(())
 }
 
-fn init_cab_select(config: &Config, controller: &Controller, objs: &ObjectList) -> Result<()> {
-    let select = objs.ref_by_name::<gtk::ComboBoxText>("cab_select")?;
-    for name in config.cab_models.iter() {
-        select.append_text(name.as_str());
-    }
+fn wire_effect_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
 
-    let v = controller.get("cab_select").unwrap();
-    select.set_active(Some(v as u32));
+    let get_current_effect_delay = |controller: Arc<Mutex<Controller>>| {
+        let name = "effect_select".to_string();
+        let controller = controller.lock().unwrap();
+        let v = controller.get(&name).unwrap();
+        let effect = controller.config.effects.get(v as usize).unwrap();
+        effect.delay
+    };
+
+    // controller -> gui (effect_select -> delay_enable)
+    {
+        let objs = objs.clone();
+        let controller = controller.clone();
+        let name = "effect_select".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let delay = get_current_effect_delay(controller.clone());
+                if delay.is_some() {
+                    let delay = delay.unwrap();
+
+                    // to have these animate calls after the callback animate call we
+                    // schedule a one-off idle loop function
+                    let objs = objs.clone();
+                    let controller = controller.clone();
+                    gtk::idle_add(move || {
+                        controller.set("delay_enable", delay as u16);
+                        //animate(&objs, "delay_enable", delay as u16);
+                        Continue(false)
+                    });
+
+                }
+            })
+        )
+    };
+
+    // controller -> gui (delay_enable -> effect_select)
+    {
+        let objs = objs.clone();
+        let controller = controller.clone();
+        let name = "delay_enable".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let delay = get_current_effect_delay(controller.clone());
+                let need_reset = delay
+                    //.and_then(|delay| if delay { Some(true) } else { None })
+                    .and_then(|delay| {
+                        let v = controller.get(&name).unwrap();
+                        println!("!!! delay={} v={}", delay, v);
+                        // fx disabled delay, but user enabled delay -> reset fx
+                        if !delay && v != 0 { Some(true) } else { None }
+                    })
+                    .unwrap_or(false);
+
+
+                if need_reset {
+                    // to have these animate calls after the callback animate call we
+                    // schedule a one-off idle loop function
+                    let objs = objs.clone();
+                    let controller = controller.clone();
+                    gtk::idle_add(move || {
+                        controller.set("effect_select", 0);
+                        //animate(&objs, "effect_select", 0u16);
+                        Continue(false)
+                    });
+
+                }
+            })
+        )
+    };
+
 
     Ok(())
 }
 
-fn init_amp_select(config: &Config, controller: &Controller, objs: &ObjectList) -> Result<()> {
-    let select = objs.ref_by_name::<gtk::ComboBoxText>("amp_select")?;
-    for amp in config.amp_models.iter() {
-        select.append_text(amp.name.as_str());
+fn init_combo<T, F>(controller: &Controller, objs: &ObjectList,
+              name: &str, list: &Vec<T>, get_name: F) -> Result<()>
+    where F: Fn(&T) -> &str
+{
+    let select = objs.ref_by_name::<gtk::ComboBoxText>(name)?;
+    for item in list.iter() {
+        let name = get_name(item);
+        select.append_text(name);
     }
 
-    let v = controller.get("amp_select").unwrap();
+    let v = controller.get(name).unwrap();
     select.set_active(Some(v as u32));
 
     Ok(())
 }
 
 fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
-    let prefix = format!("{}={}:", control_name, control_value);
-    debug!("Animate: {:?}?", prefix);
-    objs.widgets_by_class_match(&|class_name| class_name.starts_with(prefix.as_str()))
+    let prefix1 = format!("{}=", control_name);
+    let prefix2 = format!("{}:", control_value);
+    let catchall = "*:";
+    let prefix_len = prefix1.len() + prefix2.len();
+    let catchall_len = prefix1.len() + catchall.len();
+    debug!("Animate: {:?}?", control_name);
+    objs.widgets_by_class_match(&|class_name| class_name.starts_with(prefix1.as_str()))
         .flat_map(|(widget, classes)| {
-            debug!("Animate: {:?} for {:?}", classes, widget);
-            let c: Vec<_> = classes.iter().map(|c| c[prefix.len()..].to_string()).collect();
+            let get_classes = |suffix: &str| {
+                let full_len = prefix1.len() + suffix.len();
+                classes.iter()
+                    .filter(|c| &c[prefix1.len()..full_len] == suffix)
+                    .map(|c| c[full_len..].to_string()).collect::<Vec<_>>()
+            };
+
+            let mut c = get_classes(&prefix2);
+            if c.is_empty() {
+                c = get_classes(catchall);
+            }
+            debug!("Animate: {:?} for {:?}", c, widget);
+
             repeat(widget.clone()).zip(c)
         })
         .for_each(|(widget, cls)| {
@@ -387,7 +469,8 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
         });
 
     wire_vol_pedal_position(controller.clone(), objs, callbacks.borrow_mut())?;
-    wire_amp_select(controller, objs, callbacks.borrow_mut())?;
+    wire_amp_select(controller.clone(), objs, callbacks.borrow_mut())?;
+    wire_effect_select(controller.clone(), objs, callbacks.borrow_mut())?;
 
     Ok(callbacks)
 }
@@ -421,8 +504,12 @@ async fn main() -> Result<()> {
     let objects = ObjectList::new(&builder);
     objects.dump_debug();
 
-    init_cab_select(&config, controller.lock().unwrap().deref(), &objects)?;
-    init_amp_select(&config, controller.lock().unwrap().deref(), &objects)?;
+    init_combo(controller.lock().unwrap().deref(), &objects,
+               "cab_select", &config.cab_models, |s| s.as_str() )?;
+    init_combo(controller.lock().unwrap().deref(), &objects,
+               "amp_select", &config.amp_models, |amp| amp.name.as_str() )?;
+    init_combo(controller.lock().unwrap().deref(), &objects,
+               "effect_select", &config.effects, |eff| eff.name.as_str() )?;
 
     let callbacks = wire_all(controller.clone(), &objects)?;
 
@@ -431,8 +518,6 @@ async fn main() -> Result<()> {
         gtk::main_quit();
         Inhibit(false)
     });
-
-    init_all(&config, controller.clone(), &objects);
 
     // midi ----------------------------------------------------
 
@@ -547,28 +632,39 @@ async fn main() -> Result<()> {
     // ---------------------------------------------------------
 
     // controller -> gui
-    window.show_all();
-    let mut rx = {
-        let controller = controller.lock().unwrap();
-        controller.subscribe()
-    };
-    gtk::idle_add(move || {
-        match rx.try_recv() {
-            Ok(name) => {
-                let cb = callbacks.get(&name);
-                match cb {
-                    None => { warn!("No GUI callback for '{}'", name); },
-                    Some(cb) => cb(),
-                }
-                animate(&objects, &name, controller.get(&name).unwrap());
-            },
-            Err(_) => {
-                thread::sleep(time::Duration::from_millis(100));
-            },
-        }
+    {
+        let controller = controller.clone();
+        let objects = objects.clone();
 
-        Continue(true)
-    });
+        let mut rx = {
+            let controller = controller.lock().unwrap();
+            controller.subscribe()
+        };
+        gtk::idle_add(move || {
+            match rx.try_recv() {
+                Ok(name) => {
+                    let vec = callbacks.get_vec(&name);
+                    match vec {
+                        None => { warn!("No GUI callback for '{}'", name); },
+                        Some(vec) => for cb in vec {
+                            cb()
+                        }
+                    }
+                    animate(&objects, &name, controller.get(&name).unwrap());
+                },
+                Err(_) => {
+                    thread::sleep(time::Duration::from_millis(100));
+                },
+            }
+
+            Continue(true)
+        });
+
+    }
+
+    // show the window and do init stuff...
+    window.show_all();
+    init_all(&config, controller.clone(), &objects);
 
     debug!("starting gtk main loop");
     gtk::main();

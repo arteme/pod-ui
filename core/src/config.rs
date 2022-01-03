@@ -210,7 +210,8 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "effect_enable",
                "reverb_enable",
                "noise_gate_enable",
-               "bright_switch_enable"
+               "bright_switch_enable",
+               "effect_select"
            )),
            program_name_addr: 55,
            program_name_length: 16

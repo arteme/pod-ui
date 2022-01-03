@@ -13,6 +13,7 @@ clap = "3.0.0-beta.1"
 log = "0.4.8"
 simple_logger = "1.6.0"
 tokio = { version = "0.2.21", features = ["sync", "macros", "rt-core", "rt-util", "rt-threaded", "stream", "time"] }
+multimap = "0.8.3"
 
 pod-core = { path = "../core" }
 
