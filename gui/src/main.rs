@@ -315,7 +315,6 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
             obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
                 // wire GtkScale and its internal GtkAdjustment
                 let adj = scale.get_adjustment();
-                info!("adj {:?}", adj);
                 let controller = controller.clone();
                 {
                     let controller = controller.lock().unwrap();
@@ -376,6 +375,8 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                 }
             });
             obj.dynamic_cast_ref::<gtk::CheckButton>().map(|check| {
+                // HACK: DO NOT PROCESS RADIO BUTTONS HERE!
+                if obj.dynamic_cast_ref::<gtk::RadioButton>().is_some() { return }
                 // wire GtkCheckBox
                 let controller = controller.clone();
                 {

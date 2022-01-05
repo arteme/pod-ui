@@ -655,7 +655,7 @@
                             </child>
                             <child>
                               <object class="GtkScale">
-                                <property name="name">date_decay</property>
+                                <property name="name">gate_decay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="hexpand">True</property>
