@@ -11,7 +11,8 @@ use pod_core::controller::{Controller, GetSet};
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{Config, Control, AbstractControl, Format};
+use pod_core::model::{Config, Control, AbstractControl, Format, EffectEntry};
+use pod_core::config::{GUI, MIDI};
 use std::collections::HashMap;
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
@@ -75,7 +76,7 @@ fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList
             let mut controller = controller.lock().unwrap();
             let v = controller.get(&name).unwrap() > 0;
             let v = !v; // toggling
-            controller.set(&name, v as u16);
+            controller.set(&name, v as u16, GUI);
         });
     }
 
@@ -126,79 +127,117 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callba
     Ok(())
 }
 
-fn wire_effect_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+fn effect_entry_for_value(config: &Config, value: u16) -> Option<(&EffectEntry, bool, usize)> {
+    config.effects.iter()
+        .enumerate()
+        .flat_map(|(idx, effect)| {
+            let delay = effect.delay.as_ref()
+                .filter(|e| (value == e.id as u16))
+                .map(|e| (e, true, idx));
+            let clean = effect.clean.as_ref()
+                .filter(|e| (value == e.id as u16))
+                .map(|e| (e, false, idx));
+            delay.or(clean)
+        })
+        .next()
+        .or_else(|| {
+            warn!("Effect select mapping for value {} not found!", value);
+            None
+        })
 
-    let get_current_effect_delay = |controller: Arc<Mutex<Controller>>| {
-        let name = "effect_select".to_string();
-        let controller = controller.lock().unwrap();
-        let v = controller.get(&name).unwrap();
-        let effect = controller.config.effects.get(v as usize).unwrap();
-        effect.delay
-    };
+}
 
-    // controller -> gui (effect_select -> delay_enable)
+fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
+
+    let entry_opt = effect_entry_for_value(&controller.config, value);
+    if entry_opt.is_none() {
+        return None;
+    }
+    let (entry, delay, index) = entry_opt.unwrap();
+    let mut entry = entry.clone();
+
+    controller.set("delay_enable", delay as u16, MIDI);
+    // TODO: effect tweak, fx enable
+
+    Some(entry)
+}
+
+fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
+
+    let entry_opt = effect_entry_for_value(&controller.config, value);
+    if entry_opt.is_none() {
+        return None;
+    }
+    let (entry, delay, index) = entry_opt.unwrap();
+    let mut entry = entry.clone();
+    let mut delay_enable = controller.get("delay_enable").unwrap() != 0;
+
+    if delay && !delay_enable {
+        // when effect select from UI selects an effect with delay, turn on delay_enabled
+        controller.set("delay_enable", delay as u16, MIDI);
+        delay_enable = delay;
+    }
+
+    if delay_enable {
+        // if delay_enabled is set, send the correct effect_select value with delay
+        entry = controller.config.effects.get(index).and_then(|e| e.delay.as_ref()).unwrap().clone();
+        controller.set("effect_select", entry.id as u16, GUI);
+    }
+    // TODO: effect tweak, fx enable
+    Some(entry)
+}
+
+fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
+
+    // effect_select -> delay_enable
     {
-        let objs = objs.clone();
         let controller = controller.clone();
         let name = "effect_select".to_string();
         callbacks.insert(
             name.clone(),
             Box::new(move || {
-                let delay = get_current_effect_delay(controller.clone());
-                if delay.is_some() {
-                    let delay = delay.unwrap();
+                let mut controller = controller.lock().unwrap();
+                let (v, origin) = controller.get_origin(&name).unwrap();
 
-                    // to have these animate calls after the callback animate call we
-                    // schedule a one-off idle loop function
-                    let objs = objs.clone();
-                    let controller = controller.clone();
-                    gtk::idle_add(move || {
-                        controller.set("delay_enable", delay as u16);
-                        //animate(&objs, "delay_enable", delay as u16);
-                        Continue(false)
-                    });
-
-                }
+                let entry = match origin {
+                    MIDI => effect_select_from_midi(&mut controller, v),
+                    GUI => effect_select_from_gui(&mut controller, v),
+                    _ => None
+                };
             })
         )
-    };
+    }
 
-    // controller -> gui (delay_enable -> effect_select)
+    // delay_enable -> effect_select
     {
-        let objs = objs.clone();
         let controller = controller.clone();
         let name = "delay_enable".to_string();
         callbacks.insert(
             name.clone(),
             Box::new(move || {
-                let delay = get_current_effect_delay(controller.clone());
-                let need_reset = delay
-                    //.and_then(|delay| if delay { Some(true) } else { None })
-                    .and_then(|delay| {
-                        let v = controller.get(&name).unwrap();
-                        println!("!!! delay={} v={}", delay, v);
-                        // fx disabled delay, but user enabled delay -> reset fx
-                        if !delay && v != 0 { Some(true) } else { None }
-                    })
-                    .unwrap_or(false);
+                let mut controller = controller.lock().unwrap();
+                let (v, origin) = controller.get_origin(&name).unwrap();
+                let effect_select = controller.get("effect_select").unwrap();
 
-
-                if need_reset {
-                    // to have these animate calls after the callback animate call we
-                    // schedule a one-off idle loop function
-                    let objs = objs.clone();
-                    let controller = controller.clone();
-                    gtk::idle_add(move || {
-                        controller.set("effect_select", 0);
-                        //animate(&objs, "effect_select", 0u16);
-                        Continue(false)
-                    });
-
+                if v != 0 && origin == GUI {
+                    let (_, delay, idx) =
+                        effect_entry_for_value(&controller.config, effect_select).unwrap();
+                    if !delay {
+                        // if `delay_enable` was switched on in the UI and if coming from
+                        // an effect which didn't have delay to begin with, check if it can
+                        // have a delay at all (POD 2.0 rotary cannot). If not, then switch
+                        // to plain "delay" effect.
+                        let need_reset = controller.config.effects.get(idx)
+                            .map(|e| e.delay.is_none()).unwrap_or(false);
+                        if need_reset {
+                            let v = controller.config.effects[0].delay.as_ref().unwrap().id;
+                            controller.set("effect_select", v as u16, GUI);
+                        }
+                    }
                 }
             })
         )
-    };
-
+    }
 
     Ok(())
 }
@@ -315,7 +354,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     let name = name.clone();
                     adj.connect_value_changed(move |adj| {
                         let mut controller = controller.lock().unwrap();
-                        controller.set(&name, adj.get_value() as u16);
+                        controller.set(&name, adj.get_value() as u16, GUI);
                     });
                 }
                 // wire controller -> gui
@@ -354,7 +393,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     let controller = controller.clone();
                     let name = name.clone();
                     check.connect_toggled(move |check| {
-                        controller.set(&name, check.get_active() as u16);
+                        controller.set(&name, check.get_active() as u16, GUI);
                     });
                 }
                 // wire controller -> gui
@@ -401,7 +440,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     radio.connect_toggled(move |radio| {
                         if !radio.get_active() { return; }
                         let mut controller = controller.lock().unwrap();
-                        controller.set(&name, value.unwrap());
+                        controller.set(&name, value.unwrap(), GUI);
                     });
                 }
                 // wire controller -> gui
@@ -432,36 +471,60 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
             obj.dynamic_cast_ref::<gtk::ComboBoxText>().map(|combo| {
                 // wire GtkComboBox
                 let controller = controller.clone();
-                {
-                    let controller = controller.lock().unwrap();
-                    match controller.get_config(&name) {
-                        Some(Control::Select(_)) => {},
-                        _ => {
-                            warn!("Control {:?} is not a select control!", name)
-                        }
+                let cfg = match controller.get_config(&name) {
+                    Some(Control::Select(c)) => Some(c),
+                    _ => {
+                        warn!("Control {:?} is not a select control!", name);
+                        None
                     }
-                }
+                };
+                let mut signal_id;
 
                 // wire gui -> controller
                 {
                     let controller = controller.clone();
+                    let to_midi = cfg.clone().and_then(|select| select.to_midi);
                     let name = name.clone();
-                    combo.connect_changed(move |combo| {
+                    signal_id = combo.connect_changed(move |combo| {
                         combo.get_active().map(|v| {
-                            controller.set(&name, v as u16);
+                            let v1 = to_midi.as_ref()
+                                .and_then(|vec| vec.get(v as usize))
+                                .or_else(|| {
+                                    warn!("To midi conversion failed for select {:?} value {}",
+                                    name, v);
+                                    None
+                                })
+                                .unwrap_or(&v);
+
+                            controller.set(&name, *v1 as u16, GUI);
                         });
                     });
                 }
                 // wire controller -> gui
                 {
                     let controller = controller.clone();
+                    let from_midi = cfg.and_then(|select| select.from_midi);
                     let name = name.clone();
                     let combo = combo.clone();
                     callbacks.insert(
                         name.clone(),
                         Box::new(move || {
-                            let v = controller.get(&name).unwrap();
-                            combo.set_active(Some(v as u32));
+                            let v = controller.get(&name).unwrap() as u32;
+                            let v1 = from_midi.as_ref()
+                                .and_then(|vec| vec.get(v as usize))
+                                .or_else(|| {
+                                    warn!("From midi conversion failed for select {:?} value {}",
+                                    name, v);
+                                    None
+                                })
+                                .unwrap_or(&v);
+                            // TODO: signal_handler_block is a hack because actual value set
+                            //       to the UI control is not the same as what came from MIDI,
+                            //       so as to not override the MIDI-set value, block the "changed"
+                            //       signal handling altogether
+                            glib::signal::signal_handler_block(&combo, &signal_id);
+                            combo.set_active(Some(*v1));
+                            glib::signal::signal_handler_unblock(&combo, &signal_id);
                         })
                     )
                 }
@@ -470,7 +533,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
 
     wire_vol_pedal_position(controller.clone(), objs, callbacks.borrow_mut())?;
     wire_amp_select(controller.clone(), objs, callbacks.borrow_mut())?;
-    wire_effect_select(controller.clone(), objs, callbacks.borrow_mut())?;
+    wire_effect_select(controller.clone(), callbacks.borrow_mut())?;
 
     Ok(callbacks)
 }
@@ -530,27 +593,39 @@ async fn main() -> Result<()> {
         };
         tokio::spawn(async move {
 
-            fn handle_cc(name: &str, controller: &Controller) -> MidiMessage {
-                let (config, val) = {
-                    let config = controller.get_config(&name).unwrap();
-                    let val = controller.get(&name).unwrap();
-                    (config.clone(), val)
+            fn handle_cc(name: &str, controller: &Controller) -> Option<MidiMessage> {
+                let (config, val, origin) = {
+                    let config = controller.get_config(name).unwrap();
+                    let (val, origin) = controller.get_origin(name).unwrap();
+                    (config.clone(), val, origin)
                 };
+                if origin != GUI {
+                    return None;
+                }
+
                 let scale= match &config {
                     Control::SwitchControl(_) => 64u16,
                     Control::RangeControl(c) => 127 / c.to as u16,
                     _ => 1
                 };
-                MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 }
+                let msg = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 };
+                Some(msg)
             }
 
             loop {
-                let message: MidiMessage;
+                let message: Option<MidiMessage>;
                 tokio::select! {
-                  Some(msg) = midi_rx.recv() => { message = msg },
-                  Ok(name) = rx.recv() => { message = handle_cc(name.as_str(), &controller.lock().unwrap()) },
+                  Some(msg) = midi_rx.recv() => {
+                        message = Some(msg);
+                    },
+                  Ok(name) = rx.recv() => {
+                        message = handle_cc(name.as_str(), &controller.lock().unwrap());
+                    },
                 }
-                match midi_out.send(&message.to_bytes()) {
+                if message.is_none() {
+                    continue;
+                }
+                match midi_out.send(&message.unwrap().to_bytes()) {
                     Ok(_) => {}
                     Err(err) => { error!("MIDI OUT error: {}", err); }
                 }
@@ -588,7 +663,7 @@ async fn main() -> Result<()> {
                             Control::RangeControl(c) => 127 / c.to as u16,
                             _ => 1
                         };
-                        controller.set(&name, value as u16 / scale);
+                        controller.set(&name, value as u16 / scale, MIDI);
                     },
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
                         let mut controller = controller.lock().unwrap();
@@ -596,7 +671,7 @@ async fn main() -> Result<()> {
                             warn!("Program size mismatch: expected {}, got {}",
                                   controller.config.program_size, data.len());
                         }
-                        program::load_dump(controller.deref_mut(), data.as_slice());
+                        program::load_dump(controller.deref_mut(), data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
                         let controller = controller.lock().unwrap();

@@ -3,14 +3,14 @@ use crate::model::AbstractControl;
 
 use log::*;
 
-pub fn load_dump(controller: &mut Controller, data: &[u8]) {
+pub fn load_dump(controller: &mut Controller, data: &[u8], origin: u8) {
     for (name, control) in controller.config.controls.clone().iter() {
         let addr = control.get_addr();
         if addr.is_none() { continue };
 
         let (addr, bits) = addr.unwrap();
         let v = data[addr as usize];
-        controller.set(name, v as u16);
+        controller.set(name, v as u16, origin);
     }
 }
 

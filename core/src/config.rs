@@ -1,3 +1,4 @@
+use log::warn;
 use crate::model::Config;
 use once_cell::sync::Lazy;
 use crate::model::*;
@@ -24,18 +25,30 @@ macro_rules! amps {
     }
 }
 
-macro_rules! fxs {
-    (@fx $name:tt + delay_off) => (Effect { name: ($name).into(), delay: Some(false) });
-    (@fx $name:tt + delay_on)  => (Effect { name: ($name).into(), delay: Some(true) });
-    (@fx $name:tt)             => (Effect { name: ($name).into(), ..def!() });
-
-    ( $($a:tt $(+ $b:tt)* ),+ $(,)* ) => {
-       vec![
-         $(
-           fxs!(@fx $a $(+ $b)*),
-         )+
-       ]
-    }
+macro_rules! fx {
+    ($name:tt, d=$d:tt + $dt:tt $(+ $dc:expr)? , c=$c:tt + $ct:tt $(+ $cc:expr)? ) => (
+        Effect {
+            name: ($name).into(),
+            delay: Some(EffectEntry { id: $d, effect_tweak: ($dt).into(),
+                                      $( controls: ($dc).to_vec(), )? ..def!() }),
+            clean: Some(EffectEntry { id: $c, effect_tweak: ($ct).into(),
+                                      $( controls: ($cc).to_vec(), )? ..def!() }),
+        }
+    );
+    ($name:tt, d=$d:tt + $dt:tt + $dc:expr ) => (
+        Effect {
+            name: ($name).into(),
+            delay: Some(EffectEntry { id: $d, effect_tweak: ($dt).into(), controls: ($dc).to_vec() }),
+            clean: None,
+        }
+    );
+    ($name:tt, c=$c:tt + $ct:tt + $cc:expr ) => (
+        Effect {
+            name: ($name).into(),
+            delay: None,
+            clean: Some(EffectEntry { id: $c, effect_tweak: ($ct).into(), controls: ($cc).to_vec() }),
+        }
+    );
 }
 
 macro_rules! fmt {
@@ -46,10 +59,53 @@ macro_rules! fmt_percent {
     () => ( Format::Callback(RangeControl::fmt_percent) );
 }
 
+macro_rules! string_vec {
+    ( $($x:expr),* ) => (vec![ $($x.to_string()),* ]);
+}
+macro_rules! concat {
+    ( $($x:expr),* ) => ( [ $(&$x[..]),* ].concat() );
+}
+
 fn db_fmt(this: &RangeControl, v: f64) -> String {
     format!("{:.0} db", v - (this.to as f64))
 }
 
+static EFFECT_DELAY_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    string_vec!["delay_time", "delay_time:fine", "delay_feedback", "delay_level"]
+});
+static EFFECT_COMPRESSION_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    string_vec!["compression_ratio"]
+});
+static EFFECT_DELAY_COMPRESSION_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    concat![ EFFECT_COMPRESSION_CONTROLS, EFFECT_DELAY_CONTROLS ]
+});
+static EFFECT_CH_FL_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    string_vec!["chorus_flanger_speed", "chorus_flanger_depth",
+        "chorus_flanger_feedback", "chorus_flanger_pre_delay"]
+});
+static EFFECT_DELAY_CH_FL_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    concat![ EFFECT_CH_FL_CONTROLS, EFFECT_DELAY_CONTROLS ]
+});
+static EFFECT_DELAY_SWELL_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    concat![ string_vec!["volume_swell_time"], EFFECT_DELAY_CONTROLS ]
+});
+static EFFECT_TREMOLO_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    string_vec!["trem_speed", "trem_depth"]
+});
+static EFFECT_DELAY_TREMOLO_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    concat![ EFFECT_TREMOLO_CONTROLS, EFFECT_DELAY_CONTROLS ]
+});
+static EFFECT_ROTARY_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
+    string_vec!["rotary_speed", "rotary_fast_speed", "rotary_slow_speed", "effect_tweak"]
+});
+
+static EFFECT_SELECT_FROM_MIDI: [u32; 16] = [
+    /*0*/4, /*1*/5, /*2*/8, /*3*/6, /*4*/3, /*5*/7, /*6*/0, /*7*/1,
+    /*8*/3, /*9*/7, /*A*/0, /*B*/1, /*C*/4, /*D*/5, /*E*/2, /*F*/6
+];
+static EFFECT_SELECT_TO_MIDI: [u32; 9] = [
+    /*0*/10, /*1*/11, /*2*/14, /*3*/8, /*4*/0, /*5*/1, /*6*/3, /*7*/9, /*8*/2
+];
 
 pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
    vec![
@@ -110,17 +166,44 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "4x12 ’98 Pod custom 4x12",
                "No Cabinet",
            )),
-           effects: fxs!(
-               "Bypass",
-               "Compressor",
-               "Auto Swell" + delay_on,
-               "Chorus 1",
-               "Chorus 2",
-               "Flanger 1",
-               "Flanger 2",
-               "Tremolo",
-               "Rotary" + delay_off
-           ),
+           effects: vec![
+               fx!("Bypass", // 0
+                   d=6 + "delay_level" + EFFECT_DELAY_CONTROLS,
+                   c=10 + ""  // no effects
+               ),
+               fx!("Compressor", // 1
+                   d=7 + "compression_ratio" + EFFECT_DELAY_COMPRESSION_CONTROLS,
+                   c=11 + "compression_ratio" + EFFECT_COMPRESSION_CONTROLS
+               ),
+               fx!("Auto Swell", // 2
+                   d=14 + "volume_swell_time" + EFFECT_DELAY_SWELL_CONTROLS
+                   // only with delay
+               ),
+               fx!("Chorus 1", // 3
+                   d=4 + "delay_level" + EFFECT_DELAY_CH_FL_CONTROLS,
+                   c=8 + "chorus_flanger_depth" + EFFECT_CH_FL_CONTROLS
+               ),
+               fx!("Chorus 2", // 4
+                   d=12 + "delay_level" + EFFECT_DELAY_CH_FL_CONTROLS,
+                   c=0 + "chorus_flanger_depth" + EFFECT_CH_FL_CONTROLS
+               ),
+               fx!("Flanger 1", // 5
+                   d=13 + "delay_level" + EFFECT_DELAY_CH_FL_CONTROLS,
+                   c=1 + "chorus_flanger_feedback" + EFFECT_CH_FL_CONTROLS
+               ),
+               fx!("Flanger 2", // 6
+                   d=15 + "delay_level" + EFFECT_DELAY_CH_FL_CONTROLS,
+                   c=3 + "chorus_flanger_feedback" + EFFECT_CH_FL_CONTROLS
+               ),
+               fx!("Tremolo", // 7
+                   d=5 + "delay_level" + EFFECT_DELAY_TREMOLO_CONTROLS,
+                   c=9 + "trem_depth" + EFFECT_TREMOLO_CONTROLS
+               ),
+               fx!("Rotary", // 8
+                   c=2 + "" + EFFECT_ROTARY_CONTROLS
+                   // no delay!
+               )
+           ],
            controls: convert_args!(hashmap!(
                // switches
                "distortion_enable" => SwitchControl { cc: 25, addr: 0 },
@@ -132,7 +215,7 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "noise_gate_enable" => SwitchControl { cc: 22, addr: 6 },
                "bright_switch_enable" => SwitchControl { cc: 73, addr: 7 },
                // preamp
-               "amp_select" => Select { cc: 12, addr: 8 },
+               "amp_select" => Select { cc: 12, addr: 8, ..def!() },
                "drive" => RangeControl { cc: 13, addr: 9, from: 0, to: 63,
                    format: fmt_percent!(), ..def!() },
                "drive2" => RangeControl { cc: 20, addr: 10, from: 0, to: 63,
@@ -173,10 +256,13 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "reverb_density" => RangeControl { cc: 41, addr: 42, from: 0, to: 63, ..def!() },
                "reverb_level" => RangeControl { cc: 18, addr: 43, from: 0, to: 63, ..def!() },
                // cabinet sim
-               "cab_select" => Select { cc: 71, addr: 44 },
+               "cab_select" => Select { cc: 71, addr: 44, ..def!() },
                "air" => RangeControl { cc: 72, addr: 45, from: 0, to: 63, ..def!() },
                // effect
-               "effect_select" => RangeControl { cc: 19, addr: 46, from: 0, to: 15, ..def!() }, // 0 - bypass, 1..15 - effects
+               "effect_select" => Select { cc: 19, addr: 46,
+                   from_midi: Some(EFFECT_SELECT_FROM_MIDI.to_vec()),
+                   to_midi: Some(EFFECT_SELECT_TO_MIDI.to_vec())
+               }, // 0 - bypass, 1..15 - effects
                "effect_tweak" => RangeControl { cc: 1, addr: 47, from: 0, to: 63, ..def!() },
                // effect parameters
                // volume swell on/off,  cc: 48 ??
@@ -218,3 +304,8 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
        }
   ]
 });
+
+// Connection
+pub const UNSET: u8 = 0;
+pub const MIDI: u8 = 1;
+pub const GUI: u8 = 2;

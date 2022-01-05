@@ -1654,7 +1654,7 @@
                             </child>
                             <child>
                               <object class="GtkScale">
-                                <property name="name">rotary_depth</property>
+                                <property name="name">effect_tweak</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="adjustment">adjustment30</property>
@@ -1683,10 +1683,6 @@
                         <property name="label" translatable="yes">FX</property>
                       </object>
                     </child>
-                    <style>
-                      <class name="effect_enable=1:enable"/>
-                      <class name="effect_enable=0:disable"/>
-                    </style>
                   </object>
                   <packing>
                     <property name="expand">False</property>

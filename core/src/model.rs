@@ -33,9 +33,16 @@ pub struct Amp {
 #[derive(Clone, Default, Debug)]
 pub struct Effect {
     pub name: String,
-    pub delay: Option<bool>,
+    pub clean: Option<EffectEntry>,
+    pub delay: Option<EffectEntry>,
 }
 
+#[derive(Clone, Default, Debug)]
+pub struct EffectEntry {
+    pub id: u8,
+    pub effect_tweak: String,
+    pub controls: Vec<String>
+}
 
 #[derive(Clone, Debug)]
 pub enum Control {
@@ -83,7 +90,8 @@ pub struct SwitchControl { pub cc: u8, pub addr: u8 }
 pub struct RangeControl { pub cc: u8, pub addr: u8, pub bytes: u8, pub from: u8, pub to: u8,
     pub format: Format<Self> }
 #[derive(Clone, Debug)]
-pub struct Select { pub cc: u8, pub addr: u8 }
+pub struct Select { pub cc: u8, pub addr: u8,
+    pub from_midi: Option<Vec<u32>>, pub to_midi: Option<Vec<u32>> }
 
 
 
@@ -106,9 +114,16 @@ impl Default for RangeControl {
             format: Format::None }
     }
 }
+
 impl From<RangeControl> for Control {
     fn from(c: RangeControl) -> Self {
         Control::RangeControl(c)
+    }
+}
+
+impl Default for Select {
+    fn default() -> Self {
+        Select { cc: 0, addr: 0, from_midi: None, to_midi: None }
     }
 }
 
