@@ -91,7 +91,7 @@ pub struct RangeControl { pub cc: u8, pub addr: u8, pub bytes: u8, pub from: u8,
     pub format: Format<Self> }
 #[derive(Clone, Debug)]
 pub struct Select { pub cc: u8, pub addr: u8,
-    pub from_midi: Option<Vec<u32>>, pub to_midi: Option<Vec<u32>> }
+    pub from_midi: Option<Vec<u16>>, pub to_midi: Option<Vec<u16>> }
 
 
 

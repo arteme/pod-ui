@@ -99,11 +99,11 @@ static EFFECT_ROTARY_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
     string_vec!["rotary_speed", "rotary_fast_speed", "rotary_slow_speed", "effect_tweak"]
 });
 
-static EFFECT_SELECT_FROM_MIDI: [u32; 16] = [
+static EFFECT_SELECT_FROM_MIDI: [u16; 16] = [
     /*0*/4, /*1*/5, /*2*/8, /*3*/6, /*4*/3, /*5*/7, /*6*/0, /*7*/1,
     /*8*/3, /*9*/7, /*A*/0, /*B*/1, /*C*/4, /*D*/5, /*E*/2, /*F*/6
 ];
-static EFFECT_SELECT_TO_MIDI: [u32; 9] = [
+static EFFECT_SELECT_TO_MIDI: [u16; 9] = [
     /*0*/10, /*1*/11, /*2*/14, /*3*/8, /*4*/0, /*5*/1, /*6*/3, /*7*/9, /*8*/2
 ];
 
@@ -263,6 +263,7 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                    from_midi: Some(EFFECT_SELECT_FROM_MIDI.to_vec()),
                    to_midi: Some(EFFECT_SELECT_TO_MIDI.to_vec())
                }, // 0 - bypass, 1..15 - effects
+               "effect_select:raw" => Select { cc: 19, addr: 46, ..def!() }, // special!
                "effect_tweak" => RangeControl { cc: 1, addr: 47, from: 0, to: 63, ..def!() },
                // effect parameters
                // volume swell on/off,  cc: 48 ??

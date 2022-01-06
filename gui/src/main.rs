@@ -11,8 +11,8 @@ use pod_core::controller::{Controller, GetSet};
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{Config, Control, AbstractControl, Format, EffectEntry};
-use pod_core::config::{GUI, MIDI};
+use pod_core::model::{Config, Control, AbstractControl, Format, EffectEntry, Select};
+use pod_core::config::{GUI, MIDI, UNSET};
 use std::collections::HashMap;
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
@@ -20,11 +20,13 @@ use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
 use std::ops::{Deref, DerefMut};
 use crate::object_list::ObjectList;
-use std::iter::repeat;
+use std::iter::{Filter, repeat};
 use tokio::sync::mpsc;
 use core::time;
+use std::collections::hash_map::Iter;
 use std::thread;
 use multimap::MultiMap;
+use pod_core::raw::Raw;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -149,12 +151,13 @@ fn effect_entry_for_value(config: &Config, value: u16) -> Option<(&EffectEntry, 
 
 fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
 
+    let value = controller.get("effect_select:raw").unwrap();
     let entry_opt = effect_entry_for_value(&controller.config, value);
     if entry_opt.is_none() {
         return None;
     }
     let (entry, delay, index) = entry_opt.unwrap();
-    let mut entry = entry.clone();
+    let entry = entry.clone();
 
     controller.set("delay_enable", delay as u16, MIDI);
     // TODO: effect tweak, fx enable
@@ -164,30 +167,24 @@ fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<Ef
 
 fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
 
-    let entry_opt = effect_entry_for_value(&controller.config, value);
-    if entry_opt.is_none() {
-        return None;
-    }
-    let (entry, delay, index) = entry_opt.unwrap();
-    let mut entry = entry.clone();
-    let mut delay_enable = controller.get("delay_enable").unwrap() != 0;
+    let effect = &controller.config.effects[value as usize];
+    let delay_enable = controller.get("delay_enable").unwrap() != 0;
 
-    if delay && !delay_enable {
-        // when effect select from UI selects an effect with delay, turn on delay_enabled
-        controller.set("delay_enable", delay as u16, MIDI);
-        delay_enable = delay;
-    }
+    let (delay, clean) = (effect.delay.as_ref(), effect.clean.as_ref());
 
-    if delay_enable {
-        // if delay_enabled is set, send the correct effect_select value with delay
-        entry = controller.config.effects.get(index).and_then(|e| e.delay.as_ref()).unwrap().clone();
-        controller.set("effect_select", entry.id as u16, GUI);
-    }
+    // if delay_enabled is set, try to set an effect with delay (fallback to clean),
+    // otherwise try to set clean effect (fallback to effect with delay)
+    let entry =
+        (if delay_enable { delay.or(clean) } else { clean.or(delay) })
+            .unwrap().clone();
+
+    controller.set("effect_select:raw", entry.id as u16, GUI);
     // TODO: effect tweak, fx enable
+
     Some(entry)
 }
 
-fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
+fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
 
     // effect_select -> delay_enable
     {
@@ -201,7 +198,11 @@ fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callba
 
                 let entry = match origin {
                     MIDI => effect_select_from_midi(&mut controller, v),
-                    GUI => effect_select_from_gui(&mut controller, v),
+                    GUI => {
+                        effect_select_from_gui(&mut controller, v);
+                        // HACK: adjust UI to the "effect_select:raw" midi value set above
+                        effect_select_from_midi(&mut controller, v)
+                    },
                     _ => None
                 };
             })
@@ -217,9 +218,9 @@ fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callba
             Box::new(move || {
                 let mut controller = controller.lock().unwrap();
                 let (v, origin) = controller.get_origin(&name).unwrap();
-                let effect_select = controller.get("effect_select").unwrap();
 
                 if v != 0 && origin == GUI {
+                    let effect_select = controller.get("effect_select:raw").unwrap();
                     let (_, delay, idx) =
                         effect_entry_for_value(&controller.config, effect_select).unwrap();
                     if !delay {
@@ -231,9 +232,43 @@ fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callba
                             .map(|e| e.delay.is_none()).unwrap_or(false);
                         if need_reset {
                             let v = controller.config.effects[0].delay.as_ref().unwrap().id;
-                            controller.set("effect_select", v as u16, GUI);
+                            controller.set("effect_select", 0u16, GUI);
                         }
                     }
+                }
+            })
+        )
+    }
+
+    // effect_tweak
+    {
+        let controller = controller.clone();
+        let name = "effect_tweak".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let mut controller = controller.lock().unwrap();
+                let (v, origin) = controller.get_origin(&name).unwrap();
+
+                if origin == MIDI {
+                    let effect_select = controller.get("effect_select:raw").unwrap();
+                    let (entry, _, _) =
+                        effect_entry_for_value(&controller.config, effect_select).unwrap();
+                    let control_name = &entry.effect_tweak;
+                    if control_name.is_empty() {
+                        return;
+                    }
+
+                    // HACK: as if everything's coming straight from MIDI
+                    let mut raw = raw.lock().unwrap();
+
+                    let config = controller.get_config(&name).unwrap();
+                    let addr = config.get_addr().unwrap().0 as usize;
+                    let val = raw.get(addr).unwrap();
+
+                    let config = controller.get_config(&control_name).unwrap();
+                    let addr = config.get_addr().unwrap().0 as usize;
+                    raw.set(addr, val, MIDI);
                 }
             })
         )
@@ -262,9 +297,7 @@ fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
     let prefix1 = format!("{}=", control_name);
     let prefix2 = format!("{}:", control_value);
     let catchall = "*:";
-    let prefix_len = prefix1.len() + prefix2.len();
-    let catchall_len = prefix1.len() + catchall.len();
-    debug!("Animate: {:?}?", control_name);
+    //debug!(target: "animate", "Animate: {:?}?", control_name);
     objs.widgets_by_class_match(&|class_name| class_name.starts_with(prefix1.as_str()))
         .flat_map(|(widget, classes)| {
             let get_classes = |suffix: &str| {
@@ -278,7 +311,7 @@ fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
             if c.is_empty() {
                 c = get_classes(catchall);
             }
-            debug!("Animate: {:?} for {:?}", c, widget);
+            //debug!(target: "animate", "Animate: {:?} for {:?}", c, widget);
 
             repeat(widget.clone()).zip(c)
         })
@@ -298,7 +331,7 @@ fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
 }
 
 
-fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Callbacks> {
+fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &ObjectList) -> Result<Callbacks> {
     let mut callbacks = Callbacks::new();
 
     objs.named_objects()
@@ -488,16 +521,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     let name = name.clone();
                     signal_id = combo.connect_changed(move |combo| {
                         combo.get_active().map(|v| {
-                            let v1 = to_midi.as_ref()
-                                .and_then(|vec| vec.get(v as usize))
-                                .or_else(|| {
-                                    warn!("To midi conversion failed for select {:?} value {}",
-                                    name, v);
-                                    None
-                                })
-                                .unwrap_or(&v);
-
-                            controller.set(&name, *v1 as u16, GUI);
+                            controller.set(&name, v as u16, GUI);
                         });
                     });
                 }
@@ -510,21 +534,13 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
                     callbacks.insert(
                         name.clone(),
                         Box::new(move || {
-                            let v = controller.get(&name).unwrap() as u32;
-                            let v1 = from_midi.as_ref()
-                                .and_then(|vec| vec.get(v as usize))
-                                .or_else(|| {
-                                    warn!("From midi conversion failed for select {:?} value {}",
-                                    name, v);
-                                    None
-                                })
-                                .unwrap_or(&v);
+                            let v = controller.get(&name).unwrap() as u16;
                             // TODO: signal_handler_block is a hack because actual value set
                             //       to the UI control is not the same as what came from MIDI,
                             //       so as to not override the MIDI-set value, block the "changed"
                             //       signal handling altogether
                             glib::signal::signal_handler_block(&combo, &signal_id);
-                            combo.set_active(Some(*v1));
+                            combo.set_active(Some(v as u32));
                             glib::signal::signal_handler_unblock(&combo, &signal_id);
                         })
                     )
@@ -534,7 +550,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<Cal
 
     wire_vol_pedal_position(controller.clone(), objs, callbacks.borrow_mut())?;
     wire_amp_select(controller.clone(), objs, callbacks.borrow_mut())?;
-    wire_effect_select(controller.clone(), callbacks.borrow_mut())?;
+    wire_effect_select(controller, raw, callbacks.borrow_mut())?;
 
     Ok(callbacks)
 }
@@ -544,6 +560,39 @@ fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectLi
     for name in &config.init_controls {
         animate(objs, &name, controller.get(&name).unwrap());
     }
+}
+
+fn cc_to_control(config: &Config, cc: u8) -> Option<(&String, &Control)> {
+    config.controls.iter()
+        .find(|&(_, control)| {
+            match control.get_cc() {
+                Some(v) if v == cc => true,
+                _ => false
+            }
+        })
+}
+
+fn cc_to_addr(config: &Config, cc: u8) -> Option<usize> {
+    cc_to_control(config, cc)
+        .and_then(|(_, control)| control.get_addr())
+        .map(|(addr, _)| addr as usize)
+}
+
+fn addr_to_control_iter(config: &Config, addr: usize) -> impl Iterator<Item = (&String, &Control)>  {
+    config.controls.iter()
+        .filter(move |(_, control)| {
+            match control.get_addr() {
+                // here we specifically disregard the length and concentrate on the
+                // first byte of multi-byte controls
+                Some((a, _)) if a as usize == addr => true,
+                _ => false
+            }
+        })
+}
+
+fn addr_to_cc_iter(config: &Config, addr: usize) -> impl Iterator<Item = u8> + '_ {
+    addr_to_control_iter(config, addr)
+        .flat_map(|(_, control)| control.get_cc())
 }
 
 #[tokio::main]
@@ -562,6 +611,9 @@ async fn main() -> Result<()> {
 
     let configs = PodConfigs::new()?;
     let config: Config = configs.by_name(&"POD 2.0".into()).context("Config not found by name 'POD 2.0'")?;
+
+    let raw = Arc::new(Mutex::new(Raw::new(config.program_size)));
+
     let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
 
     let builder = gtk::Builder::new_from_file("src/pod.glade");
@@ -575,7 +627,7 @@ async fn main() -> Result<()> {
     init_combo(controller.lock().unwrap().deref(), &objects,
                "effect_select", &config.effects, |eff| eff.name.as_str() )?;
 
-    let callbacks = wire_all(controller.clone(), &objects)?;
+    let callbacks = wire_all(controller.clone(), raw.clone(), &objects)?;
 
     let window: gtk::Window = builder.get_object("app_win").unwrap();
     window.connect_delete_event(|_, _| {
@@ -585,45 +637,36 @@ async fn main() -> Result<()> {
 
     // midi ----------------------------------------------------
 
-    // controller / midi in -> midi out
+    // raw / midi reply -> midi out
     {
-        let controller = controller.clone();
-        let mut rx = {
-            let controller = controller.lock().unwrap();
-            controller.subscribe()
-        };
+        let raw = raw.clone();
+        let config = config.clone();
+        let mut rx = raw.lock().unwrap().subscribe();
         tokio::spawn(async move {
-
-            fn handle_cc(name: &str, controller: &Controller) -> Option<MidiMessage> {
-                let (config, val, origin) = {
-                    let config = controller.get_config(name).unwrap();
-                    let (val, origin) = controller.get_origin(name).unwrap();
-                    (config.clone(), val, origin)
-                };
-                if origin != GUI {
-                    return None;
-                }
-
-                let scale= match &config {
-                    Control::SwitchControl(_) => 64u16,
-                    Control::RangeControl(c) => 127 / c.to as u16,
-                    _ => 1
-                };
-                let msg = MidiMessage::ControlChange { channel: 1, control: config.get_cc().unwrap(), value: (val * scale) as u8 };
-                Some(msg)
-            }
+            let make_cc = |idx: usize| -> Option<MidiMessage> {
+                addr_to_cc_iter(&config, idx)
+                    .next()
+                    .and_then(|cc| {
+                        let value = raw.lock().unwrap().get(idx as usize);
+                        value.map(|v| {
+                            MidiMessage::ControlChange { channel: 1, control: cc, value: v }
+                        })
+                    })
+            };
 
             loop {
-                let message: Option<MidiMessage>;
+                let mut message: Option<MidiMessage> = None;
+                let mut origin: u8 = UNSET;
                 tokio::select! {
                   Some(msg) = midi_rx.recv() => {
                         message = Some(msg);
                     },
-                  Ok(name) = rx.recv() => {
-                        message = handle_cc(name.as_str(), &controller.lock().unwrap());
+                  Ok((idx,o)) = rx.recv() => {
+                        message = make_cc(idx);
+                        origin = o;
                     },
                 }
-                if message.is_none() {
+                if origin == MIDI || message.is_none() {
                     continue;
                 }
                 match midi_out.send(&message.unwrap().to_bytes()) {
@@ -634,8 +677,9 @@ async fn main() -> Result<()> {
         });
     }
 
-    // midi in -> controller / midi out
+    // midi in -> raw / midi loop
     {
+        let raw = raw.clone();
         let controller = controller.clone();
         let config = config.clone();
         tokio::spawn(async move {
@@ -652,19 +696,15 @@ async fn main() -> Result<()> {
                 match msg {
                     MidiMessage::ControlChange { channel: _, control, value } => {
                         let mut controller = controller.lock().unwrap();
-                        let config = controller.get_config_by_cc(control);
-                        if config.is_none() {
+                        let mut raw = raw.lock().unwrap();
+
+                        let addr = cc_to_addr(&config, control);
+                        if addr.is_none() {
                             warn!("Control for CC={} not defined!", control);
                             continue;
                         }
-                        let (name, config) = config.unwrap();
-                        let name = name.clone();
-                        let scale= match &config {
-                            Control::SwitchControl(_) => 64u16,
-                            Control::RangeControl(c) => 127 / c.to as u16,
-                            _ => 1
-                        };
-                        controller.set(&name, value as u16 / scale, MIDI);
+
+                        raw.set(addr.unwrap() as usize, value, MIDI);
                     },
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
                         let mut controller = controller.lock().unwrap();
@@ -710,6 +750,118 @@ async fn main() -> Result<()> {
             }
         });
     }
+
+    // raw -----------------------------------------------------
+
+    // raw -> controller
+    {
+        let raw = raw.clone();
+        let controller = controller.clone();
+        let config = config.clone();
+        let mut rx = raw.lock().unwrap().subscribe();
+        tokio::spawn(async move {
+
+            loop {
+                let mut addr: usize = usize::MAX-1;
+                let mut origin: u8 = UNSET;
+                tokio::select! {
+                Ok((idx,o)) = rx.recv() => {
+                        addr = idx;
+                        origin = o;
+                    }
+                }
+
+                if origin == GUI {
+                    continue;
+                }
+
+                let mut controller = controller.lock().unwrap();
+                let raw = raw.lock().unwrap();
+                let mut control_configs = addr_to_control_iter(&config, addr).peekable();
+                if control_configs.peek().is_none() {
+                    warn!("Control for address {} not found!", addr);
+                    continue;
+                }
+
+                control_configs.for_each(|(name, config)| {
+                    let scale= match &config {
+                        Control::SwitchControl(_) => 64u16,
+                        Control::RangeControl(c) => 127 / c.to as u16,
+                        _ => 1
+                    };
+                    let value = raw.get(addr).unwrap() as u16 / scale;
+                    let value = match config {
+                        Control::Select(Select { from_midi: Some(from_midi), .. }) => {
+                            from_midi.get(value as usize)
+                                .or_else(|| {
+                                    warn!("From midi conversion failed for select {:?} value {}",
+                                name, value);
+                                    None
+                                })
+                                .unwrap_or(&value)
+                        },
+                        _ => &value
+                    };
+                    controller.set(name, *value, MIDI);
+                });
+            }
+        });
+
+    }
+
+    // controller -> raw
+    {
+        let raw = raw.clone();
+        let controller = controller.clone();
+        let config = config.clone();
+        let mut rx = controller.lock().unwrap().subscribe();
+        tokio::spawn(async move {
+            loop {
+                let mut name: String = String::new();
+                tokio::select! {
+                    Ok(n) = rx.recv() => name = n
+                }
+
+                let controller = controller.lock().unwrap();
+                let mut raw = raw.lock().unwrap();
+                let control_config = controller.get_config(&name);
+                if control_config.is_none() {
+                    warn!("Control {:?} not found!", &name);
+                    continue;
+                }
+
+                let (val, origin) = controller.get_origin(&name).unwrap();
+                if origin != GUI {
+                    continue;
+                }
+
+                let control_config = control_config.unwrap();
+                let scale = match control_config {
+                    Control::SwitchControl(_) => 64u16,
+                    Control::RangeControl(c) => 127 / c.to as u16,
+                    _ => 1
+                };
+                let value = val * scale;
+                let value = match control_config {
+                    Control::Select(Select { to_midi: Some(to_midi), .. }) => {
+                        to_midi.get(value as usize)
+                            .or_else(|| {
+                                warn!("To midi conversion failed for select {:?} value {}",
+                                name, value);
+                                None
+                            })
+                            .unwrap_or(&value)
+                    },
+                    _ => &value
+                };
+
+                let addr = control_config.get_addr().unwrap().0; // TODO: multibyte!
+                raw.set(addr as usize, *value as u8, GUI);
+            }
+        });
+    }
+
+
     // ---------------------------------------------------------
 
     // controller -> gui
@@ -749,13 +901,6 @@ async fn main() -> Result<()> {
 
     debug!("starting gtk main loop");
     gtk::main();
-
-    /*
-    loop {
-        gtk::main_iteration_do(false);
-        sleep_ms(1);
-    }
-     */
 
     Ok(())
 }
