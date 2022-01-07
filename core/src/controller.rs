@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::broadcast;
 use log::*;
 use std::sync::{Mutex, Arc};
+use crate::store::Store;
 
 pub struct Controller {
     pub config: Config,
@@ -12,11 +13,8 @@ pub struct Controller {
     rx: broadcast::Receiver<String>
 }
 
-pub trait GetSet {
-    fn has(&self, name: &str) -> bool;
-    fn get(&self, name: &str) -> Option<u16>;
+pub trait ControllerStoreExt {
     fn get_origin(&self, name: &str) -> Option<(u16,u8)>;
-    fn set(&self, name: &str, value: u16, origin: u8) -> ();
     fn get_config(&self, name: &str) -> Option<Control>;
 }
 
@@ -32,37 +30,8 @@ impl Controller {
         Controller { config, values, tx, rx }
     }
 
-    pub fn has(&self, name: &str) -> bool {
-        self.values.get(name).is_some()
-    }
-
-    pub fn get(&self, name: &str) -> Option<u16> {
-        self.values.get(name).map(|v| v.0)
-    }
-
     pub fn get_origin(&self, name: &str) -> Option<(u16, u8)> {
         self.values.get(name).cloned()
-    }
-
-    pub fn set(&mut self, name: &str, value: u16, origin: u8) -> () {
-        info!("set {:?} = {} <{}>", name, value, origin);
-        let ref tx = self.tx;
-        self.values.get_mut(name).map(|v| {
-            if v.0 != value {
-                v.0 = value;
-                v.1 = origin;
-                tx.send(name.to_string());
-            }
-        });
-    }
-
-    pub fn set_nosignal(&mut self, name: &str, value: u16, origin: u8) -> () {
-        info!("set {:?} = {} <{}> (no signal)", name, value, origin);
-        let ref tx = self.tx;
-        self.values.get_mut(name).map(|mut v| {
-            v.0 = value;
-            v.1 = origin;
-        });
     }
 
     pub fn get_config(&self, name: &str) -> Option<&Control> {
@@ -77,35 +46,42 @@ impl Controller {
             }
         })
     }
+}
 
-    pub fn subscribe(&self) -> broadcast::Receiver<String> {
+impl Store<&str, u16, String> for Controller {
+    fn has(&self, name: &str) -> bool {
+        self.values.get(name).is_some()
+    }
+
+    fn get(&self, name: &str) -> Option<u16> {
+        self.values.get(name).map(|v| v.0)
+    }
+
+    fn set(&mut self, name: &str, value: u16, origin: u8) -> () {
+        info!("set {:?} = {} <{}>", name, value, origin);
+        let ref tx = self.tx;
+        self.values.get_mut(name).map(|v| {
+            if v.0 != value {
+                v.0 = value;
+                v.1 = origin;
+                tx.send(name.to_string());
+            }
+        });
+    }
+
+    fn subscribe(&self) -> broadcast::Receiver<String> {
         self.tx.subscribe()
     }
 }
 
-impl GetSet for Arc<Mutex<Controller>> {
-    fn has(&self, name: &str) -> bool {
-        let c = self.lock().unwrap();
-        return c.has(name);
-    }
-
-    fn get(&self, name: &str) -> Option<u16> {
-        let c = self.lock().unwrap();
-        return c.get(name);
-    }
-
+impl ControllerStoreExt for Arc<Mutex<Controller>> {
     fn get_origin(&self, name: &str) -> Option<(u16, u8)> {
         let c = self.lock().unwrap();
-        return c.get_origin(name);
-    }
-
-    fn set(&self, name: &str, value: u16, origin: u8) -> () {
-        let mut c = self.lock().unwrap();
-        c.set(&name, value, origin);
+        c.get_origin(name)
     }
 
     fn get_config(&self, name: &str) -> Option<Control> {
         let c = self.lock().unwrap();
-        return c.get_config(name).map(|c| c.clone());
+        c.get_config(name).map(|c| c.clone())
     }
 }

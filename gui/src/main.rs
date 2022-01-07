@@ -7,7 +7,7 @@ use anyhow::*;
 use gtk::prelude::*;
 use glib::{Object, spawn_command_line_async};
 use pod_core::pod::{MidiIn, MidiOut, PodConfigs};
-use pod_core::controller::{Controller, GetSet};
+use pod_core::controller::{Controller, ControllerStoreExt};
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
@@ -27,6 +27,7 @@ use std::collections::hash_map::Iter;
 use std::thread;
 use multimap::MultiMap;
 use pod_core::raw::Raw;
+use pod_core::store::{Store, StoreSetIm};
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {

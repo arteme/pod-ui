@@ -11,6 +11,7 @@ extern crate maplit;
 pub mod midi;
 mod util;
 
+pub mod store;
 pub mod model;
 pub mod pod;
 pub mod config;

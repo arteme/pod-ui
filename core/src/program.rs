@@ -1,5 +1,6 @@
 use crate::controller::Controller;
 use crate::model::AbstractControl;
+use crate::store::Store;
 
 use log::*;
 

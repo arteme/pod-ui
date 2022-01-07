@@ -1,6 +1,7 @@
 
 use tokio::sync::broadcast;
 use log::*;
+use crate::store::Store;
 
 pub struct Raw {
     values: Box<[u8]>,
@@ -16,16 +17,22 @@ impl Raw {
 
         Raw { values, tx, rx }
     }
+}
 
-    pub fn subscribe(&self) -> broadcast::Receiver<(usize, u8)> {
+impl Store<usize, u8, (usize, u8)> for Raw {
+    fn subscribe(&self) -> broadcast::Receiver<(usize, u8)> {
         self.tx.subscribe()
     }
 
-    pub fn get(&self, idx: usize) -> Option<u8> {
+    fn has(&self, idx: usize) -> bool {
+        idx < self.values.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<u8> {
         self.values.get(idx).cloned()
     }
 
-    pub fn set(&mut self, idx: usize, val: u8, origin: u8) -> () {
+    fn set(&mut self, idx: usize, val: u8, origin: u8) -> () {
         info!("set {:?} = 0x{:02x} ({}) <{}>", idx, val, val, origin);
         if idx >= self.values.len() {
             return;
@@ -37,4 +44,5 @@ impl Raw {
             self.tx.send((idx,origin));
         }
     }
+
 }
