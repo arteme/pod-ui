@@ -3,14 +3,12 @@ use std::collections::HashMap;
 use tokio::sync::broadcast;
 use log::*;
 use std::sync::{Mutex, Arc};
-use crate::store::Store;
+use crate::store::*;
 
 pub struct Controller {
+    store: StoreBase<String>,
     pub config: Config,
     values: HashMap<String, (u16, u8)>,
-
-    tx: broadcast::Sender<String>,
-    rx: broadcast::Receiver<String>
 }
 
 pub trait ControllerStoreExt {
@@ -25,9 +23,7 @@ impl Controller {
             values.insert(name.clone(), (0, 0));
         }
 
-        let (tx, rx) = broadcast::channel::<String>(16);
-
-        Controller { config, values, tx, rx }
+        Controller { store: StoreBase::new(), config, values }
     }
 
     pub fn get_origin(&self, name: &str) -> Option<(u16, u8)> {
@@ -57,20 +53,23 @@ impl Store<&str, u16, String> for Controller {
         self.values.get(name).map(|v| v.0)
     }
 
-    fn set(&mut self, name: &str, value: u16, origin: u8) -> () {
+    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> () {
         info!("set {:?} = {} <{}>", name, value, origin);
-        let ref tx = self.tx;
+        let store = &self.store;
         self.values.get_mut(name).map(|v| {
-            if v.0 != value {
+            let value_changed = v.0 != value;
+            // need to check "signal == Force" because we're also setting origin here!
+            if value_changed || signal == Signal::Force {
                 v.0 = value;
                 v.1 = origin;
-                tx.send(name.to_string());
             }
+
+            store.send_signal(name.to_string(), value_changed, origin, signal);
         });
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<String> {
-        self.tx.subscribe()
+    fn subscribe(&self) -> broadcast::Receiver<Event<String>> {
+        self.store.subscribe()
     }
 }
 

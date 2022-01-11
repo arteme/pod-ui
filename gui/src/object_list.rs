@@ -64,19 +64,19 @@ impl ObjectList {
                 let name = ObjectList::object_name(obj).map(|n| format!("{:?} ", n)).unwrap_or_default();
                 let props = obj.list_properties();
                 println!("{} {}{{", type_name, name);
+                /*
                 for p in props {
-                    /*
                     let p_name = p.get_name();
                     let p_type = p.get_value_type().name();
                     println!("  - {} '{}'", p_type, p_name);
-                    */
                 }
+                 */
                 println!("}}");
 
                 let sc = obj.dynamic_cast_ref::<gtk::Widget>().map(|x| x.get_style_context()).unwrap_or_default();
                 let cc = sc.list_classes();
                 let ss = cc.iter().map(|p| p.to_string()).collect::<Vec<_>>();
-                println!("{:?}", ss);
+                //println!("{:?}", ss);
 
                 //let s: gtk_sys::Style = obj.get_property("style").map(|p| p.get().unwrap().unwrap()).unwrap();
                 //println!("{:?}", s)

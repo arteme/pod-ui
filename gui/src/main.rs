@@ -27,7 +27,7 @@ use std::collections::hash_map::Iter;
 use std::thread;
 use multimap::MultiMap;
 use pod_core::raw::Raw;
-use pod_core::store::{Store, StoreSetIm};
+use pod_core::store::{Event, Signal, Store, StoreSetIm};
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -185,6 +185,17 @@ fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<Eff
     Some(entry)
 }
 
+fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry) {
+    for name in &effect.controls {
+        controller.get(&name)
+            .and_then(|v| {
+                controller.borrow_mut()
+                    .set_full(name, v, GUI, Signal::Force);
+                Some(())
+            });
+    }
+}
+
 fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
 
     // effect_select -> delay_enable
@@ -203,6 +214,10 @@ fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, 
                         effect_select_from_gui(&mut controller, v);
                         // HACK: adjust UI to the "effect_select:raw" midi value set above
                         effect_select_from_midi(&mut controller, v)
+                            .map(|e| {
+                            effect_select_send_controls(&mut controller, &e);
+                            e
+                        })
                     },
                     _ => None
                 };
@@ -619,7 +634,7 @@ async fn main() -> Result<()> {
 
     let builder = gtk::Builder::new_from_file("src/pod.glade");
     let objects = ObjectList::new(&builder);
-    objects.dump_debug();
+    //objects.dump_debug();
 
     init_combo(controller.lock().unwrap().deref(), &objects,
                "cab_select", &config.cab_models, |s| s.as_str() )?;
@@ -662,7 +677,7 @@ async fn main() -> Result<()> {
                   Some(msg) = midi_rx.recv() => {
                         message = Some(msg);
                     },
-                  Ok((idx,o)) = rx.recv() => {
+                  Ok(Event { key: idx, origin: o, .. }) = rx.recv() => {
                         message = make_cc(idx);
                         origin = o;
                     },
@@ -766,7 +781,7 @@ async fn main() -> Result<()> {
                 let mut addr: usize = usize::MAX-1;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
-                Ok((idx,o)) = rx.recv() => {
+                Ok(Event { key: idx, origin: o, .. }) = rx.recv() => {
                         addr = idx;
                         origin = o;
                     }
@@ -819,8 +834,12 @@ async fn main() -> Result<()> {
         tokio::spawn(async move {
             loop {
                 let mut name: String = String::new();
+                let mut signal: Signal = Signal::None;
                 tokio::select! {
-                    Ok(n) = rx.recv() => name = n
+                    Ok(Event { key: n, signal: s, .. }) = rx.recv() => {
+                        name = n;
+                        signal = s;
+                    }
                 }
 
                 let controller = controller.lock().unwrap();
@@ -857,7 +876,7 @@ async fn main() -> Result<()> {
                 };
 
                 let addr = control_config.get_addr().unwrap().0; // TODO: multibyte!
-                raw.set(addr as usize, *value as u8, GUI);
+                raw.set_full(addr as usize, *value as u8, GUI, signal);
             }
         });
     }
@@ -876,7 +895,7 @@ async fn main() -> Result<()> {
         };
         gtk::idle_add(move || {
             match rx.try_recv() {
-                Ok(name) => {
+                Ok(Event { key: name, .. }) => {
                     let vec = callbacks.get_vec(&name);
                     match vec {
                         None => { warn!("No GUI callback for '{}'", name); },
