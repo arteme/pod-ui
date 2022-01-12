@@ -1,6 +1,6 @@
-pub use clap::Clap;
+pub use clap::Parser;
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct Opts {
     #[clap(short, long)]
     pub input: Option<String>,

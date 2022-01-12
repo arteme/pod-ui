@@ -5,7 +5,6 @@ mod object_list;
 
 use anyhow::*;
 use gtk::prelude::*;
-use glib::{Object, spawn_command_line_async};
 use pod_core::pod::{MidiIn, MidiOut, PodConfigs};
 use pod_core::controller::{Controller, ControllerStoreExt};
 use pod_core::program;
@@ -13,21 +12,19 @@ use log::*;
 use std::sync::{Arc, Mutex};
 use pod_core::model::{Config, Control, AbstractControl, Format, EffectEntry, Select};
 use pod_core::config::{GUI, MIDI, UNSET};
-use std::collections::HashMap;
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
-use tokio::sync::broadcast::RecvError;
 use std::borrow::BorrowMut;
 use std::ops::{Deref, DerefMut};
 use crate::object_list::ObjectList;
-use std::iter::{Filter, repeat};
+use std::iter::repeat;
 use tokio::sync::mpsc;
 use core::time;
-use std::collections::hash_map::Iter;
 use std::thread;
 use multimap::MultiMap;
 use pod_core::raw::Raw;
 use pod_core::store::{Event, Signal, Store, StoreSetIm};
+use core::result::Result::Ok;
 
 fn clamp(v: f64) -> u16 {
     if v.is_nan() { 0 } else {
@@ -49,7 +46,7 @@ fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList
         let vol_pedal_position = vol_pedal_position.clone();
 
         move |volume_post_amp: bool| {
-            let ancestor = amp_enable.get_ancestor(gtk::Grid::static_type()).unwrap();
+            let ancestor = amp_enable.ancestor(gtk::Grid::static_type()).unwrap();
             let grid = ancestor.dynamic_cast_ref::<gtk::Grid>().unwrap();
             grid.remove(&amp_enable);
             grid.remove(&volume_enable);
@@ -119,7 +116,7 @@ fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callba
                 // to have these animate calls after the callback animate call we
                 // schedule a one-off idle loop function
                 let objs = objs.clone();
-                gtk::idle_add(move || {
+                glib::idle_add_local(move || {
                     animate(&objs, "presence", presence as u16);
                     animate(&objs, "brightness_switch", bright_switch as u16);
                     Continue(false)
@@ -363,7 +360,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &Obj
             info!("Wiring {:?} {:?}", name, obj);
             obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
                 // wire GtkScale and its internal GtkAdjustment
-                let adj = scale.get_adjustment();
+                let adj = scale.adjustment();
                 let controller = controller.clone();
                 {
                     let controller = controller.lock().unwrap();
@@ -402,7 +399,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &Obj
                     let name = name.clone();
                     adj.connect_value_changed(move |adj| {
                         let mut controller = controller.lock().unwrap();
-                        controller.set(&name, adj.get_value() as u16, GUI);
+                        controller.set(&name, adj.value() as u16, GUI);
                     });
                 }
                 // wire controller -> gui
@@ -443,7 +440,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &Obj
                     let controller = controller.clone();
                     let name = name.clone();
                     check.connect_toggled(move |check| {
-                        controller.set(&name, check.get_active() as u16, GUI);
+                        controller.set(&name, check.is_active() as u16, GUI);
                     });
                 }
                 // wire controller -> gui
@@ -474,7 +471,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &Obj
                 }
 
                 // this is a group, look up the children
-                let group = radio.get_group();
+                let group = radio.group();
 
                 // wire gui -> controller
                 for radio in group.clone() {
@@ -488,7 +485,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &Obj
                         continue;
                     }
                     radio.connect_toggled(move |radio| {
-                        if !radio.get_active() { return; }
+                        if !radio.is_active() { return; }
                         let mut controller = controller.lock().unwrap();
                         controller.set(&name, value.unwrap(), GUI);
                     });
@@ -536,7 +533,7 @@ fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &Obj
                     let to_midi = cfg.clone().and_then(|select| select.to_midi);
                     let name = name.clone();
                     signal_id = combo.connect_changed(move |combo| {
-                        combo.get_active().map(|v| {
+                        combo.active().map(|v| {
                             controller.set(&name, v as u16, GUI);
                         });
                     });
@@ -632,7 +629,7 @@ async fn main() -> Result<()> {
 
     let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
 
-    let builder = gtk::Builder::new_from_file("src/pod.glade");
+    let builder = gtk::Builder::from_file("src/pod.glade");
     let objects = ObjectList::new(&builder);
     //objects.dump_debug();
 
@@ -645,7 +642,7 @@ async fn main() -> Result<()> {
 
     let callbacks = wire_all(controller.clone(), raw.clone(), &objects)?;
 
-    let window: gtk::Window = builder.get_object("app_win").unwrap();
+    let window: gtk::Window = builder.object("app_win").unwrap();
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
         Inhibit(false)
@@ -893,12 +890,12 @@ async fn main() -> Result<()> {
             let controller = controller.lock().unwrap();
             controller.subscribe()
         };
-        gtk::idle_add(move || {
+        glib::idle_add_local(move || {
             match rx.try_recv() {
                 Ok(Event { key: name, .. }) => {
                     let vec = callbacks.get_vec(&name);
                     match vec {
-                        None => { warn!("No GUI callback for '{}'", name); },
+                        None => { warn!("No GUI callback for '{}'", &name); },
                         Some(vec) => for cb in vec {
                             cb()
                         }

@@ -11,7 +11,7 @@ pub struct ObjectList {
 
 impl ObjectList {
     pub fn new(builder: &Builder) -> Self {
-        ObjectList { objects: builder.get_objects() }
+        ObjectList { objects: builder.objects() }
     }
 
     pub fn obj_by_name(&self, name: &str) -> Result<Object> {
@@ -35,9 +35,9 @@ impl ObjectList {
     }
 
     pub fn object_name<T: ObjectType>(obj: &T) -> Option<String> {
-        obj.get_property("name")
+        obj.property("name")
             .map(|p| p.get::<String>().unwrap())
-            .unwrap_or(None)
+            .ok()
             .filter(|v| !v.is_empty())
     }
 
@@ -48,7 +48,7 @@ impl ObjectList {
         self.objects.iter()
             .filter_map(|obj| obj.dynamic_cast_ref::<Widget>())
             .filter_map(move |widget| {
-                let style_context = widget.get_style_context();
+                let style_context = widget.style_context();
                 let classes = style_context.list_classes();
                 let classes = classes.iter().map(|p| p.as_str().to_string());
                 let m = classes.filter(filter).collect::<Vec<_>>();
@@ -60,7 +60,7 @@ impl ObjectList {
         println!("object list debug ---");
         self.objects.iter()
             .for_each(|obj| {
-                let type_name = obj.get_type().name();
+                let type_name = obj.type_().name();
                 let name = ObjectList::object_name(obj).map(|n| format!("{:?} ", n)).unwrap_or_default();
                 let props = obj.list_properties();
                 println!("{} {}{{", type_name, name);
@@ -73,7 +73,7 @@ impl ObjectList {
                  */
                 println!("}}");
 
-                let sc = obj.dynamic_cast_ref::<gtk::Widget>().map(|x| x.get_style_context()).unwrap_or_default();
+                let sc = obj.dynamic_cast_ref::<gtk::Widget>().map(|x| x.style_context()).unwrap_or_default();
                 let cc = sc.list_classes();
                 let ss = cc.iter().map(|p| p.to_string()).collect::<Vec<_>>();
                 //println!("{:?}", ss);

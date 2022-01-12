@@ -6,7 +6,7 @@ use crate::model::RangeControl;
 
 
 macro_rules! def {
-    () => (::std::default::Default::default(););
+    () => (::std::default::Default::default());
 }
 
 macro_rules! amps {

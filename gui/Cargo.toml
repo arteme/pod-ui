@@ -5,15 +5,18 @@ authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-glib = "0.9.3"
-gdk = "0.12.1"
-gtk = { version = "0.8.1", feautes = [ "v3_18" ] }
-anyhow = "1.0.31"
-clap = "3.0.0-beta.1"
-log = "0.4.8"
+glib = "0.14.8"
+gdk = "0.14.3"
+gtk = { version = "0.14.3" } # gtk 3.18
+clap = { version = "3.0.6", features = ["derive"] }
 simple_logger = "1.6.0"
-tokio = { version = "0.2.21", features = ["sync", "macros", "rt-core", "rt-util", "rt-threaded", "stream", "time"] }
 multimap = "0.8.3"
+
+pin-project = "=0.4.29" # needed to get glib dep to comile :(
+
+log = "*" # defined in pod-core
+tokio = "*" # defined in pod-core
+anyhow = "*" # defined in pod-code
 
 pod-core = { path = "../core" }
 

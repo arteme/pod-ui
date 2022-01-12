@@ -9,18 +9,18 @@ pub enum Signal {
 }
 
 #[derive(Clone)]
-pub struct Event<K> {
+pub struct Event<K: Clone> {
     pub key: K,
     pub origin: u8,
     pub signal: Signal
 }
 
-pub struct StoreBase<K> {
+pub struct StoreBase<K: Clone> {
     tx: broadcast::Sender<Event<K>>,
     rx: broadcast::Receiver<Event<K>>
 }
 
-impl <K> StoreBase<K> {
+impl <K: Clone> StoreBase<K> {
     pub fn new() -> Self {
         let (tx, rx) = broadcast::channel::<Event<K>>(16);
         StoreBase { tx, rx }
@@ -44,7 +44,7 @@ impl <K> StoreBase<K> {
 }
 
 
-pub trait Store<K, V, E> {
+pub trait Store<K, V, E: Clone> {
     fn has(&self, key: K) -> bool;
     fn get(&self, key: K) -> Option<V>;
     fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) -> ();
@@ -62,7 +62,7 @@ pub trait StoreSetIm<K, V, E> {
     }
 }
 
-impl<K, V, E, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
+impl<K, V, E: Clone, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
     fn has(&self, key: K) -> bool {
         let s = self.lock().unwrap();
         s.has(key)
@@ -84,7 +84,7 @@ impl<K, V, E, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
     }
 }
 
-impl<K, V, E, T: Store<K,V,E>> StoreSetIm<K, V, E> for Arc<Mutex<T>> {
+impl<K, V, E: Clone, T: Store<K,V,E>> StoreSetIm<K, V, E> for Arc<Mutex<T>> {
     fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) {
         let mut s = self.lock().unwrap();
         s.set_full(key, value, origin, signal);

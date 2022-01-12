@@ -5,13 +5,13 @@ authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-midir = "0.6.0"
+midir = "0.7.0"
 serde = { version = "1.0.110", features = ["derive"] }
 log = "0.4.8"
 anyhow = "1.0.31"
 arrayref = "0.3.6"
 once_cell = "1.4.0"
 maplit = "1.0.2"
-tokio = { version = "0.2.21", features = ["sync", "macros", "rt-core", "rt-util", "rt-threaded", "stream", "time"] }
+tokio = { version = "1.15.0", features = ["sync", "macros", "rt", "rt-multi-thread", "time"] }
 regex = "1.5.4"
 strfmt = "0.1.6"
