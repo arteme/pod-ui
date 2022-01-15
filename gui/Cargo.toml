@@ -3,6 +3,7 @@ name = "pod-gui"
 version = "0.1.0"
 authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 glib = "0.14.8"
@@ -19,6 +20,9 @@ tokio = "*" # defined in pod-core
 anyhow = "*" # defined in pod-code
 
 pod-core = { path = "../core" }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
 
 [[bin]]
 name = "pod-gui"
