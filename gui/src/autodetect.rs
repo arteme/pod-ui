@@ -75,6 +75,8 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
             bail!("Midi channel {} out of bounds (0, 1..16)", x);
         }
     };
+    // channel, when not auto-detected
+    let midi_channel_u8 = midi_channel.unwrap_or(Channel::all());
 
     let state = state.clone();
     let window = window.clone();
@@ -96,8 +98,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
     } else {
         // manually configured device
         let (midi_in, midi_out) = ports.unwrap();
-        let midi_channel = midi_channel.unwrap_or(Channel::all());
-        tx.send(Ok((midi_in, midi_out, midi_channel, config.unwrap()))).ok();
+        tx.send(Ok((midi_in, midi_out, midi_channel_u8, config.unwrap()))).ok();
     }
 
     rx.attach(None, move |autodetect| {
@@ -128,7 +129,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                     .and_then(|str| config_for_str(&str).ok())
                     .or_else(|| configs().iter().next());
                 set_midi_in_out(&mut state.lock().unwrap(),
-                                None, None, Channel::all(), config);
+                                None, None, midi_channel_u8, config);
             }
         };
 

@@ -113,6 +113,12 @@ pub struct DeviceDetectedEvent {
     pub version: String
 }
 
+#[derive(Clone, Debug)]
+pub struct NewConfigEvent {
+    pub midi_changed: bool,
+    pub config_changed: bool
+}
+
 // -------------------------------------------------------------
 
 #[derive(Clone, Debug)]
@@ -131,7 +137,7 @@ pub enum AppEvent {
     Modified(ModifiedEvent),
 
     DeviceDetected(DeviceDetectedEvent),
-    NewConfig,
+    NewConfig(NewConfigEvent),
     NewCtx,
     Shutdown,
     Notification(String),
@@ -142,7 +148,7 @@ pub enum AppEvent {
 pub fn is_system_app_event(event: &AppEvent) -> bool {
     match event {
         AppEvent::DeviceDetected(_) | AppEvent::Notification(_) |
-        AppEvent::NewConfig | AppEvent::NewCtx | AppEvent::Shutdown => true,
+        AppEvent::NewConfig(_) | AppEvent::NewCtx | AppEvent::Shutdown => true,
         _ => false
     }
 }

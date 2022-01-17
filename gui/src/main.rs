@@ -141,16 +141,24 @@ pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
 
 pub fn midi_in_out_start(state: &mut State,
                          midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
-                         midi_channel: u8, quirks: MidiQuirks) {
+                         midi_channel: u8, quirks: MidiQuirks,
+                         config_changed: bool) {
+
+    let notify = |state: &mut State| {
+        sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
+
+        let e = NewConfigEvent { midi_changed: true, config_changed };
+        state.app_event_tx.send_or_warn(AppEvent::NewConfig(e));
+    };
+
     if midi_in.is_none() || midi_out.is_none() {
         warn!("Not starting MIDI because in/out is None");
         state.midi_in_name = None;
         state.midi_in_cancel = None;
         state.midi_out_name = None;
         state.midi_out_cancel = None;
-        state.midi_channel_num = 0;
-        state.ui_event_tx.send(UIEvent::NewMidiConnection).unwrap();
-        sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
+        state.midi_channel_num = midi_channel;
+        notify(state);
         return;
     }
 
@@ -167,9 +175,8 @@ pub fn midi_in_out_start(state: &mut State,
     state.midi_out_cancel = Some(out_cancel_tx);
 
     state.midi_channel_num = midi_channel;
-    state.ui_event_tx.send(UIEvent::NewMidiConnection).unwrap();
 
-    sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
+    notify(state);
 
     // midi in
     let midi_in_handle =
@@ -277,17 +284,14 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     if config_changed {
         // config changed, update config & edit buffer
         let config = config.unwrap();
-        state.config.replace(config);
-
         info!("Installing config {:?}", &config.name);
 
-        state.app_event_tx.send_or_warn(AppEvent::NewConfig);
+        state.config.replace(config);
     }
-
 
     //let quirks = state.config.read().unwrap().midi_quirks;
     let quirks = MidiQuirks::empty();
-    midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks);
+    midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks, config_changed);
 
     config_changed
 }
@@ -737,13 +741,18 @@ async fn main() -> Result<()> {
                         ui_event_tx.send_or_warn(UIEvent::Notification(msg.clone()));
                     }
                     // new config & shutdown
-                    AppEvent::NewConfig => {
-                        // transfer Ctx ownership to the UI thread and
-                        // ask it to initialize a new Ctx
-                        let mut ctx_share = ctx_share.lock().unwrap();
-                        *ctx_share = ctx.take();
+                    AppEvent::NewConfig(event) => {
+                        if event.midi_changed {
+                            ui_event_tx.send_or_warn(UIEvent::NewMidiConnection);
+                        }
+                        if event.config_changed {
+                            // transfer Ctx ownership to the UI thread and
+                            // ask it to initialize a new Ctx
+                            let mut ctx_share = ctx_share.lock().unwrap();
+                            *ctx_share = ctx.take();
 
-                        ui_event_tx.send_or_warn(UIEvent::NewConfig);
+                            ui_event_tx.send_or_warn(UIEvent::NewConfig);
+                        }
                     }
                     AppEvent::NewCtx => {
                         trace!("New context installed...");
@@ -977,13 +986,17 @@ async fn main() -> Result<()> {
                     let midi_in_name = state.midi_in_name.as_ref();
                     let midi_out_name = state.midi_out_name.as_ref();
                     let name = {
-                        let config_name = &state.config.unwrap().name;
+                        let config_name = &state.config.map(|c| c.name.clone())
+                            .unwrap_or_else(|| String::new());
                         let (detected_name, detected_ver) = state.detected
                             .as_ref()
                             .map(|d| (d.name.clone(), d.version.clone()))
                             .unwrap_or_else(|| (String::new(), String::new()));
 
                         match (&detected_name, config_name) {
+                            (_, b) if b.is_empty() => {
+                                String::new()
+                            }
                             (a, b) if a.is_empty() => {
                                 b.clone()
                             },
@@ -1006,7 +1019,11 @@ async fn main() -> Result<()> {
                             format!("i: {} / o: {}", a, b)
                         }
                     };
-                    let subtitle = format!("{} @ {}", name, subtitle);
+                    let subtitle = if name.is_empty() {
+                        subtitle
+                    } else {
+                        format!("{} @ {}", name, subtitle)
+                    };
 
                     header_bar.set_subtitle(Some(&subtitle));
                 }

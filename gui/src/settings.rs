@@ -363,7 +363,8 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder, window:
                         }).ok();
                     let midi_channel_num = state.midi_channel_num;
                     let quirks = state.config.map(|c| c.midi_quirks).unwrap();
-                    midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num, quirks);
+                    midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num,
+                                      quirks, false);
                 }
             }
         }

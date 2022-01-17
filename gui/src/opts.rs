@@ -24,9 +24,10 @@ pub struct Opts {
     pub output: Option<String>,
 
     #[clap(short, long)]
-    /// Select the MIDI channel the POD is configured on. 0 means "all",
-    /// values 1 - 16 configure individual channels. This option also affects
-    /// which MIDI channel the pod-ui application will listen on.
+    /// Select the MIDI channel the POD is configured on. 0 means "omni" mode,
+    /// i.e. it will listen on all channels simultaneously, values 1 - 16
+    /// configure specific channel. This option also sets which MIDI channel
+    /// the pod-ui application will listen on.
     /// This setting may not be relevant for all different devices supported.
     pub channel: Option<u8>,
 
