@@ -895,6 +895,7 @@ async fn main() -> Result<()> {
     {
         let controller = controller.clone();
         let objects = objects.clone();
+        let window = window.clone();
 
         let mut rx = {
             let controller = controller.lock().unwrap();
@@ -917,6 +918,7 @@ async fn main() -> Result<()> {
                 },
             }
 
+            window.resize(1, 1);
             Continue(true)
         });
 

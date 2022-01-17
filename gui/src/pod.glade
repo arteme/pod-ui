@@ -122,6 +122,31 @@
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
+  <object class="GtkAdjustment" id="adjustment31">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment32">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment33">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment34">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment35">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkAdjustment" id="adjustment4">
     <property name="upper">100</property>
     <property name="step-increment">1</property>
@@ -171,7 +196,7 @@
         <property name="orientation">vertical</property>
         <property name="spacing">10</property>
         <child>
-          <!-- n-columns=6 n-rows=3 -->
+          <!-- n-columns=6 n-rows=2 -->
           <object class="GtkGrid">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
@@ -232,6 +257,12 @@
                 <property name="can-focus">True</property>
                 <property name="receives-default">False</property>
                 <property name="draw-indicator">True</property>
+                <style>
+                  <class name="effect_select=0:hide"/>
+                  <class name="effect_select=1:hide"/>
+                  <class name="effect_select=2:hide"/>
+                  <class name="effect_select=*:show"/>
+                </style>
               </object>
               <packing>
                 <property name="left-attach">3</property>
@@ -292,24 +323,6 @@
             <child>
               <placeholder/>
             </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -346,10 +359,9 @@
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
                             <property name="column-spacing">10</property>
-                            <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkComboBoxText">
+                              <object class="GtkComboBoxText" id="comboboxtext1">
                                 <property name="name">amp_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
@@ -361,7 +373,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label1">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -373,11 +385,15 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label2">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Drive 2</property>
+                                <style>
+                                  <class name="amp_select=4:opacity=1"/>
+                                  <class name="amp_select=*:opacity=0"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -385,7 +401,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label3">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -397,7 +413,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label4">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -409,7 +425,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label5">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -421,7 +437,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label6">
                                 <property name="name">presence_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
@@ -438,7 +454,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label7">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -450,7 +466,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale1">
                                 <property name="name">drive</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -467,7 +483,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale2">
                                 <property name="name">drive2</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -476,6 +492,10 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_select=4:show"/>
+                                  <class name="amp_select=*:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -484,7 +504,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale3">
                                 <property name="name">bass</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -501,7 +521,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale4">
                                 <property name="name">mid</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -518,7 +538,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale5">
                                 <property name="name">treble</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -535,7 +555,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale6">
                                 <property name="name">presence</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -556,7 +576,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale7">
                                 <property name="name">chan_volume</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -585,7 +605,7 @@
                     </child>
                   </object>
                   <packing>
-                    <property name="expand">True</property>
+                    <property name="expand">False</property>
                     <property name="fill">True</property>
                     <property name="position">0</property>
                   </packing>
@@ -603,15 +623,14 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">12</property>
                         <child>
-                          <!-- n-columns=3 n-rows=3 -->
+                          <!-- n-columns=3 n-rows=2 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
                             <property name="column-spacing">10</property>
-                            <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label8">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -624,7 +643,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label9">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -637,7 +656,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale8">
                                 <property name="name">gate_threshold</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -654,7 +673,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale9">
                                 <property name="name">gate_decay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -669,15 +688,6 @@
                                 <property name="top-attach">1</property>
                                 <property name="width">2</property>
                               </packing>
-                            </child>
-                            <child>
-                              <placeholder/>
-                            </child>
-                            <child>
-                              <placeholder/>
-                            </child>
-                            <child>
-                              <placeholder/>
                             </child>
                           </object>
                         </child>
@@ -696,7 +706,7 @@
                     </style>
                   </object>
                   <packing>
-                    <property name="expand">True</property>
+                    <property name="expand">False</property>
                     <property name="fill">True</property>
                     <property name="position">1</property>
                   </packing>
@@ -719,7 +729,6 @@
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
                             <property name="column-spacing">10</property>
-                            <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
                               <object class="GtkLabel">
@@ -735,7 +744,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkRadioButton">
+                              <object class="GtkRadioButton" id="radiobutton1">
                                 <property name="label" translatable="yes">Spring</property>
                                 <property name="name">reverb_type:0</property>
                                 <property name="visible">True</property>
@@ -751,7 +760,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkRadioButton">
+                              <object class="GtkRadioButton" id="radiobutton2">
                                 <property name="label" translatable="yes">Hall</property>
                                 <property name="name">reverb_type:1</property>
                                 <property name="visible">True</property>
@@ -767,7 +776,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label10">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -780,7 +789,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label11">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -793,7 +802,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label12">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -806,7 +815,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label13">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -819,7 +828,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label14">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -833,7 +842,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale10">
                                 <property name="name">reverb_decay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -849,7 +858,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale11">
                                 <property name="name">reverb_density</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -865,7 +874,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale12">
                                 <property name="name">reverb_diffusion</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -881,7 +890,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale13">
                                 <property name="name">reverb_tone</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -897,7 +906,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale14">
                                 <property name="name">reverb_level</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -929,10 +938,111 @@
                     </style>
                   </object>
                   <packing>
-                    <property name="expand">True</property>
+                    <property name="expand">False</property>
                     <property name="fill">True</property>
                     <property name="position">2</property>
                   </packing>
+                </child>
+                <child>
+                  <object class="GtkFrame">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label-xalign">0</property>
+                    <property name="shadow-type">etched-out</property>
+                    <child>
+                      <object class="GtkAlignment">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="left-padding">12</property>
+                        <property name="right-padding">12</property>
+                        <child>
+                          <!-- n-columns=3 n-rows=2 -->
+                          <object class="GtkGrid">
+                            <property name="visible">True</property>
+                            <property name="can-focus">False</property>
+                            <property name="column-spacing">10</property>
+                            <property name="row-homogeneous">True</property>
+                            <property name="column-homogeneous">True</property>
+                            <child>
+                              <object class="GtkLabel" id="label38">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Level</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">0</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label39">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Minimum</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">1</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale34">
+                                <property name="name">vol_level</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="adjustment">adjustment34</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">0</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale35">
+                                <property name="name">vol_minimum</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="adjustment">adjustment35</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">1</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="label" translatable="yes">Volume Pedal</property>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
               </object>
               <packing>
@@ -959,15 +1069,14 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">10</property>
                         <child>
-                          <!-- n-columns=3 n-rows=3 -->
+                          <!-- n-columns=3 n-rows=2 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
                             <property name="column-spacing">10</property>
-                            <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkComboBoxText">
+                              <object class="GtkComboBoxText" id="comboboxtext2">
                                 <property name="name">cab_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
@@ -979,7 +1088,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label15">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -992,7 +1101,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale15">
                                 <property name="name">air</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1007,15 +1116,6 @@
                                 <property name="top-attach">1</property>
                                 <property name="width">2</property>
                               </packing>
-                            </child>
-                            <child>
-                              <placeholder/>
-                            </child>
-                            <child>
-                              <placeholder/>
-                            </child>
-                            <child>
-                              <placeholder/>
                             </child>
                           </object>
                         </child>
@@ -1056,7 +1156,7 @@
                             <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label16">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1068,7 +1168,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label17">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1080,7 +1180,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label18">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1092,7 +1192,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale16">
                                 <property name="name">delay_time</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1109,7 +1209,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale17">
                                 <property name="name">delay_feedback</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1126,7 +1226,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale18">
                                 <property name="name">delay_level</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1185,7 +1285,7 @@
                             <property name="column-spacing">10</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkComboBoxText">
+                              <object class="GtkComboBoxText" id="comboboxtext3">
                                 <property name="name">effect_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
@@ -1197,7 +1297,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale19">
                                 <property name="name">compression_ratio</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1218,7 +1318,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label19">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1235,7 +1335,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label20">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1252,7 +1352,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale20">
                                 <property name="name">volume_swell_time</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1272,7 +1372,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label21">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1293,7 +1393,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale21">
                                 <property name="name">chorus_flanger_speed</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1316,7 +1416,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label22">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1336,7 +1436,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label23">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1356,7 +1456,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label24">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1376,7 +1476,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale22">
                                 <property name="name">chorus_flanger_depth</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1399,7 +1499,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale23">
                                 <property name="name">chorus_flanger_feedback</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1422,7 +1522,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale24">
                                 <property name="name">chorus_flanger_pre_delay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1445,7 +1545,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label25">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1463,7 +1563,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label26">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1481,7 +1581,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label27">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1499,7 +1599,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label28">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1517,7 +1617,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label29">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1535,7 +1635,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label30">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1553,7 +1653,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale25">
                                 <property name="name">trem_speed</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1573,7 +1673,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale26">
                                 <property name="name">trem_depth</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1593,7 +1693,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale27">
                                 <property name="name">rotary_speed</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1613,7 +1713,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale28">
                                 <property name="name">rotary_fast_speed</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1633,7 +1733,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale29">
                                 <property name="name">rotary_slow_speed</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1653,7 +1753,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale">
+                              <object class="GtkScale" id="scale30">
                                 <property name="name">effect_tweak</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1711,7 +1811,7 @@
                             <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label31">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1724,7 +1824,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label32">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1737,7 +1837,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label33">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1750,7 +1850,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkCheckButton">
+                              <object class="GtkCheckButton" id="checkbutton1">
                                 <property name="name">distortion_enable</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1767,7 +1867,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkCheckButton">
+                              <object class="GtkCheckButton" id="checkbutton2">
                                 <property name="name">eq_enable</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1784,7 +1884,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkCheckButton">
+                              <object class="GtkCheckButton" id="checkbutton3">
                                 <property name="name">drive_enable</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1801,7 +1901,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel">
+                              <object class="GtkLabel" id="label34">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -1818,7 +1918,7 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkCheckButton">
+                              <object class="GtkCheckButton" id="checkbutton4">
                                 <property name="name">bright_switch_enable</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1850,8 +1950,138 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
+                    <property name="position">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkFrame">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label-xalign">0</property>
+                    <property name="shadow-type">etched-out</property>
+                    <child>
+                      <object class="GtkAlignment">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="left-padding">12</property>
+                        <property name="right-padding">12</property>
+                        <child>
+                          <!-- n-columns=3 n-rows=3 -->
+                          <object class="GtkGrid">
+                            <property name="visible">True</property>
+                            <property name="can-focus">False</property>
+                            <property name="column-spacing">10</property>
+                            <property name="column-homogeneous">True</property>
+                            <child>
+                              <object class="GtkLabel" id="label35">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Level</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">0</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label36">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Lower Freq</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">1</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale31">
+                                <property name="name">wah_level</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="adjustment">adjustment31</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">0</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale32">
+                                <property name="name">wah_bottom_freq</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="adjustment">adjustment32</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">1</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label37">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Upper Freq</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale33">
+                                <property name="name">wah_top_freq</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="adjustment">adjustment33</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">2</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="label" translatable="yes">Wah Pedal</property>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
                     <property name="position">4</property>
                   </packing>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
               </object>
               <packing>
@@ -1869,5 +2099,100 @@
         </child>
       </object>
     </child>
+  </object>
+  <object class="GtkSizeGroup">
+    <property name="mode">vertical</property>
+    <widgets>
+      <widget name="noise_gate_enable"/>
+      <widget name="amp_enable"/>
+      <widget name="volume_enable"/>
+      <widget name="effect_enable"/>
+      <widget name="delay_enable"/>
+      <widget name="reverb_enable"/>
+      <widget name="vol_pedal_position"/>
+      <widget name="comboboxtext1"/>
+      <widget name="label1"/>
+      <widget name="label2"/>
+      <widget name="label3"/>
+      <widget name="label4"/>
+      <widget name="label5"/>
+      <widget name="label6"/>
+      <widget name="label7"/>
+      <widget name="scale1"/>
+      <widget name="scale2"/>
+      <widget name="scale3"/>
+      <widget name="scale4"/>
+      <widget name="scale5"/>
+      <widget name="scale6"/>
+      <widget name="scale7"/>
+      <widget name="label8"/>
+      <widget name="label9"/>
+      <widget name="scale8"/>
+      <widget name="scale9"/>
+      <widget name="radiobutton1"/>
+      <widget name="radiobutton2"/>
+      <widget name="label10"/>
+      <widget name="label11"/>
+      <widget name="label12"/>
+      <widget name="label13"/>
+      <widget name="label14"/>
+      <widget name="scale10"/>
+      <widget name="scale11"/>
+      <widget name="scale12"/>
+      <widget name="scale13"/>
+      <widget name="scale14"/>
+      <widget name="label38"/>
+      <widget name="label39"/>
+      <widget name="scale34"/>
+      <widget name="scale35"/>
+      <widget name="comboboxtext2"/>
+      <widget name="label15"/>
+      <widget name="scale15"/>
+      <widget name="label16"/>
+      <widget name="label17"/>
+      <widget name="label18"/>
+      <widget name="scale16"/>
+      <widget name="scale17"/>
+      <widget name="scale18"/>
+      <widget name="comboboxtext3"/>
+      <widget name="scale19"/>
+      <widget name="label19"/>
+      <widget name="label20"/>
+      <widget name="scale20"/>
+      <widget name="label21"/>
+      <widget name="scale21"/>
+      <widget name="label22"/>
+      <widget name="label23"/>
+      <widget name="label24"/>
+      <widget name="scale22"/>
+      <widget name="scale23"/>
+      <widget name="scale24"/>
+      <widget name="label25"/>
+      <widget name="label26"/>
+      <widget name="label27"/>
+      <widget name="label28"/>
+      <widget name="label29"/>
+      <widget name="label30"/>
+      <widget name="scale25"/>
+      <widget name="scale26"/>
+      <widget name="scale27"/>
+      <widget name="scale28"/>
+      <widget name="scale29"/>
+      <widget name="scale30"/>
+      <widget name="label31"/>
+      <widget name="label32"/>
+      <widget name="label33"/>
+      <widget name="checkbutton1"/>
+      <widget name="checkbutton2"/>
+      <widget name="checkbutton3"/>
+      <widget name="label34"/>
+      <widget name="checkbutton4"/>
+      <widget name="label35"/>
+      <widget name="label36"/>
+      <widget name="scale31"/>
+      <widget name="scale32"/>
+      <widget name="label37"/>
+      <widget name="scale33"/>
+    </widgets>
   </object>
 </interface>

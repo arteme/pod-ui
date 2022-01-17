@@ -236,12 +236,12 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "gate_decay" => RangeControl { cc: 24, addr: 17, from: 0, to: 63, ..def!() }, // todo: 8.1 msec .. 159 msec
                // wah wah
                // wah pedal on/off,  cc: 43 ??
-               "wah_level" => RangeControl { cc: 4, addr: 18, ..def!() },
-               "wah_bottom_freq" => RangeControl { cc: 44, addr: 19, ..def!() },
-               "wah_top_freq" => RangeControl { cc: 45, addr: 20, ..def!() },
+               "wah_level" => RangeControl { cc: 4, addr: 18,format: fmt_percent!(), ..def!() },
+               "wah_bottom_freq" => RangeControl { cc: 44, addr: 19,format: fmt_percent!(), ..def!() },
+               "wah_top_freq" => RangeControl { cc: 45, addr: 20,format: fmt_percent!(), ..def!() },
                // volume pedal
-               "vol_level" => RangeControl { cc: 7, addr: 22, ..def!() },
-               "vol_minimum" => RangeControl { cc: 7, addr: 23, ..def!() },
+               "vol_level" => RangeControl { cc: 7, addr: 22, format: fmt_percent!(), ..def!() },
+               "vol_minimum" => RangeControl { cc: 46, addr: 23, format: fmt_percent!(), ..def!() },
                "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
                // delay
                "delay_time" => RangeControl { cc: 30, addr: 26, from: 0, to: 127/*3150*/, ..def!() }, // 0 .. 3150 ms / 128 steps
@@ -294,11 +294,11 @@ pub static PODS: Lazy<Vec<Config>> = Lazy::new(|| {
                "drive_enable",
                "eq_enable",
                "delay_enable",
-               "effect_enable",
                "reverb_enable",
                "noise_gate_enable",
                "bright_switch_enable",
-               "effect_select"
+               "effect_select",
+               "amp_select"
            )),
            program_name_addr: 55,
            program_name_length: 16
