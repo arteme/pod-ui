@@ -642,7 +642,17 @@ async fn main() -> Result<()> {
 
     let callbacks = wire_all(controller.clone(), raw.clone(), &objects)?;
 
+    let title = format!("POD UI {}", env!("GIT_VERSION"));
+    /*
+    let header_bar = gtk::HeaderBar::builder()
+        .has_subtitle(false)
+        .title(&title)
+        .build();
+     */
+
     let window: gtk::Window = builder.object("app_win").unwrap();
+    //window.set_titlebar(Some(&header_bar));
+    window.set_title(&title);
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
         Inhibit(false)
