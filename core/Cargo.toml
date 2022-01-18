@@ -15,3 +15,4 @@ maplit = "1.0.2"
 tokio = { version = "1.15.0", features = ["sync", "macros", "rt", "rt-multi-thread", "time"] }
 regex = "1.5.4"
 strfmt = "0.1.6"
+futures = "0.3.19"

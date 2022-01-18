@@ -613,11 +613,24 @@ async fn main() -> Result<()> {
     simple_logger::init()?;
 
     let opts: Opts = Opts::parse();
-    let mut midi_in = MidiIn::new_for_address(opts.input)
-        .context("Failed to initialize MIDI").unwrap();
-    let mut midi_out = MidiOut::new_for_address(opts.output)
-        .context("Failed to initialize MIDI").unwrap();
-    let (midi_tx, mut midi_rx) = mpsc::unbounded_channel();
+
+    let (mut midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
+    let (mut midi_out_tx, mut midi_out_rx) = mpsc::unbounded_channel::<MidiMessage>();
+
+    let autodetect = match (&opts.input, &opts.output) {
+        (None, None) => true,
+        _ => false
+    };
+    let (mut midi_in, mut midi_out) = if autodetect {
+        pod_core::pod::autodetect().await?
+    } else {
+        let mut midi_in = MidiIn::new_for_address(opts.input)
+            .context("Failed to initialize MIDI").unwrap();
+        let mut midi_out = MidiOut::new_for_address(opts.output)
+            .context("Failed to initialize MIDI").unwrap();
+
+        (midi_in, midi_out)
+    };
 
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
@@ -660,11 +673,36 @@ async fn main() -> Result<()> {
 
     // midi ----------------------------------------------------
 
+    // midi in
+    {
+        let midi_in_tx = midi_in_tx.clone();
+
+        tokio::spawn(async move {
+            while let Some(bytes) = midi_in.recv().await {
+                match MidiMessage::from_bytes(bytes) {
+                    Ok(msg) => { midi_in_tx.send(msg); () },
+                    Err(err) => error!("Error deserializing MIDI message: {}", err)
+                }
+            }
+        });
+    }
+
+    // midi out
+    {
+        tokio::spawn(async move {
+            while let Some(msg) = midi_out_rx.recv().await {
+                let bytes = msg.to_bytes();
+                midi_out.send(&bytes);
+            }
+        });
+    }
+
     // raw / midi reply -> midi out
     {
         let raw = raw.clone();
         let config = config.clone();
         let mut rx = raw.lock().unwrap().subscribe();
+        let midi_out_tx = midi_out_tx.clone();
         tokio::spawn(async move {
             let make_cc = |idx: usize| -> Option<MidiMessage> {
                 addr_to_cc_iter(&config, idx)
@@ -681,9 +719,6 @@ async fn main() -> Result<()> {
                 let mut message: Option<MidiMessage> = None;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
-                  Some(msg) = midi_rx.recv() => {
-                        message = Some(msg);
-                    },
                   Ok(Event { key: idx, origin: o, .. }) = rx.recv() => {
                         message = make_cc(idx);
                         origin = o;
@@ -692,7 +727,7 @@ async fn main() -> Result<()> {
                 if origin == MIDI || message.is_none() {
                     continue;
                 }
-                match midi_out.send(&message.unwrap().to_bytes()) {
+                match midi_out_tx.send(message.unwrap()) {
                     Ok(_) => {}
                     Err(err) => { error!("MIDI OUT error: {}", err); }
                 }
@@ -700,22 +735,26 @@ async fn main() -> Result<()> {
         });
     }
 
-    // midi in -> raw / midi loop
+    // midi in -> raw / midi out
     {
         let raw = raw.clone();
         let controller = controller.clone();
         let config = config.clone();
         tokio::spawn(async move {
             loop {
-                let data = midi_in.recv().await;
-                if data.is_none() {
+                let msg = midi_in_rx.recv().await;
+                if msg.is_none() {
                     return; // shutdown
                 }
+                let msg = msg.unwrap();
+                /*
                 let event = MidiMessage::from_bytes(data.unwrap());
                 let msg: MidiMessage = match event {
                     Ok(msg) =>  msg,
                     Err(err) => { error!("Error parsing MIDI message: {:?}", err); continue }
                 };
+
+                 */
                 match msg {
                     MidiMessage::ControlChange { channel: _, control, value } => {
                         let mut controller = controller.lock().unwrap();
@@ -742,7 +781,7 @@ async fn main() -> Result<()> {
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
                             data: program::dump(&controller) };
-                        midi_tx.send(res);
+                        midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
                         // TODO: For now answer with the contents of the edit buffer to any patch
@@ -752,7 +791,7 @@ async fn main() -> Result<()> {
                             patch,
                             ver: 0,
                             data: program::dump(&controller) };
-                        midi_tx.send(res);
+                        midi_out_tx.send(res);
                     },
 
                     // pretend we're a POD
@@ -763,7 +802,7 @@ async fn main() -> Result<()> {
                             member: config.member,
                             ver: String::from("0223")
                         };
-                        midi_tx.send(res);
+                        midi_out_tx.send(res);
                     }
 
                     _ => {
@@ -923,6 +962,24 @@ async fn main() -> Result<()> {
         });
 
     }
+
+    //
+    /*
+    tokio::spawn(async move {
+        println!("STARTING AUTODETECT");
+        match pod_core::pod::autodetect().await {
+            Ok((mut midi_in, mut midi_out)) => {
+                info!("AUTODETECT SUCCESSFUL");
+                info!("in={:?} out={:?}", &midi_in.name, &midi_out.name);
+            },
+            Err(e) => {
+                println!("AUTODETECT FAILED: {}", e);
+            }
+        }
+        println!("STOPPING AUTODETECT");
+    });
+
+     */
 
     // show the window and do init stuff...
     window.show_all();

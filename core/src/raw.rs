@@ -11,7 +11,6 @@ pub struct Raw {
 impl Raw {
     pub fn new(size: usize) -> Self {
         let values = vec![0u8; size].into_boxed_slice();
-        let (tx, rx) = broadcast::channel::<(usize, u8)>(16);
 
         Raw { store: StoreBase::new(), values }
     }
