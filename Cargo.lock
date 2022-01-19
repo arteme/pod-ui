@@ -145,13 +145,15 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
 name = "chrono"
-version = "0.4.11"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80094f509cf8b5ae86a4966a39b3ff66cd7e2a3e594accec3743ff3fabeab5b2"
+checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
 dependencies = [
+ "libc",
  "num-integer",
  "num-traits",
  "time",
+ "winapi",
 ]
 
 [[package]]
@@ -627,9 +629,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.71"
+version = "0.2.112"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9457b06509d27052635f90d6466700c65095fdf75409b3fbdd903e988b886f49"
+checksum = "1b03d17f364a3a042d5e5d46b053bbbf82c92c9430c592dd4c064dc6ee997125"
 
 [[package]]
 name = "log"
@@ -709,9 +711,9 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.42"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6ea62e9d81a77cd3ee9a2a5b9b609447857f3d358704331e4ef39eb247fcba"
+checksum = "d2cc698a63b549a70bc047073d2949cce27cd1c7b0a4a862d08a8031bc2801db"
 dependencies = [
  "autocfg",
  "num-traits",
@@ -719,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.11"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c62be47e61d1842b9170f0fdeec8eba98e60e90e5446449a0545e5152acd7096"
+checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
 ]
@@ -831,12 +833,25 @@ dependencies = [
  "arrayref",
  "futures",
  "log",
- "maplit",
  "midir",
- "once_cell",
  "regex",
  "serde",
  "strfmt",
+ "tokio",
+]
+
+[[package]]
+name = "pod-gtk"
+version = "0.2.0-dev"
+dependencies = [
+ "anyhow",
+ "gdk",
+ "glib",
+ "gtk",
+ "log",
+ "multimap",
+ "pin-project",
+ "pod-core",
  "tokio",
 ]
 
@@ -846,17 +861,28 @@ version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "clap",
- "gdk",
  "git-version",
- "glib",
- "gtk",
  "log",
- "multimap",
  "pin-project",
  "pod-core",
+ "pod-gtk",
+ "pod-mod-pod2",
  "simple_logger",
  "tokio",
  "winres",
+]
+
+[[package]]
+name = "pod-mod-pod2"
+version = "0.2.0-dev"
+dependencies = [
+ "anyhow",
+ "log",
+ "maplit",
+ "once_cell",
+ "pod-core",
+ "pod-gtk",
+ "tokio",
 ]
 
 [[package]]

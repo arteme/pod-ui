@@ -3,7 +3,7 @@ use gtk::prelude::*;
 use glib::Object;
 use gtk::{Builder, Widget};
 use std::iter::Iterator;
-use log::debug;
+use std::ops::Add;
 
 pub struct ObjectList {
     objects: Vec<Object>
@@ -62,9 +62,9 @@ impl ObjectList {
             .for_each(|obj| {
                 let type_name = obj.type_().name();
                 let name = ObjectList::object_name(obj).map(|n| format!("{:?} ", n)).unwrap_or_default();
-                let props = obj.list_properties();
                 println!("{} {}{{", type_name, name);
                 /*
+                let props = obj.list_properties();
                 for p in props {
                     let p_name = p.get_name();
                     let p_type = p.get_value_type().name();
@@ -75,11 +75,13 @@ impl ObjectList {
 
                 let sc = obj.dynamic_cast_ref::<gtk::Widget>().map(|x| x.style_context()).unwrap_or_default();
                 let cc = sc.list_classes();
+                /*
                 let ss = cc.iter().map(|p| p.to_string()).collect::<Vec<_>>();
                 //println!("{:?}", ss);
 
                 //let s: gtk_sys::Style = obj.get_property("style").map(|p| p.get().unwrap().unwrap()).unwrap();
                 //println!("{:?}", s)
+                */
             });
     }
 }
@@ -89,5 +91,17 @@ impl Clone for ObjectList {
         ObjectList {
             objects: self.objects.clone()
         }
+    }
+}
+
+impl Add<ObjectList> for ObjectList {
+    type Output = ObjectList;
+
+    fn add(self, rhs: ObjectList) -> Self::Output {
+        let mut out = self.clone();
+        let mut rhs = rhs.objects.clone();
+        out.objects.append(&mut rhs);
+
+        out
     }
 }

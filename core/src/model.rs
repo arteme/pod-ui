@@ -214,3 +214,41 @@ impl FormatData {
             })
     }
 }
+
+// ---
+
+impl Config {
+    pub fn cc_to_control(&self, cc: u8) -> Option<(&String, &Control)> {
+        self.controls.iter()
+            .find(|&(_, control)| {
+                match control.get_cc() {
+                    Some(v) if v == cc => true,
+                    _ => false
+                }
+            })
+    }
+
+    pub fn cc_to_addr(&self, cc: u8) -> Option<usize> {
+        self.cc_to_control(cc)
+            .and_then(|(_, control)| control.get_addr())
+            .map(|(addr, _)| addr as usize)
+    }
+
+    pub fn addr_to_control_iter(&self, addr: usize) -> impl Iterator<Item = (&String, &Control)>  {
+        self.controls.iter()
+            .filter(move |(_, control)| {
+                match control.get_addr() {
+                    // here we specifically disregard the length and concentrate on the
+                    // first byte of multi-byte controls
+                    Some((a, _)) if a as usize == addr => true,
+                    _ => false
+                }
+            })
+    }
+
+    pub fn addr_to_cc_iter(&self, addr: usize) -> impl Iterator<Item = u8> + '_ {
+        self.addr_to_control_iter(addr)
+            .flat_map(|(_, control)| control.get_cc())
+    }
+
+}

@@ -6,12 +6,8 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-glib = "0.14.8"
-gdk = "0.14.3"
-gtk = { version = "0.14.3" } # gtk 3.18
-clap = { version = "3.0.6", features = ["derive"] }
-simple_logger = "1.6.0"
-multimap = "0.8.3"
+clap = { version = "=3.0.6", features = ["derive"] }
+simple_logger = "=1.6.0"
 
 pin-project = "=0.4.29" # needed to get glib dep to comile :(
 
@@ -20,6 +16,8 @@ tokio = "*" # defined in pod-core
 anyhow = "*" # defined in pod-code
 
 pod-core = { path = "../core" }
+pod-gtk = { path = "../gtk" }
+pod-mod-pod2 = { path = "../mod-pod2" }
 
 [build-dependencies]
 git-version = "0.3.5"

@@ -9,7 +9,7 @@ use tokio::time::sleep;
 use log::*;
 
 use crate::midi::*;
-use crate::config::PODS;
+use crate::config::configs;
 use crate::model::Config;
 use crate::util::OptionToResultsExt;
 use tokio::sync::mpsc;
@@ -178,7 +178,7 @@ fn find_address<'a>(addresses: impl Iterator<Item = &'a str>, id: &'a str) -> Re
 
     bail!("Failed to parse {:?} as a MIDI device address or index", id)
 }
-
+/*
 pub struct PodConfigs {
 }
 
@@ -252,6 +252,8 @@ impl PodConfigs {
      */
 }
 
+ */
+
 const DETECT_DELAY: Duration = Duration::from_millis(1000);
 
 async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Vec<usize>> {
@@ -277,7 +279,7 @@ async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Ve
                 let event = MidiMessage::from_bytes(bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, .. }) => {
-                        let pod: Option<&Config> = PODS.iter().find(|config| {
+                        let pod: Option<&Config> = configs().iter().find(|config| {
                             family == config.family && member == config.member
                         });
                         pod.map(|pod| {

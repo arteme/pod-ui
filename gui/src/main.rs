@@ -1,573 +1,26 @@
-extern crate gtk;
-
 mod opts;
-mod object_list;
 
 use anyhow::*;
-use gtk::prelude::*;
-use pod_core::pod::{MidiIn, MidiOut, PodConfigs};
-use pod_core::controller::{Controller, ControllerStoreExt};
+
+use pod_gtk::*;
+use pod_gtk::gtk::prelude::*;
+use pod_core::pod::{MidiIn, MidiOut};
+use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{Config, Control, AbstractControl, Format, EffectEntry, Select};
-use pod_core::config::{GUI, MIDI, UNSET};
+use pod_core::model::{AbstractControl, Config, Control, Select};
+use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
-use std::borrow::BorrowMut;
-use std::ops::{Deref, DerefMut};
-use crate::object_list::ObjectList;
-use std::iter::repeat;
 use tokio::sync::mpsc;
 use core::time;
 use std::thread;
-use multimap::MultiMap;
 use pod_core::raw::Raw;
-use pod_core::store::{Event, Signal, Store, StoreSetIm};
+use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
-
-fn clamp(v: f64) -> u16 {
-    if v.is_nan() { 0 } else {
-        if v.is_sign_negative() { 0 } else {
-            if v > 0xffff as f64 { 0xffff } else { v as u16 }
-        }
-    }
-}
-
-type Callbacks = MultiMap<String, Box<dyn Fn() -> ()>>;
-
-fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let name = "vol_pedal_position".to_string();
-    let vol_pedal_position = objs.ref_by_name::<gtk::Button>(&name)?;
-    let amp_enable = objs.ref_by_name::<gtk::Widget>("amp_enable")?;
-    let volume_enable = objs.ref_by_name::<gtk::Widget>("volume_enable")?;
-
-    let set_in_order = {
-        let vol_pedal_position = vol_pedal_position.clone();
-
-        move |volume_post_amp: bool| {
-            let ancestor = amp_enable.ancestor(gtk::Grid::static_type()).unwrap();
-            let grid = ancestor.dynamic_cast_ref::<gtk::Grid>().unwrap();
-            grid.remove(&amp_enable);
-            grid.remove(&volume_enable);
-
-            let (volume_left, amp_left) = match volume_post_amp {
-                false => {
-                    vol_pedal_position.set_label(">");
-                    (1, 2)
-                },
-                true => {
-                    vol_pedal_position.set_label("<");
-                    (2, 1)
-                }
-            };
-            grid.attach(&amp_enable, amp_left, 1, 1, 1);
-            grid.attach(&volume_enable, volume_left, 1, 1, 1);
-        }
-    };
-
-    set_in_order(false);
-
-    // gui -> controller
-    {
-        let controller = controller.clone();
-        let name = name.clone();
-        vol_pedal_position.connect_clicked(move |_| {
-            let mut controller = controller.lock().unwrap();
-            let v = controller.get(&name).unwrap() > 0;
-            let v = !v; // toggling
-            controller.set(&name, v as u16, GUI);
-        });
-    }
-
-    // controller -> gui
-    {
-        let controller = controller.clone();
-        callbacks.insert(
-            name.clone(),
-            Box::new(move || {
-                let v = {
-                    let controller = controller.lock().unwrap();
-                    controller.get(&name).unwrap()
-                };
-                set_in_order(v > 0);
-            })
-        )
-    };
-    Ok(())
-}
-
-fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    // controller -> gui
-    {
-        let objs = objs.clone();
-        let controller = controller.clone();
-        let name = "amp_select".to_string();
-        callbacks.insert(
-            name.clone(),
-            Box::new(move || {
-                let (presence, bright_switch) = {
-                    let controller = controller.lock().unwrap();
-                    let v = controller.get(&name).unwrap();
-                    let amp = controller.config.amp_models.get(v as usize).unwrap();
-                    (amp.presence, amp.bright_switch)
-                };
-
-                // to have these animate calls after the callback animate call we
-                // schedule a one-off idle loop function
-                let objs = objs.clone();
-                glib::idle_add_local(move || {
-                    animate(&objs, "presence", presence as u16);
-                    animate(&objs, "brightness_switch", bright_switch as u16);
-                    Continue(false)
-                });
-            })
-        )
-    };
-    Ok(())
-}
-
-fn effect_entry_for_value(config: &Config, value: u16) -> Option<(&EffectEntry, bool, usize)> {
-    config.effects.iter()
-        .enumerate()
-        .flat_map(|(idx, effect)| {
-            let delay = effect.delay.as_ref()
-                .filter(|e| (value == e.id as u16))
-                .map(|e| (e, true, idx));
-            let clean = effect.clean.as_ref()
-                .filter(|e| (value == e.id as u16))
-                .map(|e| (e, false, idx));
-            delay.or(clean)
-        })
-        .next()
-        .or_else(|| {
-            warn!("Effect select mapping for value {} not found!", value);
-            None
-        })
-
-}
-
-fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
-
-    let value = controller.get("effect_select:raw").unwrap();
-    let entry_opt = effect_entry_for_value(&controller.config, value);
-    if entry_opt.is_none() {
-        return None;
-    }
-    let (entry, delay, index) = entry_opt.unwrap();
-    let entry = entry.clone();
-
-    controller.set("delay_enable", delay as u16, MIDI);
-    // TODO: effect tweak, fx enable
-
-    Some(entry)
-}
-
-fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
-
-    let effect = &controller.config.effects[value as usize];
-    let delay_enable = controller.get("delay_enable").unwrap() != 0;
-
-    let (delay, clean) = (effect.delay.as_ref(), effect.clean.as_ref());
-
-    // if delay_enabled is set, try to set an effect with delay (fallback to clean),
-    // otherwise try to set clean effect (fallback to effect with delay)
-    let entry =
-        (if delay_enable { delay.or(clean) } else { clean.or(delay) })
-            .unwrap().clone();
-
-    controller.set("effect_select:raw", entry.id as u16, GUI);
-    // TODO: effect tweak, fx enable
-
-    Some(entry)
-}
-
-fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry) {
-    for name in &effect.controls {
-        controller.get(&name)
-            .and_then(|v| {
-                controller.borrow_mut()
-                    .set_full(name, v, GUI, Signal::Force);
-                Some(())
-            });
-    }
-}
-
-fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
-
-    // effect_select -> delay_enable
-    {
-        let controller = controller.clone();
-        let name = "effect_select".to_string();
-        callbacks.insert(
-            name.clone(),
-            Box::new(move || {
-                let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
-
-                let entry = match origin {
-                    MIDI => effect_select_from_midi(&mut controller, v),
-                    GUI => {
-                        effect_select_from_gui(&mut controller, v);
-                        // HACK: adjust UI to the "effect_select:raw" midi value set above
-                        effect_select_from_midi(&mut controller, v)
-                            .map(|e| {
-                            effect_select_send_controls(&mut controller, &e);
-                            e
-                        })
-                    },
-                    _ => None
-                };
-            })
-        )
-    }
-
-    // delay_enable -> effect_select
-    {
-        let controller = controller.clone();
-        let name = "delay_enable".to_string();
-        callbacks.insert(
-            name.clone(),
-            Box::new(move || {
-                let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
-
-                if v != 0 && origin == GUI {
-                    let effect_select = controller.get("effect_select:raw").unwrap();
-                    let (_, delay, idx) =
-                        effect_entry_for_value(&controller.config, effect_select).unwrap();
-                    if !delay {
-                        // if `delay_enable` was switched on in the UI and if coming from
-                        // an effect which didn't have delay to begin with, check if it can
-                        // have a delay at all (POD 2.0 rotary cannot). If not, then switch
-                        // to plain "delay" effect.
-                        let need_reset = controller.config.effects.get(idx)
-                            .map(|e| e.delay.is_none()).unwrap_or(false);
-                        if need_reset {
-                            let v = controller.config.effects[0].delay.as_ref().unwrap().id;
-                            controller.set("effect_select", 0u16, GUI);
-                        }
-                    }
-                }
-            })
-        )
-    }
-
-    // effect_tweak
-    {
-        let controller = controller.clone();
-        let name = "effect_tweak".to_string();
-        callbacks.insert(
-            name.clone(),
-            Box::new(move || {
-                let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
-
-                if origin == MIDI {
-                    let effect_select = controller.get("effect_select:raw").unwrap();
-                    let (entry, _, _) =
-                        effect_entry_for_value(&controller.config, effect_select).unwrap();
-                    let control_name = &entry.effect_tweak;
-                    if control_name.is_empty() {
-                        return;
-                    }
-
-                    // HACK: as if everything's coming straight from MIDI
-                    let mut raw = raw.lock().unwrap();
-
-                    let config = controller.get_config(&name).unwrap();
-                    let addr = config.get_addr().unwrap().0 as usize;
-                    let val = raw.get(addr).unwrap();
-
-                    let config = controller.get_config(&control_name).unwrap();
-                    let addr = config.get_addr().unwrap().0 as usize;
-                    raw.set(addr, val, MIDI);
-                }
-            })
-        )
-    }
-
-    Ok(())
-}
-
-fn init_combo<T, F>(controller: &Controller, objs: &ObjectList,
-              name: &str, list: &Vec<T>, get_name: F) -> Result<()>
-    where F: Fn(&T) -> &str
-{
-    let select = objs.ref_by_name::<gtk::ComboBoxText>(name)?;
-    for item in list.iter() {
-        let name = get_name(item);
-        select.append_text(name);
-    }
-
-    let v = controller.get(name).unwrap();
-    select.set_active(Some(v as u32));
-
-    Ok(())
-}
-
-fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
-    let prefix1 = format!("{}=", control_name);
-    let prefix2 = format!("{}:", control_value);
-    let catchall = "*:";
-    //debug!(target: "animate", "Animate: {:?}?", control_name);
-    objs.widgets_by_class_match(&|class_name| class_name.starts_with(prefix1.as_str()))
-        .flat_map(|(widget, classes)| {
-            let get_classes = |suffix: &str| {
-                let full_len = prefix1.len() + suffix.len();
-                classes.iter()
-                    .filter(|c| &c[prefix1.len()..full_len] == suffix)
-                    .map(|c| c[full_len..].to_string()).collect::<Vec<_>>()
-            };
-
-            let mut c = get_classes(&prefix2);
-            if c.is_empty() {
-                c = get_classes(catchall);
-            }
-            //debug!(target: "animate", "Animate: {:?} for {:?}", c, widget);
-
-            repeat(widget.clone()).zip(c)
-        })
-        .for_each(|(widget, cls)| {
-            match cls.as_str() {
-                "show" => widget.show(),
-                "hide" => widget.hide(),
-                "opacity=0" => widget.set_opacity(0f64),
-                "opacity=1" => widget.set_opacity(1f64),
-                "enable" => widget.set_sensitive(true),
-                "disable" => widget.set_sensitive(false),
-                _ => {
-                    warn!("Unknown animation command {:?} for widget {:?}", cls, widget)
-                }
-            }
-        });
-}
-
-
-fn wire_all(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, objs: &ObjectList) -> Result<Callbacks> {
-    let mut callbacks = Callbacks::new();
-
-    objs.named_objects()
-        .for_each(|(obj, name)| {
-            {
-                let controller = controller.lock().unwrap();
-                if !controller.has(&name) {
-                    warn!("Not wiring {:?}", name);
-                    return;
-                }
-            }
-
-            info!("Wiring {:?} {:?}", name, obj);
-            obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
-                // wire GtkScale and its internal GtkAdjustment
-                let adj = scale.adjustment();
-                let controller = controller.clone();
-                {
-                    let controller = controller.lock().unwrap();
-                    match controller.get_config(&name) {
-                        Some(Control::RangeControl(c)) => {
-                            adj.set_lower(c.from as f64);
-                            adj.set_upper(c.to as f64);
-
-                            match &c.format {
-                                Format::Callback(f) => {
-                                    let c = c.clone();
-                                    let f = f.clone();
-                                    scale.connect_format_value(move |_, val| f(&c, val));
-                                },
-                                Format::Data(data) => {
-                                    let data = data.clone();
-                                    scale.connect_format_value(move |_, val| data.format(val));
-                                },
-                                Format::Labels(labels) => {
-                                    let labels = labels.clone();
-                                    scale.connect_format_value(move |_, val| labels.get(val as usize).unwrap_or(&"".into()).clone());
-
-                                }
-                                Format::None | _ => {}
-                            }
-                        },
-                        _ => {
-                            warn!("Control {:?} is not a range control!", name)
-                        }
-                    }
-                }
-
-                // wire gui -> controller
-                {
-                    let controller = controller.clone();
-                    let name = name.clone();
-                    adj.connect_value_changed(move |adj| {
-                        let mut controller = controller.lock().unwrap();
-                        controller.set(&name, adj.value() as u16, GUI);
-                    });
-                }
-                // wire controller -> gui
-                {
-                    let controller = controller.clone();
-                    let name = name.clone();
-                    callbacks.insert(
-                        name.clone(),
-                        Box::new(move || {
-                            // TODO: would be easier if value is passed in the message and
-                            //       into this function without the need to look it up from the controller
-                            let v = {
-                                let controller = controller.lock().unwrap();
-                                controller.get(&name).unwrap()
-                            };
-                            adj.set_value(v as f64);
-                        })
-                    )
-                }
-            });
-            obj.dynamic_cast_ref::<gtk::CheckButton>().map(|check| {
-                // HACK: DO NOT PROCESS RADIO BUTTONS HERE!
-                if obj.dynamic_cast_ref::<gtk::RadioButton>().is_some() { return }
-                // wire GtkCheckBox
-                let controller = controller.clone();
-                {
-                    let controller = controller.lock().unwrap();
-                    match controller.get_config(&name) {
-                        Some(Control::SwitchControl(_)) => {},
-                        _ => {
-                            warn!("Control {:?} is not a switch control!", name)
-                        }
-                    }
-                }
-
-                // wire gui -> controller
-                {
-                    let controller = controller.clone();
-                    let name = name.clone();
-                    check.connect_toggled(move |check| {
-                        controller.set(&name, check.is_active() as u16, GUI);
-                    });
-                }
-                // wire controller -> gui
-                {
-                    let controller = controller.clone();
-                    let name = name.clone();
-                    let check = check.clone();
-                    callbacks.insert(
-                        name.clone(),
-                        Box::new(move || {
-                            let v = controller.get(&name).unwrap();
-                            check.set_active(v > 0);
-                        })
-                    )
-                }
-            });
-            obj.dynamic_cast_ref::<gtk::RadioButton>().map(|radio| {
-                // wire GtkRadioButton
-                let controller = controller.clone();
-                {
-                    let controller = controller.lock().unwrap();
-                    match controller.get_config(&name) {
-                        Some(Control::SwitchControl(_)) => {},
-                        _ => {
-                            warn!("Control {:?} is not a switch control!", name)
-                        }
-                    }
-                }
-
-                // this is a group, look up the children
-                let group = radio.group();
-
-                // wire gui -> controller
-                for radio in group.clone() {
-                    let controller = controller.clone();
-                    let name = name.clone();
-                    let radio_name = ObjectList::object_name(&radio).unwrap();
-                    let value = radio_name.find(':')
-                        .map(|pos| &radio_name[pos+1..]).map(|str| str.parse::<u16>().unwrap());
-                    if value.is_none() {
-                        // value not of "name:N" pattern, skip
-                        continue;
-                    }
-                    radio.connect_toggled(move |radio| {
-                        if !radio.is_active() { return; }
-                        let mut controller = controller.lock().unwrap();
-                        controller.set(&name, value.unwrap(), GUI);
-                    });
-                }
-                // wire controller -> gui
-                {
-                    let controller = controller.clone();
-                    let name = name.clone();
-                    callbacks.insert(
-                        name.clone(),
-                        Box::new(move || {
-                            let v = {
-                                let controller = controller.lock().unwrap();
-                                controller.get(&name).unwrap()
-                            };
-                            let item_name = format!("{}:{}", name, v);
-                            group.iter().find(|radio| ObjectList::object_name(*radio).unwrap_or_default() == item_name)
-                                .and_then(|item| {
-                                    item.set_active(true);
-                                    Some(())
-                                })
-                                .or_else( || {
-                                    error!("GtkRadioButton not found with name '{}'", name);
-                                    None
-                                });
-                        })
-                    )
-                }
-            });
-            obj.dynamic_cast_ref::<gtk::ComboBoxText>().map(|combo| {
-                // wire GtkComboBox
-                let controller = controller.clone();
-                let cfg = match controller.get_config(&name) {
-                    Some(Control::Select(c)) => Some(c),
-                    _ => {
-                        warn!("Control {:?} is not a select control!", name);
-                        None
-                    }
-                };
-                let mut signal_id;
-
-                // wire gui -> controller
-                {
-                    let controller = controller.clone();
-                    let to_midi = cfg.clone().and_then(|select| select.to_midi);
-                    let name = name.clone();
-                    signal_id = combo.connect_changed(move |combo| {
-                        combo.active().map(|v| {
-                            controller.set(&name, v as u16, GUI);
-                        });
-                    });
-                }
-                // wire controller -> gui
-                {
-                    let controller = controller.clone();
-                    let from_midi = cfg.and_then(|select| select.from_midi);
-                    let name = name.clone();
-                    let combo = combo.clone();
-                    callbacks.insert(
-                        name.clone(),
-                        Box::new(move || {
-                            let v = controller.get(&name).unwrap() as u16;
-                            // TODO: signal_handler_block is a hack because actual value set
-                            //       to the UI control is not the same as what came from MIDI,
-                            //       so as to not override the MIDI-set value, block the "changed"
-                            //       signal handling altogether
-                            glib::signal::signal_handler_block(&combo, &signal_id);
-                            combo.set_active(Some(v as u32));
-                            glib::signal::signal_handler_unblock(&combo, &signal_id);
-                        })
-                    )
-                }
-            });
-        });
-
-    wire_vol_pedal_position(controller.clone(), objs, callbacks.borrow_mut())?;
-    wire_amp_select(controller.clone(), objs, callbacks.borrow_mut())?;
-    wire_effect_select(controller, raw, callbacks.borrow_mut())?;
-
-    Ok(callbacks)
-}
-
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> () {
     for name in &config.init_controls {
@@ -575,37 +28,9 @@ fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectLi
     }
 }
 
-fn cc_to_control(config: &Config, cc: u8) -> Option<(&String, &Control)> {
-    config.controls.iter()
-        .find(|&(_, control)| {
-            match control.get_cc() {
-                Some(v) if v == cc => true,
-                _ => false
-            }
-        })
-}
-
-fn cc_to_addr(config: &Config, cc: u8) -> Option<usize> {
-    cc_to_control(config, cc)
-        .and_then(|(_, control)| control.get_addr())
-        .map(|(addr, _)| addr as usize)
-}
-
-fn addr_to_control_iter(config: &Config, addr: usize) -> impl Iterator<Item = (&String, &Control)>  {
-    config.controls.iter()
-        .filter(move |(_, control)| {
-            match control.get_addr() {
-                // here we specifically disregard the length and concentrate on the
-                // first byte of multi-byte controls
-                Some((a, _)) if a as usize == addr => true,
-                _ => false
-            }
-        })
-}
-
-fn addr_to_cc_iter(config: &Config, addr: usize) -> impl Iterator<Item = u8> + '_ {
-    addr_to_control_iter(config, addr)
-        .flat_map(|(_, control)| control.get_cc())
+enum UIEvent {
+    MidiTx,
+    MidiRx
 }
 
 #[tokio::main]
@@ -614,9 +39,20 @@ async fn main() -> Result<()> {
 
     let opts: Opts = Opts::parse();
 
-    let (mut midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
-    let (mut midi_out_tx, mut midi_out_rx) = mpsc::unbounded_channel::<MidiMessage>();
+    let (midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
+    let (midi_out_tx, mut midi_out_rx) = mpsc::unbounded_channel::<MidiMessage>();
+    let (ui_event_tx, mut ui_event_rx) = mpsc::unbounded_channel::<UIEvent>();
 
+    gtk::init()
+        .with_context(|| "Failed to initialize GTK")?;
+
+    let module = pod_mod_pod2::module();
+    let config = module.config();
+
+    // register POD 2.0 module
+    register_config(&config);
+
+    // autodetect/open midi
     let autodetect = match (&opts.input, &opts.output) {
         (None, None) => true,
         _ => false
@@ -626,56 +62,46 @@ async fn main() -> Result<()> {
     } else {
         let mut midi_in = MidiIn::new_for_address(opts.input)
             .context("Failed to initialize MIDI").unwrap();
-        let mut midi_out = MidiOut::new_for_address(opts.output)
+        let midi_out = MidiOut::new_for_address(opts.output)
             .context("Failed to initialize MIDI").unwrap();
 
         (midi_in, midi_out)
     };
 
-    gtk::init()
-        .with_context(|| "Failed to initialize GTK")?;
-
-    let configs = PodConfigs::new()?;
-    let config: Config = configs.by_name(&"POD 2.0".into()).context("Config not found by name 'POD 2.0'")?;
-
     let raw = Arc::new(Mutex::new(Raw::new(config.program_size)));
 
     let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
 
-    let builder = gtk::Builder::from_file("src/pod.glade");
-    let objects = ObjectList::new(&builder);
-    //objects.dump_debug();
-
-    init_combo(controller.lock().unwrap().deref(), &objects,
-               "cab_select", &config.cab_models, |s| s.as_str() )?;
-    init_combo(controller.lock().unwrap().deref(), &objects,
-               "amp_select", &config.amp_models, |amp| amp.name.as_str() )?;
-    init_combo(controller.lock().unwrap().deref(), &objects,
-               "effect_select", &config.effects, |eff| eff.name.as_str() )?;
-
-    let callbacks = wire_all(controller.clone(), raw.clone(), &objects)?;
+    let ui = gtk::Builder::from_string(include_str!("ui.glade"));
 
     let title = format!("POD UI {}", env!("GIT_VERSION"));
-    /*
-    let header_bar = gtk::HeaderBar::builder()
-        .has_subtitle(false)
-        .title(&title)
-        .build();
-     */
 
-    let window: gtk::Window = builder.object("app_win").unwrap();
-    //window.set_titlebar(Some(&header_bar));
+    let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
         Inhibit(false)
     });
+    let transfer_icon_up: gtk::Label = ui.object("transfer_icon_up").unwrap();
+    let transfer_icon_down: gtk::Label = ui.object("transfer_icon_down").unwrap();
+    transfer_icon_up.set_opacity(0.0);
+    transfer_icon_down.set_opacity(0.0);
+
+    let pod_ui = module.widget();
+    let app_grid: gtk::Box = ui.object("app_grid").unwrap();
+    app_grid.add(&pod_ui);
+
+    let mut callbacks = Callbacks::new();
+    module.wire(controller.clone(), raw.clone(), &mut callbacks)?;
+
+    let objects = ObjectList::new(&ui) + module.objects();
 
     // midi ----------------------------------------------------
 
     // midi in
     {
         let midi_in_tx = midi_in_tx.clone();
+        let ui_event_tx = ui_event_tx.clone();
 
         tokio::spawn(async move {
             while let Some(bytes) = midi_in.recv().await {
@@ -683,16 +109,20 @@ async fn main() -> Result<()> {
                     Ok(msg) => { midi_in_tx.send(msg); () },
                     Err(err) => error!("Error deserializing MIDI message: {}", err)
                 }
+                ui_event_tx.send(UIEvent::MidiRx);
             }
         });
     }
 
     // midi out
     {
+        let ui_event_tx = ui_event_tx.clone();
+
         tokio::spawn(async move {
             while let Some(msg) = midi_out_rx.recv().await {
                 let bytes = msg.to_bytes();
                 midi_out.send(&bytes);
+                ui_event_tx.send(UIEvent::MidiTx);
             }
         });
     }
@@ -705,7 +135,7 @@ async fn main() -> Result<()> {
         let midi_out_tx = midi_out_tx.clone();
         tokio::spawn(async move {
             let make_cc = |idx: usize| -> Option<MidiMessage> {
-                addr_to_cc_iter(&config, idx)
+                config.addr_to_cc_iter(idx)
                     .next()
                     .and_then(|cc| {
                         let value = raw.lock().unwrap().get(idx as usize);
@@ -757,10 +187,10 @@ async fn main() -> Result<()> {
                  */
                 match msg {
                     MidiMessage::ControlChange { channel: _, control, value } => {
-                        let mut controller = controller.lock().unwrap();
+                        let controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
 
-                        let addr = cc_to_addr(&config, control);
+                        let addr = config.cc_to_addr(control);
                         if addr.is_none() {
                             warn!("Control for CC={} not defined!", control);
                             continue;
@@ -774,7 +204,7 @@ async fn main() -> Result<()> {
                             warn!("Program size mismatch: expected {}, got {}",
                                   controller.config.program_size, data.len());
                         }
-                        program::load_dump(controller.deref_mut(), data.as_slice(), MIDI);
+                        program::load_dump(&mut controller, data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
                         let controller = controller.lock().unwrap();
@@ -839,7 +269,7 @@ async fn main() -> Result<()> {
 
                 let mut controller = controller.lock().unwrap();
                 let raw = raw.lock().unwrap();
-                let mut control_configs = addr_to_control_iter(&config, addr).peekable();
+                let mut control_configs = config.addr_to_control_iter(addr).peekable();
                 if control_configs.peek().is_none() {
                     warn!("Control for address {} not found!", addr);
                     continue;
@@ -934,12 +364,15 @@ async fn main() -> Result<()> {
     {
         let controller = controller.clone();
         let objects = objects.clone();
-        let window = window.clone();
 
         let mut rx = {
             let controller = controller.lock().unwrap();
             controller.subscribe()
         };
+
+        let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
+        let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
+
         glib::idle_add_local(move || {
             match rx.try_recv() {
                 Ok(Event { key: name, .. }) => {
@@ -956,33 +389,59 @@ async fn main() -> Result<()> {
                     thread::sleep(time::Duration::from_millis(100));
                 },
             }
+            match ui_event_rx.try_recv() {
+                Ok(event) => {
+                    match event {
+                        UIEvent::MidiTx => {
+                            transfer_icon_up.set_opacity(1.0);
+                            transfer_up_sem.fetch_add(1, Ordering::SeqCst);
+                            {
+                                let transfer_icon_up = transfer_icon_up.clone();
+                                let transfer_up_sem = Arc::clone(&transfer_up_sem);
+                                glib::timeout_add_local_once(
+                                    Duration::from_millis(500),
+                                    move || {
+                                        let v = transfer_up_sem.fetch_add(-1, Ordering::SeqCst);
+                                        if v <= 1 {
+                                            transfer_icon_up.set_opacity(0.0);
+                                        }
+                                    });
+                            }
+                        }
+                        UIEvent::MidiRx => {
+                            transfer_icon_down.set_opacity(1.0);
+                            transfer_down_sem.fetch_add(1, Ordering::SeqCst);
+                            {
+                                let transfer_icon_down = transfer_icon_down.clone();
+                                let transfer_down_sem = Arc::clone(&transfer_down_sem);
+                                glib::timeout_add_local_once(
+                                    Duration::from_millis(500),
+                                    move || {
+                                        let v = transfer_down_sem.fetch_add(-1, Ordering::SeqCst);
+                                        if v <= 1 {
+                                            transfer_icon_down.set_opacity(0.0);
+                                        }
+                                    });
+                            }
+                        }
+                    }
 
-            window.resize(1, 1);
+                }
+                _ => {}
+            }
+
             Continue(true)
         });
 
     }
 
-    //
-    /*
-    tokio::spawn(async move {
-        println!("STARTING AUTODETECT");
-        match pod_core::pod::autodetect().await {
-            Ok((mut midi_in, mut midi_out)) => {
-                info!("AUTODETECT SUCCESSFUL");
-                info!("in={:?} out={:?}", &midi_in.name, &midi_out.name);
-            },
-            Err(e) => {
-                println!("AUTODETECT FAILED: {}", e);
-            }
-        }
-        println!("STOPPING AUTODETECT");
-    });
-
-     */
-
     // show the window and do init stuff...
     window.show_all();
+
+    window.resize(1, 1);
+
+
+
     init_all(&config, controller.clone(), &objects);
 
     debug!("starting gtk main loop");

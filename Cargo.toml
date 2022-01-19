@@ -2,4 +2,4 @@
 #members = ["core", "cli", "gui"]
 # "cli" is alpha-quality and doesn't even compile
 exclude = ["cli"]
-members = ["core", "gui"]
+members = ["core", "gtk", "gui", "mod-pod2"]
