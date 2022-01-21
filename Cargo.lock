@@ -832,9 +832,11 @@ dependencies = [
  "anyhow",
  "arrayref",
  "futures",
+ "futures-util",
  "log",
  "midir",
  "regex",
+ "result",
  "serde",
  "strfmt",
  "tokio",
@@ -861,12 +863,15 @@ version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "clap",
+ "futures",
+ "futures-util",
  "git-version",
  "log",
  "pin-project",
  "pod-core",
  "pod-gtk",
  "pod-mod-pod2",
+ "result",
  "simple_logger",
  "tokio",
  "winres",
@@ -959,6 +964,12 @@ name = "regex-syntax"
 version = "0.6.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
+
+[[package]]
+name = "result"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "194d8e591e405d1eecf28819740abed6d719d1a2db87fc0bcdedee9a26d55560"
 
 [[package]]
 name = "rustc_version"

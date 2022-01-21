@@ -1,10 +1,12 @@
 mod opts;
+mod util;
+mod settings;
 
 use anyhow::*;
 
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
-use pod_core::pod::{MidiIn, MidiOut};
+use pod_core::pod::*;
 use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
@@ -13,7 +15,7 @@ use pod_core::model::{AbstractControl, Config, Control, Select};
 use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc, oneshot};
 use core::time;
 use std::thread;
 use pod_core::raw::Raw;
@@ -21,6 +23,26 @@ use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use crate::settings::*;
+
+pub enum UIEvent {
+    NewMidiConnection,
+    MidiTx,
+    MidiRx
+}
+
+pub struct State {
+    pub midi_in_name: Option<String>,
+    pub midi_in_cancel: Option<oneshot::Sender<()>>,
+
+    pub midi_out_name: Option<String>,
+    pub midi_out_cancel: Option<oneshot::Sender<()>>,
+
+    pub midi_in_tx: mpsc::UnboundedSender<MidiMessage>,
+    pub midi_out_tx: broadcast::Sender<MidiMessage>,
+    pub ui_event_tx: mpsc::UnboundedSender<UIEvent>,
+}
+
 
 fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> () {
     for name in &config.init_controls {
@@ -28,10 +50,80 @@ fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectLi
     }
 }
 
-enum UIEvent {
-    MidiTx,
-    MidiRx
+pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>) {
+    state.midi_in_cancel.take().map(|cancel| cancel.send(()));
+    state.midi_out_cancel.take().map(|cancel| cancel.send(()));
+
+    if midi_in.is_none() || midi_out.is_none() {
+        warn!("Not starting MIDI because in/out is None");
+        state.midi_in_name = None;
+        state.midi_in_cancel = None;
+        state.midi_out_name = None;
+        state.midi_out_cancel = None;
+        state.ui_event_tx.send(UIEvent::NewMidiConnection);
+        return;
+    }
+
+    let mut midi_in = midi_in.unwrap();
+    let mut midi_out = midi_out.unwrap();
+
+    let (in_cancel_tx, mut in_cancel_rx) = tokio::sync::oneshot::channel::<()>();
+    let (out_cancel_tx, mut out_cancel_rx) = tokio::sync::oneshot::channel::<()>();
+
+    state.midi_in_name = Some(midi_in.name.clone());
+    state.midi_in_cancel = Some(in_cancel_tx);
+
+    state.midi_out_name = Some(midi_out.name.clone());
+    state.midi_out_cancel = Some(out_cancel_tx);
+
+    state.ui_event_tx.send(UIEvent::NewMidiConnection);
+
+    // midi in
+    {
+        let midi_in_tx = state.midi_in_tx.clone();
+        let ui_event_tx = state.ui_event_tx.clone();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Some(bytes) = midi_in.recv() => {
+                        match MidiMessage::from_bytes(bytes) {
+                            Ok(msg) => { midi_in_tx.send(msg); () },
+                            Err(err) => error!("Error deserializing MIDI message: {}", err)
+                        }
+                        ui_event_tx.send(UIEvent::MidiRx);
+                    }
+                    _ = &mut in_cancel_rx => {
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    // midi out
+    {
+        let mut midi_out_rx = state.midi_out_tx.subscribe();
+        let ui_event_tx = state.ui_event_tx.clone();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Ok(msg) = midi_out_rx.recv() => {
+                        let bytes = msg.to_bytes();
+                        midi_out.send(&bytes);
+                        ui_event_tx.send(UIEvent::MidiTx);
+                    }
+                    _ = &mut out_cancel_rx => {
+                        return;
+                    }
+                }
+            }
+        });
+    }
 }
+
+use result::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,7 +132,7 @@ async fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
 
     let (midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
-    let (midi_out_tx, mut midi_out_rx) = mpsc::unbounded_channel::<MidiMessage>();
+    let (midi_out_tx, mut midi_out_rx) = broadcast::channel::<MidiMessage>(16);
     let (ui_event_tx, mut ui_event_rx) = mpsc::unbounded_channel::<UIEvent>();
 
     gtk::init()
@@ -48,6 +140,16 @@ async fn main() -> Result<()> {
 
     let module = pod_mod_pod2::module();
     let config = module.config();
+
+    let state = Arc::new(Mutex::new(State {
+        midi_in_name: None,
+        midi_in_cancel: None,
+        midi_out_name: None,
+        midi_out_cancel: None,
+        midi_in_tx,
+        midi_out_tx,
+        ui_event_tx
+    }));
 
     // register POD 2.0 module
     register_config(&config);
@@ -58,18 +160,27 @@ async fn main() -> Result<()> {
         _ => false
     };
     let (mut midi_in, mut midi_out) = if autodetect {
-        pod_core::pod::autodetect().await?
+        match pod_core::pod::autodetect().await {
+            Ok((midi_in, midi_out)) => {
+                (Some(midi_in), Some(midi_out))
+            }
+            Err(err) => {
+                error!("MIDI autodetect failed: {}", err);
+                (None, None)
+            }
+        }
     } else {
-        let mut midi_in = MidiIn::new_for_address(opts.input)
-            .context("Failed to initialize MIDI").unwrap();
-        let midi_out = MidiOut::new_for_address(opts.output)
-            .context("Failed to initialize MIDI").unwrap();
+        let mut midi_in =
+            opts.input.map(MidiIn::new_for_address).invert()?;
+        let midi_out =
+            opts.output.map(MidiOut::new_for_address).invert()?;
 
         (midi_in, midi_out)
     };
 
-    let raw = Arc::new(Mutex::new(Raw::new(config.program_size)));
+    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out);
 
+    let raw = Arc::new(Mutex::new(Raw::new(config.program_size)));
     let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
 
     let ui = gtk::Builder::from_string(include_str!("ui.glade"));
@@ -86,6 +197,9 @@ async fn main() -> Result<()> {
     let transfer_icon_down: gtk::Label = ui.object("transfer_icon_down").unwrap();
     transfer_icon_up.set_opacity(0.0);
     transfer_icon_down.set_opacity(0.0);
+    let header_bar: gtk::HeaderBar = ui.object("header_bar").unwrap();
+
+    wire_settings_dialog(state.clone(), &ui);
 
     let pod_ui = module.widget();
     let app_grid: gtk::Box = ui.object("app_grid").unwrap();
@@ -98,41 +212,12 @@ async fn main() -> Result<()> {
 
     // midi ----------------------------------------------------
 
-    // midi in
-    {
-        let midi_in_tx = midi_in_tx.clone();
-        let ui_event_tx = ui_event_tx.clone();
-
-        tokio::spawn(async move {
-            while let Some(bytes) = midi_in.recv().await {
-                match MidiMessage::from_bytes(bytes) {
-                    Ok(msg) => { midi_in_tx.send(msg); () },
-                    Err(err) => error!("Error deserializing MIDI message: {}", err)
-                }
-                ui_event_tx.send(UIEvent::MidiRx);
-            }
-        });
-    }
-
-    // midi out
-    {
-        let ui_event_tx = ui_event_tx.clone();
-
-        tokio::spawn(async move {
-            while let Some(msg) = midi_out_rx.recv().await {
-                let bytes = msg.to_bytes();
-                midi_out.send(&bytes);
-                ui_event_tx.send(UIEvent::MidiTx);
-            }
-        });
-    }
-
     // raw / midi reply -> midi out
     {
         let raw = raw.clone();
         let config = config.clone();
         let mut rx = raw.lock().unwrap().subscribe();
-        let midi_out_tx = midi_out_tx.clone();
+        let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         tokio::spawn(async move {
             let make_cc = |idx: usize| -> Option<MidiMessage> {
                 config.addr_to_cc_iter(idx)
@@ -170,6 +255,7 @@ async fn main() -> Result<()> {
         let raw = raw.clone();
         let controller = controller.clone();
         let config = config.clone();
+        let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         tokio::spawn(async move {
             loop {
                 let msg = midi_in_rx.recv().await;
@@ -423,6 +509,24 @@ async fn main() -> Result<()> {
                                         }
                                     });
                             }
+                        }
+                        UIEvent::NewMidiConnection => {
+                            let state = state.lock().unwrap();
+                            let midi_in_name = state.midi_in_name.as_ref();
+                            let midi_out_name = state.midi_out_name.as_ref();
+                            let subtitle = match (midi_in_name, midi_out_name) {
+                                (None, _) | (_, None) => {
+                                    "no device connected".to_string()
+                                }
+                                (Some(a), Some(b)) if a == b => {
+                                    format!("{}", a)
+                                }
+                                (Some(a), Some(b)) => {
+                                    format!("i: {} / o: {}", a, b)
+                                }
+                            };
+
+                            header_bar.set_subtitle(Some(&subtitle));
                         }
                     }
 

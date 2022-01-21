@@ -14,6 +14,9 @@ pin-project = "=0.4.29" # needed to get glib dep to comile :(
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core
 anyhow = "*" # defined in pod-code
+futures = "*" # defined in pod-code
+futures-util = "*" # defined in pod-code
+result = "*" # defined in pod-core
 
 pod-core = { path = "../core" }
 pod-gtk = { path = "../gtk" }

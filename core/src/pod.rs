@@ -7,6 +7,7 @@ use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use tokio::time::sleep;
 use log::*;
+use result::prelude::*;
 
 use crate::midi::*;
 use crate::config::configs;
@@ -33,13 +34,9 @@ impl MidiIn {
         Ok(midi_in)
     }
 
-    pub fn _new_for_input(midi_in: MidiInput, in_port: Option<usize>) -> Result<Self> {
-        let in_port_n: usize = in_port.unwrap_or(0);
-
-        let port = midi_in.ports().into_iter().nth(in_port_n)
-            .with_context(|| format!("MIDI input port {} not found", in_port_n))?;
+    pub fn _new_for_port(midi_in: MidiInput, port: MidiInputPort) -> Result<Self> {
         let name = midi_in.port_name(&port)
-            .with_context(|| format!("Failed to get name for MIDI input port {}", in_port_n))?;
+            .map_err(|e| anyhow!("Failed to get MIDI intput port name: {}", e))?;
 
         let (tx, rx) = mpsc::unbounded_channel();
 
@@ -51,25 +48,6 @@ impl MidiIn {
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
 
         Ok(MidiIn { name, port, conn, rx })
-    }
-
-    pub fn new(in_port: Option<usize>) -> Result<Self> {
-        let midi_in = MidiIn::_new()?;
-        MidiIn::_new_for_input(midi_in, in_port)
-    }
-
-    pub fn new_for_address(in_port: Option<String>) -> Result<Self> {
-        let midi_in = MidiIn::_new()?;
-
-        let n = in_port.and_then_r(|port| {
-            let port_names: Result<Vec<_>, _> = midi_in.ports().iter()
-                .map(|port| midi_in.port_name(port))
-                .collect();
-
-            find_address(port_names?.iter().map(String::as_str), &port)
-        })?;
-
-        MidiIn::_new_for_input(midi_in, n)
     }
 
     pub async fn recv(&mut self) -> Option<Vec<u8>>
@@ -96,36 +74,13 @@ impl MidiOut {
         Ok(midi_out)
     }
 
-    fn _new_for_output(midi_out: MidiOutput, out_port: Option<usize>) -> Result<Self> {
-        let out_port_n: usize = out_port.unwrap_or(0);
-        let port = midi_out.ports().into_iter().nth(out_port_n)
-            .with_context(|| format!("MIDI output port {} not found", out_port_n))?;
+    fn _new_for_port(midi_out: MidiOutput, port: MidiOutputPort) -> Result<Self> {
         let name = midi_out.port_name(&port)
-            .with_context(|| format!("Failed to get name for MIDI output port {}", out_port_n))?;
-
+            .map_err(|e| anyhow!("Failed to get MIDI output port name: {}", e))?;
         let conn = midi_out.connect(&port, "pod midi out conn")
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
 
         Ok(MidiOut { name, port, conn })
-    }
-
-    pub fn new(out_port: Option<usize>) -> Result<Self> {
-        let midi_out = MidiOut::_new()?;
-        MidiOut::_new_for_output(midi_out, out_port)
-    }
-
-    pub fn new_for_address(out_port: Option<String>) -> Result<Self> {
-        let out = MidiOut::_new()?;
-
-        let n = out_port.and_then_r(|port| {
-            let port_names: Result<Vec<_>, _> = out.ports().iter()
-                .map(|port| out.port_name(port))
-                .collect();
-
-            find_address(port_names?.iter().map(String::as_str), &port)
-        })?;
-
-        MidiOut::_new_for_output(out, n)
     }
 
     pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
@@ -135,21 +90,135 @@ impl MidiOut {
     }
 }
 
-trait MidiIO {
-    fn ports() -> Result<Vec<String>>;
-}
+pub trait  MidiOpen {
+    type Class: MidiIO<Port = Self::Port>;
+    type Port;
+    type Out;
+    const DIR: &'static str;
 
-impl MidiIO for MidiIn {
-    fn ports() -> Result<Vec<String>> {
-        let midi = MidiIn::_new()?;
-        list_ports(midi)
+    fn _new() -> Result<Self::Class>;
+    fn _new_for_port(class: Self::Class, port: Self::Port) -> Result<Self::Out>;
+
+    fn new(port_idx: Option<usize>) -> Result<Self::Out> {
+        let class = Self::_new()?;
+
+        let port_n: usize = port_idx.unwrap_or(0);
+        let port = class.ports().into_iter().nth(port_n)
+            .with_context(|| format!("MIDI {} port {} not found", Self::DIR, port_n))?;
+
+        Self::_new_for_port(class, port)
+    }
+
+    fn new_for_address(port_addr: String) -> Result<Self::Out> {
+        let class = Self::_new()?;
+
+        let port_n_re = Regex::new(r"\d+").unwrap();
+        let port_id_re = Regex::new(r"\d+:\d+").unwrap();
+
+        let mut found = None;
+        if port_id_re.is_match(&port_addr) {
+            for port in class.ports().into_iter() {
+                let name = class.port_name(&port)?;
+                if name.ends_with(&port_addr) {
+                    found = Some(port);
+                }
+            }
+        } else if port_n_re.is_match(&port_addr) {
+            let n = Some(usize::from_str(&port_addr)).invert()
+                .with_context(|| format!("Unrecognized MIDI port index {:?}", port_addr))?;
+            return Self::new(n);
+        } else {
+            bail!("Unrecognized MIDI port address {:?}", port_addr);
+        }
+
+        if found.is_none() {
+            bail!("MIDI {} port for address {:?} not found!", Self::DIR, port_addr);
+        }
+
+        Self::_new_for_port(class, found.unwrap())
+    }
+
+    fn new_for_name(port_name: &str) -> Result<Self::Out> {
+        let class = Self::_new()?;
+
+        let mut found = None;
+        for port in class.ports().into_iter() {
+            let name = class.port_name(&port)?;
+            if name == port_name {
+                found = Some(port);
+            }
+        }
+        if found.is_none() {
+            bail!("MIDI {} port for name {:?} not found!", Self::DIR, port_name);
+        }
+
+        Self::_new_for_port(class, found.unwrap())
     }
 }
 
-impl MidiIO for MidiOut {
+impl MidiOpen for MidiIn {
+    type Class = MidiInput;
+    type Port = MidiInputPort;
+    type Out = MidiIn;
+    const DIR: &'static str = "input";
+
+    fn _new() -> Result<Self::Class> {
+        MidiIn::_new()
+    }
+
+    fn _new_for_port(class: Self::Class, port: Self::Port) -> Result<Self::Out> {
+        MidiIn::_new_for_port(class, port)
+    }
+}
+
+impl MidiOpen for MidiOut {
+    type Class = MidiOutput;
+    type Port = MidiOutputPort;
+    type Out = MidiOut;
+    const DIR: &'static str = "output";
+
+    fn _new() -> Result<Self::Class> {
+        MidiOut::_new()
+    }
+
+    fn _new_for_port(class: Self::Class, port: Self::Port) -> Result<Self::Out> {
+        MidiOut::_new_for_port(class, port)
+    }
+}
+
+
+pub trait MidiPorts {
+    fn all_ports() -> Result<Vec<String>>;
+    fn ports() -> Result<Vec<String>>;
+}
+
+impl MidiPorts for MidiIn {
+    fn all_ports() -> Result<Vec<String>> {
+        let midi = MidiIn::_new()?;
+        list_ports(midi)
+    }
+
     fn ports() -> Result<Vec<String>> {
+        Self::all_ports()
+            .map(|v| v.into_iter()
+                .filter(|name| !name.starts_with("pod midi out:"))
+                .collect()
+            )
+    }
+}
+
+impl MidiPorts for MidiOut {
+    fn all_ports() -> Result<Vec<String>> {
         let midi = MidiOut::_new()?;
         list_ports(midi)
+    }
+
+    fn ports() -> Result<Vec<String>> {
+        Self::all_ports()
+            .map(|v| v.into_iter()
+                .filter(|name| !name.starts_with("pod midi in:"))
+                .collect()
+            )
     }
 }
 
@@ -307,13 +376,11 @@ async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Ve
 pub async fn autodetect() -> Result<(MidiIn, MidiOut)> {
     let in_port_names = MidiIn::ports()?;
     let mut in_ports = in_port_names.iter().enumerate()
-        .filter(|(_, name)| !name.starts_with("pod midi out:"))
         .map(|(i, _)| MidiIn::new(Some(i)))
         .collect::<Result<Vec<_>>>()?;
 
     let out_port_names = MidiOut::ports()?;
     let mut out_ports = out_port_names.iter().enumerate()
-        .filter(|(_, name)| !name.starts_with("pod midi in:"))
         .map(|(i, _)| MidiOut::new(Some(i)))
         .collect::<Result<Vec<_>>>()?;
 
@@ -366,6 +433,20 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut)> {
         if out_ports.len() == 1 {
             break;
         }
+    }
+
+    Ok((in_ports.remove(0), out_ports.remove(0)))
+}
+
+pub async fn test(in_name: &str, out_name: &str) -> Result<(MidiIn, MidiOut)> {
+    let in_port = MidiIn::new_for_name(in_name)?;
+    let out_port = MidiOut::new_for_name(out_name)?;
+    let mut in_ports = vec![in_port];
+    let mut out_ports = vec![out_port];
+
+    let rep = detect(in_ports.as_mut_slice(), out_ports.as_mut_slice()).await?;
+    if rep.len() == 0 {
+        bail!("Received no device response");
     }
 
     Ok((in_ports.remove(0), out_ports.remove(0)))
