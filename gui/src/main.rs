@@ -541,12 +541,10 @@ async fn main() -> Result<()> {
 
     // show the window and do init stuff...
     window.show_all();
-
     window.resize(1, 1);
 
-
-
     init_all(&config, controller.clone(), &objects);
+    module.init(controller, raw)?;
 
     debug!("starting gtk main loop");
     gtk::main();

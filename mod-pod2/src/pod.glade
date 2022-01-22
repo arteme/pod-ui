@@ -258,10 +258,10 @@
                 <property name="receives-default">False</property>
                 <property name="draw-indicator">True</property>
                 <style>
-                  <class name="effect_select=0:hide"/>
-                  <class name="effect_select=1:hide"/>
-                  <class name="effect_select=2:hide"/>
-                  <class name="effect_select=*:show"/>
+                  <class name="effect_select=0:opacity=0"/>
+                  <class name="effect_select=1:opacity=0"/>
+                  <class name="effect_select=2:opacity=0"/>
+                  <class name="effect_select=*:opacity=1"/>
                 </style>
               </object>
               <packing>

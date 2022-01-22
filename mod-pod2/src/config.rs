@@ -225,7 +225,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            // noise gate
            "gate_threshold" => RangeControl { cc: 23, addr: 16, from: 0, to: 96,
                format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
-           "gate_decay" => RangeControl { cc: 24, addr: 17, from: 0, to: 63, ..def!() }, // todo: 8.1 msec .. 159 msec
+           "gate_decay" => RangeControl { cc: 24, addr: 17, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() }, // todo: 8.1 msec .. 159 msec
            // wah wah
            // wah pedal on/off,  cc: 43 ??
            "wah_level" => RangeControl { cc: 4, addr: 18,format: fmt_percent!(), ..def!() },
@@ -236,20 +237,30 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "vol_minimum" => RangeControl { cc: 46, addr: 23, format: fmt_percent!(), ..def!() },
            "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
            // delay
-           "delay_time" => RangeControl { cc: 30, addr: 26, from: 0, to: 127/*3150*/, ..def!() }, // 0 .. 3150 ms / 128 steps
+           "delay_time" => RangeControl { cc: 30, addr: 26, from: 0, to: 127/*3150*/,
+               format: Format::Data(FormatData { k: 3150.0/127.0, b: 0.0, format: "{val:1.0f} ms".into() }),
+                ..def!() }, // 0 .. 3150 ms / 128 steps
            "delay_time:fine" => RangeControl { cc: 62, addr: 27, bytes: 3, ..def!() }, // todo: what to do with this?
-           "delay_feedback" => RangeControl { cc: 32, addr: 34, from: 0, to: 63, ..def!() },
-           "delay_level" => RangeControl { cc: 34, addr: 36, from: 0, to: 63, ..def!() },
+           "delay_feedback" => RangeControl { cc: 32, addr: 34, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
+           "delay_level" => RangeControl { cc: 34, addr: 36, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
            // reverb
            "reverb_type" => SwitchControl { cc: 37, addr: 38, ..def!() }, // 0: spring, 1: hall
-           "reverb_decay" => RangeControl { cc: 38, addr: 39, from: 0, to: 63, ..def!() },
-           "reverb_tone" => RangeControl { cc: 39, addr: 40, from: 0, to: 63, ..def!() },
-           "reverb_diffusion" => RangeControl { cc: 40, addr: 41, from: 0, to: 63, ..def!() },
-           "reverb_density" => RangeControl { cc: 41, addr: 42, from: 0, to: 63, ..def!() },
-           "reverb_level" => RangeControl { cc: 18, addr: 43, from: 0, to: 63, ..def!() },
+           "reverb_decay" => RangeControl { cc: 38, addr: 39, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
+           "reverb_tone" => RangeControl { cc: 39, addr: 40, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
+           "reverb_diffusion" => RangeControl { cc: 40, addr: 41, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
+           "reverb_density" => RangeControl { cc: 41, addr: 42, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
+           "reverb_level" => RangeControl { cc: 18, addr: 43, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
            // cabinet sim
            "cab_select" => Select { cc: 71, addr: 44, ..def!() },
-           "air" => RangeControl { cc: 72, addr: 45, from: 0, to: 63, ..def!() },
+           "air" => RangeControl { cc: 72, addr: 45, from: 0, to: 63,
+                format: fmt_percent!(), ..def!() },
            // effect
            "effect_select" => Select { cc: 19, addr: 46,
                from_midi: Some(EFFECT_SELECT_FROM_MIDI.to_vec()),

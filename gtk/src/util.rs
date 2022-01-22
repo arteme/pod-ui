@@ -49,8 +49,8 @@ pub fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
             match cls.as_str() {
                 "show" => widget.show(),
                 "hide" => widget.hide(),
-                "opacity=0" => widget.set_opacity(0f64),
-                "opacity=1" => widget.set_opacity(1f64),
+                "opacity=0" => { widget.set_opacity(0f64); widget.set_sensitive(false) },
+                "opacity=1" => { widget.set_opacity(1f64); widget.set_sensitive(true) },
                 "enable" => widget.set_sensitive(true),
                 "disable" => widget.set_sensitive(false),
                 _ => {

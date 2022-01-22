@@ -15,4 +15,5 @@ pub trait Module {
     fn objects(&self) -> ObjectList;
 
     fn wire(&self, controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()>;
+    fn init(&self, controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>) -> Result<()>;
 }

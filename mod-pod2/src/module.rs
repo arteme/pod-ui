@@ -1,7 +1,9 @@
 use std::sync::{Arc, Mutex};
+use pod_core::config::{MIDI, UNSET};
 use pod_core::controller::Controller;
 use pod_core::model::Config;
 use pod_core::raw::Raw;
+use pod_core::store::{Signal, StoreSetIm};
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
 use pod_gtk::gtk::{Builder, Widget};
@@ -59,6 +61,12 @@ impl Module for Pod2Module {
         wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
         wire_amp_select(controller.clone(), &self.objects, callbacks)?;
         wire_effect_select(controller, raw, callbacks)?;
+
+        Ok(())
+    }
+
+    fn init(&self, controller: Arc<Mutex<Controller>>, _raw: Arc<Mutex<Raw>>) -> anyhow::Result<()> {
+        controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
         Ok(())
     }
