@@ -1,6 +1,6 @@
 [package]
 name = "pod-gui"
-version = "0.2.0"
+version = "0.3.0-dev"
 authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 build = "build.rs"
