@@ -267,7 +267,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                to_midi: Some(EFFECT_SELECT_TO_MIDI.to_vec())
            }, // 0 - bypass, 1..15 - effects
            "effect_select:raw" => Select { cc: 19, addr: 46, ..def!() }, // special!
-           "effect_tweak" => RangeControl { cc: 1, addr: 47, from: 0, to: 63, ..def!() },
+           "effect_tweak" => RangeControl { cc: 1, addr: 47, from: 0, to: 63, format: fmt_percent!(), ..def!() }, // in ui: rotary depth
            // effect parameters
            // volume swell on/off,  cc: 48 ??
            "volume_swell_time" => RangeControl { cc: 49, addr: 48, from: 0, to: 63,
@@ -279,7 +279,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                ..def!() }, // off, 1.4:1, 2:1, 3:1, 6:1, inf:1
            "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, bytes: 2,
                ..def!() }, // todo: 200 .. 65535 ms (x * 50)
-           "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, bytes: 2, ..def!() }, // todo: 0..312 samples @ 31.2KHz (x * 256 / 104)
+           "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, bytes: 2,
+                format: fmt_percent!(),..def!() }, // todo: 0..312 samples @ 31.2KHz (x * 256 / 104)
            "chorus_flanger_feedback" => RangeControl { cc: 53, addr: 52,
                format: fmt_percent!(signed), ..def!() }, // 0(max)..63(min) negative, 64(min)..127(max) positive
            "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, bytes: 2,
@@ -290,7 +291,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "rotary_fast_speed" => RangeControl { cc: 56, addr: 49, bytes: 2, ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
            "rotary_slow_speed" => RangeControl { cc: 57, addr: 51,  bytes: 2, ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
            "trem_speed" => RangeControl { cc: 58, addr: 48, bytes: 2, ..def!() }, // 150 .. 65535 ms period (x * 25)
-           "trem_depth" => RangeControl { cc: 59, addr: 50, ..def!() },
+           "trem_depth" => RangeControl { cc: 59, addr: 50, format: fmt_percent!(), ..def!() },
        )),
         init_controls: convert_args!(vec!(
            "distortion_enable",
