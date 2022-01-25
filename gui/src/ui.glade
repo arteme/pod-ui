@@ -5,12 +5,12 @@
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="icon-name">preferences-system</property>
+    <property name="icon-name">preferences-system-symbolic</property>
   </object>
   <object class="GtkImage" id="image2">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="icon-name">open-menu</property>
+    <property name="icon-name">open-menu-symbolic</property>
   </object>
   <object class="GtkApplicationWindow" id="ui_win">
     <property name="name">ui_window</property>
