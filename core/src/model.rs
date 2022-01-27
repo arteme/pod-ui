@@ -87,8 +87,14 @@ impl Default for FormatData {
 #[derive(Clone, Debug)]
 pub struct SwitchControl { pub cc: u8, pub addr: u8 }
 #[derive(Clone, Debug)]
-pub struct RangeControl { pub cc: u8, pub addr: u8, pub bytes: u8, pub from: u8, pub to: u8,
-    pub format: Format<Self> }
+pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<Self> }
+#[derive(Clone, Debug)]
+pub enum RangeConfig {
+    Normal,
+    Short { from: u8, to: u8 },
+    Long { bits: [u8;2] },
+}
+
 #[derive(Clone, Debug)]
 pub struct Select { pub cc: u8, pub addr: u8,
     pub from_midi: Option<Vec<u16>>, pub to_midi: Option<Vec<u16>> }
@@ -110,7 +116,7 @@ impl From<SwitchControl> for Control {
 
 impl Default for RangeControl {
     fn default() -> Self {
-        RangeControl { cc: 0, addr: 0, bytes: 1, from: 0, to: 127,
+        RangeControl { cc: 0, addr: 0, config: RangeConfig::Normal,
             format: Format::None }
     }
 }
@@ -140,7 +146,13 @@ pub trait AbstractControl {
 
 impl AbstractControl for RangeControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
-    fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, self.bytes)) }
+    fn get_addr(&self) -> Option<(u8, u8)> {
+        let bytes = match self.config {
+            RangeConfig::Long { .. } => 2,
+            _ => 1
+        };
+        Some((self.addr, bytes))
+    }
 }
 
 impl AbstractControl for SwitchControl {
@@ -177,15 +189,24 @@ impl AbstractControl for Control {
 // --
 
 impl RangeControl {
+    pub fn bounds(&self) -> (f64, f64) {
+        match self.config {
+            RangeConfig::Normal => (0.0, 127.0),
+            RangeConfig::Short { from, to } => (from as f64, to as f64),
+            RangeConfig::Long { bits } => {
+                let to: u32 = (1 << (bits[0] + bits[1])) - 1;
+                (0.0, to as f64)
+            }
+        }
+    }
+
     pub fn fmt_percent(&self, v: f64) -> String {
-        let from = self.from as f64;
-        let to = self.to as f64;
+        let (from, to) = self.bounds();
         format!("{:1.0}%", (v - from) * 100.0 / (to - from))
     }
 
     pub fn fmt_percent_signed(&self, v: f64) -> String {
-        let from = self.from as f64;
-        let to = self.to as f64;
+        let (from, to) = self.bounds();
 
         let n = ((to - from) / 2.0).floor();
         let p = ((to - from) / 2.0).ceil();
@@ -238,9 +259,7 @@ impl Config {
         self.controls.iter()
             .filter(move |(_, control)| {
                 match control.get_addr() {
-                    // here we specifically disregard the length and concentrate on the
-                    // first byte of multi-byte controls
-                    Some((a, _)) if a as usize == addr => true,
+                    Some((a, n)) if (a..a+n).contains(&(addr as u8)) => true,
                     _ => false
                 }
             })
@@ -248,6 +267,13 @@ impl Config {
 
     pub fn addr_to_cc_iter(&self, addr: usize) -> impl Iterator<Item = u8> + '_ {
         self.addr_to_control_iter(addr)
+            .filter(move |(_, control)| {
+                match control.get_addr() {
+                    // Only interested in controls' fist byte that maps to a CC
+                    Some((a, _)) if a == addr as u8 => true,
+                    _ => false
+                }
+            })
             .flat_map(|(_, control)| control.get_cc())
     }
 

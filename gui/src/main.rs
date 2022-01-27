@@ -11,7 +11,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{AbstractControl, Config, Control, Select};
+use pod_core::model::{AbstractControl, Config, Control, RangeConfig, RangeControl, Select};
 use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
@@ -338,7 +338,6 @@ async fn main() -> Result<()> {
         let config = config.clone();
         let mut rx = raw.lock().unwrap().subscribe();
         tokio::spawn(async move {
-
             loop {
                 let mut addr: usize = usize::MAX-1;
                 let mut origin: u8 = UNSET;
@@ -364,7 +363,7 @@ async fn main() -> Result<()> {
                 control_configs.for_each(|(name, config)| {
                     let scale= match &config {
                         Control::SwitchControl(_) => 64u16,
-                        Control::RangeControl(c) => 127 / c.to as u16,
+                        Control::RangeControl(RangeControl{ config: RangeConfig::Short { to, .. }, .. }) => 127 / *to as u16,
                         _ => 1
                     };
                     let value = raw.get(addr).unwrap() as u16 / scale;
@@ -380,7 +379,33 @@ async fn main() -> Result<()> {
                         },
                         _ => &value
                     };
-                    controller.set(name, *value, MIDI);
+                    let (caddr, bytes) = config.get_addr().unwrap();
+                    match bytes {
+                        1 => {
+                            controller.set(name, *value, MIDI);
+                        }
+                        2 => {
+                            let bits = match config {
+                                Control::RangeControl(RangeControl{ config: RangeConfig::Long { bits }, .. }) => bits,
+                                _ => &[0u8, 0u8]
+                            };
+                            let cvalue = controller.get(name).unwrap();
+
+                            let (mask, shift) = if addr == caddr as usize {
+                                // first byte
+                                let shift = bits[1];
+                                let mask = ((1 << bits[0]) - 1) << shift;
+                                (mask, shift)
+                            } else {
+                                let mask = (1 << bits[1]) - 1;
+                                (mask, 0)
+                            };
+                            let v = (cvalue & !mask) | (*value << shift);
+                            controller.set(name, v, MIDI);
+
+                        }
+                        n => error!("Unsupported control size in bytes: {}", n)
+                    }
                 });
             }
         });
@@ -420,7 +445,7 @@ async fn main() -> Result<()> {
                 let control_config = control_config.unwrap();
                 let scale = match control_config {
                     Control::SwitchControl(_) => 64u16,
-                    Control::RangeControl(c) => 127 / c.to as u16,
+                    Control::RangeControl(RangeControl{ config: RangeConfig::Short { to, .. }, .. }) => 127 / *to as u16,
                     _ => 1
                 };
                 let value = val * scale;
@@ -437,8 +462,39 @@ async fn main() -> Result<()> {
                     _ => &value
                 };
 
-                let addr = control_config.get_addr().unwrap().0; // TODO: multibyte!
-                raw.set_full(addr as usize, *value as u8, GUI, signal);
+                let (addr, bytes) = control_config.get_addr().unwrap();
+                match bytes {
+                    1 => {
+                        raw.set_full(addr as usize, *value as u8, GUI, signal);
+                    }
+                    2 => {
+                        let bits = match control_config {
+                            Control::RangeControl(RangeControl{ config: RangeConfig::Long { bits }, .. }) => bits,
+                            _ => &[0u8, 0u8]
+                        };
+
+                        let b1 = *value >> bits[1];
+                        let b2 = *value & ((1 << bits[1]) - 1);
+
+                        // For "delay time" knob, Line6 Edit always sends the
+                        // "time 1 fine cc 62" first, and then "time 1 coarse
+                        // cc 30". It also expects to receive them in the same
+                        // order, so sending only cc 62 on change is like also
+                        // sending cc 30 = 0!
+                        // So, 1) set LSB first and then MSB and 2) always
+                        // force-set.
+                        // ---
+                        // NOTE: Even that is not enough, though! Line6 Edit
+                        // 3.06 actually will discard cc 62 after getting
+                        // cc 30, so, sending cc 62 is like sending cc 30 = 0
+                        // and sending cc 30 is like sending cc 62 = 0 !!! ;(
+                        // Still it's better so send cc 30 (coarse) overriding
+                        // cc 62 (fine) than the other way around.
+                        raw.set_full((addr+1) as usize, b2 as u8, GUI, Signal::Force);
+                        raw.set_full(addr as usize, b1 as u8, GUI, Signal::Force);
+                    }
+                    n => error!("Unsupported control size in bytes: {}", n)
+                }
             }
         });
     }

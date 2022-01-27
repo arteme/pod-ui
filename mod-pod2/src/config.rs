@@ -56,6 +56,14 @@ macro_rules! fmt_percent {
     () => ( Format::Callback(RangeControl::fmt_percent) );
 }
 
+macro_rules! short {
+    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to } );
+    () => ( short!(0, 63) );
+}
+macro_rules! long {
+    ( $a:expr, $b:expr ) => ( RangeConfig::Long { bits: [$a, $b] } )
+}
+
 macro_rules! string_vec {
     ( $($x:expr),* ) => (vec![ $($x.to_string()),* ]);
 }
@@ -208,24 +216,24 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "bright_switch_enable" => SwitchControl { cc: 73, addr: 7 },
            // preamp
            "amp_select" => Select { cc: 12, addr: 8, ..def!() },
-           "drive" => RangeControl { cc: 13, addr: 9, from: 0, to: 63,
+           "drive" => RangeControl { cc: 13, addr: 9, config: short!(),
                format: fmt_percent!(), ..def!() },
-           "drive2" => RangeControl { cc: 20, addr: 10, from: 0, to: 63,
+           "drive2" => RangeControl { cc: 20, addr: 10, config: short!(),
                format: fmt_percent!(), ..def!() }, // only "pod layer"
-           "bass" => RangeControl { cc: 14, addr: 11, from: 0, to: 63,
+           "bass" => RangeControl { cc: 14, addr: 11, config: short!(),
                format: fmt_percent!(), ..def!() },
-           "mid" => RangeControl { cc: 15, addr: 12, from: 0, to: 63,
+           "mid" => RangeControl { cc: 15, addr: 12, config: short!(),
                format: fmt_percent!(), ..def!() },
-           "treble" => RangeControl { cc: 16, addr: 13, from: 0, to: 63,
+           "treble" => RangeControl { cc: 16, addr: 13, config: short!(),
                format: fmt_percent!(), ..def!() },
-           "presence" => RangeControl { cc: 21, addr: 14, from: 0, to: 63,
+           "presence" => RangeControl { cc: 21, addr: 14, config: short!(),
                format: fmt_percent!(), ..def!() },
-           "chan_volume" => RangeControl { cc: 17, addr: 15, from: 0, to: 63,
+           "chan_volume" => RangeControl { cc: 17, addr: 15, config: short!(),
                format: fmt_percent!(), ..def!() },
            // noise gate
-           "gate_threshold" => RangeControl { cc: 23, addr: 16, from: 0, to: 96,
+           "gate_threshold" => RangeControl { cc: 23, addr: 16, config: short!(0,96),
                format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
-           "gate_decay" => RangeControl { cc: 24, addr: 17, from: 0, to: 63,
+           "gate_decay" => RangeControl { cc: 24, addr: 17, config: short!(),
                 format: fmt_percent!(), ..def!() }, // todo: 8.1 msec .. 159 msec
            // wah wah
            // wah pedal on/off,  cc: 43 ??
@@ -237,29 +245,29 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "vol_minimum" => RangeControl { cc: 46, addr: 23, format: fmt_percent!(), ..def!() },
            "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
            // delay
-           "delay_time" => RangeControl { cc: 30, addr: 26, from: 0, to: 127/*3150*/,
-               format: Format::Data(FormatData { k: 3150.0/127.0, b: 0.0, format: "{val:1.0f} ms".into() }),
+           "delay_time" => RangeControl { cc: 30, addr: 26, config: long!(7,7),
+               format: Format::Data(FormatData { k: 6.0 * 0.03205, b: 0.0, format: "{val:1.2f} ms".into() }),
                 ..def!() }, // 0 .. 3150 ms / 128 steps
-           "delay_time:fine" => RangeControl { cc: 62, addr: 27, bytes: 3, ..def!() }, // todo: what to do with this?
-           "delay_feedback" => RangeControl { cc: 32, addr: 34, from: 0, to: 63,
+           "delay_time:fine" => RangeControl { cc: 62, addr: 27, ..def!() }, // todo: what to do with this?
+           "delay_feedback" => RangeControl { cc: 32, addr: 34, config: short!(),
                 format: fmt_percent!(), ..def!() },
-           "delay_level" => RangeControl { cc: 34, addr: 36, from: 0, to: 63,
+           "delay_level" => RangeControl { cc: 34, addr: 36, config: short!(),
                 format: fmt_percent!(), ..def!() },
            // reverb
            "reverb_type" => SwitchControl { cc: 37, addr: 38, ..def!() }, // 0: spring, 1: hall
-           "reverb_decay" => RangeControl { cc: 38, addr: 39, from: 0, to: 63,
+           "reverb_decay" => RangeControl { cc: 38, addr: 39, config: short!(),
                 format: fmt_percent!(), ..def!() },
-           "reverb_tone" => RangeControl { cc: 39, addr: 40, from: 0, to: 63,
+           "reverb_tone" => RangeControl { cc: 39, addr: 40, config: short!(),
                 format: fmt_percent!(), ..def!() },
-           "reverb_diffusion" => RangeControl { cc: 40, addr: 41, from: 0, to: 63,
+           "reverb_diffusion" => RangeControl { cc: 40, addr: 41, config: short!(),
                 format: fmt_percent!(), ..def!() },
-           "reverb_density" => RangeControl { cc: 41, addr: 42, from: 0, to: 63,
+           "reverb_density" => RangeControl { cc: 41, addr: 42, config: short!(),
                 format: fmt_percent!(), ..def!() },
-           "reverb_level" => RangeControl { cc: 18, addr: 43, from: 0, to: 63,
+           "reverb_level" => RangeControl { cc: 18, addr: 43, config: short!(),
                 format: fmt_percent!(), ..def!() },
            // cabinet sim
            "cab_select" => Select { cc: 71, addr: 44, ..def!() },
-           "air" => RangeControl { cc: 72, addr: 45, from: 0, to: 63,
+           "air" => RangeControl { cc: 72, addr: 45,config: short!(),
                 format: fmt_percent!(), ..def!() },
            // effect
            "effect_select" => Select { cc: 19, addr: 46,
@@ -267,30 +275,39 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                to_midi: Some(EFFECT_SELECT_TO_MIDI.to_vec())
            }, // 0 - bypass, 1..15 - effects
            "effect_select:raw" => Select { cc: 19, addr: 46, ..def!() }, // special!
-           "effect_tweak" => RangeControl { cc: 1, addr: 47, from: 0, to: 63, format: fmt_percent!(), ..def!() }, // in ui: rotary depth
+           "effect_tweak" => RangeControl { cc: 1, addr: 47, config: short!(),
+                format: fmt_percent!(), ..def!() }, // in ui: rotary depth
            // effect parameters
            // volume swell on/off,  cc: 48 ??
-           "volume_swell_time" => RangeControl { cc: 49, addr: 48, from: 0, to: 63,
+           "volume_swell_time" => RangeControl { cc: 49, addr: 48, config: short!(),
                format: fmt_percent!(), ..def!() },
-           "compression_ratio" => RangeControl { cc: 42, addr: 48, from: 0, to: 5,
+           "compression_ratio" => RangeControl { cc: 42, addr: 48, config: short!(0,5),
                format: Format::Labels(convert_args!(vec!(
                    "off", "1.4:1", "2:1", "3:1", "6:1", "inf:1"
                ))),
                ..def!() }, // off, 1.4:1, 2:1, 3:1, 6:1, inf:1
-           "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, bytes: 2,
+            // TODO: how to make all these below long?
+           "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, /*config: long!(7,5),*/
+               format: Format::Data(FormatData { k: 515.0, b: 200.0, format: "{val:1.0f} ms".into() }),
                ..def!() }, // todo: 200 .. 65535 ms (x * 50)
-           "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, bytes: 2,
-                format: fmt_percent!(),..def!() }, // todo: 0..312 samples @ 31.2KHz (x * 256 / 104)
+           "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, config: long!(7,1),
+                format: fmt_percent!(),..def!() }, // 0..312 samples @ 31.2KHz (x * 256 / 104)
            "chorus_flanger_feedback" => RangeControl { cc: 53, addr: 52,
                format: fmt_percent!(signed), ..def!() }, // 0(max)..63(min) negative, 64(min)..127(max) positive
-           "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, bytes: 2,
-               format: fmt_percent!(), ..def!() }, // todo: 1..780 samples @31.2KHz (x * 256 / 42) // todo2: flanger too?!
-           "rotary_speed" => RangeControl { cc: 55, addr: 48, from: 0, to: 1,
+           "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, config: long!(7,2),
+               format: fmt_percent!(), ..def!() }, // 1..780 samples @31.2KHz (x * 256 / 42)
+           "rotary_speed" => RangeControl { cc: 55, addr: 48, config: short!(0,1),
                format: Format::Labels(convert_args!(vec!("slow", "fast"))),
                ..def!() }, // 0: slow, 1: fast // todo: SwitchControl?
-           "rotary_fast_speed" => RangeControl { cc: 56, addr: 49, bytes: 2, ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
-           "rotary_slow_speed" => RangeControl { cc: 57, addr: 51,  bytes: 2, ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
-           "trem_speed" => RangeControl { cc: 58, addr: 48, bytes: 2, ..def!() }, // 150 .. 65535 ms period (x * 25)
+           "rotary_fast_speed" => RangeControl { cc: 56, addr: 49, /*config: long!(7,4),*/
+               format: Format::Data(FormatData { k: 515.0, b: 100.0, format: "{val:1.0f} ms".into() }),
+               ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
+           "rotary_slow_speed" => RangeControl { cc: 57, addr: 51, /*config: long!(7,4),*/
+               format: Format::Data(FormatData { k: 515.0, b: 100.0, format: "{val:1.0f} ms".into() }),
+               ..def!() }, // 100 .. 65535 ms period (x * 22) + 100
+           "trem_speed" => RangeControl { cc: 58, addr: 48, /*config: long!(7,4),*/
+               format: Format::Data(FormatData { k: 515.0, b: 150.0, format: "{val:1.0f} ms".into() }),
+               ..def!() }, // 150 .. 65535 ms period (x * 25)
            "trem_depth" => RangeControl { cc: 59, addr: 50, format: fmt_percent!(), ..def!() },
        )),
         init_controls: convert_args!(vec!(
