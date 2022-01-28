@@ -95,8 +95,25 @@
 <p><strong>pod-ui</strong> is a modern cross-platform app to control Line6 POD 2.0
 guitar modelling amp via MIDI. For pre-build binaries check out the 
 <a href="https://github.com/arteme/pod-ui/releases">releases page</a>.</p>
-<p>The app is a work-in-progress and many features are still missing.
-It is intended to have feature parity with <strong>Line6 Edit</strong>.</p>  </div>
+<p>The app is a work-in-progress and many features are still missing,
+however basic editing of the current preset already works. 
+I intended to get feature parity with <strong>Line6 Edit</strong> on things like:
+ - controlling the POD;
+ - up-/downloading individual patches;
+ - up-/downloading patch libraries;
+ - loading <code>.l6t</code> and <code>.lib</code> files;</p>
+<p>I would like to support other MIDI-based Line6 products, such as
+PODxt, Bass POD, etc. I do not own any of these and would need
+volunteers to test.</p>
+<h2>Development</h2>
+<p>This is a GTK+-based app written in rust and distributed under GPLv3
+license. The sources can be found from <a href="https://github.com/arteme/pod-ui/">github</a>.
+Please feel free to open issues there in case of bugs or inconsistencies
+with Line6 Edit.</p>
+<p>The app is developed using MIDI controls references and SysEx protocol
+descriptions published by Line6 and my own POD 2.0 device.</p>
+<p>The app is developed in Linux, pre-build binaries are provided for
+Windows (MacOS builds are in the plans).</p>  </div>
 </article>
 
     <footer>
