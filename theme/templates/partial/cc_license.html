@@ -1,0 +1,31 @@
+<p>
+  {% set cc_slug = CC_LICENSE['slug'] %}
+  {% set cc_name = CC_LICENSE['name'] %}
+  {% set cc_version = CC_LICENSE['version'] %}
+  {% set cc_lang = CC_LICENSE['language'] or "en_US" %}
+  {% set cc_url = "http://creativecommons.org/licenses/{}/{}/deed.{}".format(cc_slug, cc_version, cc_lang) %}
+  &copy; {{ COPYRIGHT_YEAR }} {{ COPYRIGHT_NAME }} - {{ _('This work is licensed under a %(cc)s',
+   cc='<a rel="license" href="{}" target="_blank">{}</a>'.format(cc_url, cc_name)|safe) }}
+</p>
+{% include "partial/flex.html" %}
+<p>
+  {% if CC_LICENSE['icon'] != False %}
+  <a rel="license"
+     href="http://creativecommons.org/licenses/{{ CC_LICENSE['slug'] }}/{{ CC_LICENSE['version'] }}/"
+     target="_blank">
+    <img alt="Creative Commons License"
+         title="Creative Commons License"
+         style="border-width:0"
+         {% if CC_LICENSE['local_icons'] %}
+           src="{{ SITEURL }}/{{ THEME_STATIC_DIR }}/img/cc/{{ CC_LICENSE['slug'] }}.png"
+         {% else %}
+           src="https://i.creativecommons.org/l/{{ CC_LICENSE['slug'] }}/{{ CC_LICENSE['version'] }}/80x15.png"
+         {% endif %}
+         width="80"
+         height="15"/>
+  </a>
+  {% endif %}
+  {% if STATUSCAKE %}
+    {% include "partial/statuscake.html" %}
+  {% endif %}
+</p>
