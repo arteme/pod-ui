@@ -56,7 +56,7 @@ fn populate_midi_combos(settings: &SettingsDialog,
                         in_name: &Option<String>, out_name: &Option<String>) {
     // populate "midi in" combo box
     settings.midi_in_combo.remove_all();
-    let in_ports = MidiIn::ports().ok().unwrap();
+    let in_ports = MidiIn::ports().ok().unwrap_or_default();
     in_ports.iter().for_each(|i| settings.midi_in_combo.append_text(i));
 
     settings.midi_in_combo.set_active(None);
@@ -71,7 +71,7 @@ fn populate_midi_combos(settings: &SettingsDialog,
 
     // populate "midi out" combo box
     settings.midi_out_combo.remove_all();
-    let out_ports = MidiOut::ports().ok().unwrap();
+    let out_ports = MidiOut::ports().ok().unwrap_or_default();
     out_ports.iter().for_each(|i| settings.midi_out_combo.append_text(i));
 
     settings.midi_out_combo.set_active(None);
