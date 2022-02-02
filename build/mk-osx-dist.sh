@@ -6,6 +6,8 @@ DIR=target/pod-ui-$V-osx
 TOOLS_DIR=$(dirname $0)
 
 rm -rf $DIR
+rm -rf "target/pod-ui-$V-osx-unsigned.dmg"
+rm -rf "target/pod-ui-$V-osx.dmg"
 
 C=$DIR/Pod-UI.app/Contents
 mkdir -p $DIR/Pod-UI.app/Contents/{Resources,MacOS}
@@ -25,7 +27,10 @@ cat >$C/Info.plist <<EOF
 }
 EOF
 
-$TOOLS_DIR/collect-gtk.sh $C/Resources
+$TOOLS_DIR/collect-gtk.sh $C/Resources ../Resources/
+# seems like we must have the Mac keys theme too, otherwise the
+# graphics do not load :(
+cp -R /usr/local/share/themes/Mac $C/Resources/share/themes/
 
 cp target/$DIST/pod-gui $C/MacOS
 cp $TOOLS_DIR/osx/launcher.sh $C/MacOS
@@ -54,6 +59,23 @@ do
 done
 
 echo "Creating a DMG file..."
+hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/pod-ui-$V-osx-unsigned.dmg"
+
+[ "$SIGN" != "1" ] && { exit; }
+
+source .codesign
+
+
+$TOOLS_DIR/osx-sign-app.sh $DIR
+
+echo "Creating a signed DMG file..."
 hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/pod-ui-$V-osx.dmg"
+
+$TOOLS_DIR/osx-sign-dmg.sh "target/pod-ui-$V-osx.dmg"
+
+xcnotary notarize "target/pod-ui-$V-osx.dmg" \
+	--developer-account "$DEVELOPER" \
+	--developer-password-keychain-item "$DEVELOPER_KEY"
+stapler staple -v "target/pod-ui-$V-osx.dmg"
 
 echo "!!! $DIR !!!"
