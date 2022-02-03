@@ -1,7 +1,8 @@
 #!/bin/sh
 
-cd $(dirname "$0")
-dir=$(pwd)
+dir=$(dirname "$0")
+cd "$dir"
+
 base="$dir/.."
 res="$base/Resources"
 
@@ -27,5 +28,5 @@ if [ "$style" = "Dark" ]; then
   export GTK_THEME="$theme:dark"
 fi
 
-#exec sudo -E dtruss $bin "$@"
-exec $bin "$@"
+#exec sudo -E dtruss "$bin" "$@"
+exec "$bin" "$@"
