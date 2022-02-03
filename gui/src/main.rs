@@ -286,27 +286,30 @@ async fn main() -> Result<()> {
                     },
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
                         let mut controller = controller.lock().unwrap();
+                        let mut raw = raw.lock().unwrap();
                         if data.len() != controller.config.program_size {
                             warn!("Program size mismatch: expected {}, got {}",
                                   controller.config.program_size, data.len());
                         }
-                        program::load_dump(&mut controller, data.as_slice(), MIDI);
+                        program::load_dump(&mut raw, data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
                         let controller = controller.lock().unwrap();
+                        let raw = raw.lock().unwrap();
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
-                            data: program::dump(&controller) };
+                            data: program::dump(&raw, &controller.config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
                         // TODO: For now answer with the contents of the edit buffer to any patch
                         //       request
                         let controller = controller.lock().unwrap();
+                        let raw = raw.lock().unwrap();
                         let res = MidiMessage::ProgramPatchDump {
                             patch,
                             ver: 0,
-                            data: program::dump(&controller) };
+                            data: program::dump(&raw, &controller.config) };
                         midi_out_tx.send(res);
                     },
 
