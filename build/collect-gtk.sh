@@ -2,8 +2,8 @@
 # usage: collect-gtk.sh <dest dir>
 #
 SRC_DIR=$(dirname $0)/resources
-THEMES_SRC_DIR=$SRC_DIR
-ICONS_SRC_DIR=$SRC_DIR/paper-icon-theme-master
+THEMES_SRC_DIR=$SRC_DIR/themes
+ICONS_SRC_DIR=$SRC_DIR/icons
 
 DIR=$1
 
@@ -94,10 +94,10 @@ glib-compile-schemas $DIR/share/glib-2.0/schemas/
 
 echo "5. gdkpixbuf loaders"
 mkdir -p $DIR/lib
-cp -r $ROOT/lib/gdk-pixbuf-2.0 $DIR/lib/gdk-pixbuf-2.0
+cp -R $ROOT/lib/gdk-pixbuf-2.0 $DIR/lib/
 find $DIR/lib/gdk-pixbuf-2.0 -name '*.a' -delete
 
 # update cache with relative paths
 CACHE=$(find $DIR/lib/gdk-pixbuf-2.0 -name 'loaders.cache')
-sed -i .old -E "s,\".*(lib/gdk-pixbuf.*)\",\"$2\\1\"," $CACHE
+sed -i.old -E "s,\".*(lib/gdk-pixbuf.*)\",\"$2\\1\"," $CACHE
 rm $CACHE.old

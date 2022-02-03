@@ -1,13 +1,14 @@
 # http://bazaar.launchpad.net/~widelands-dev/widelands/trunk/view/head:/utils/macos/build_app.sh
 
 V=$(git describe --tags --always --dirty)
+N=pod-ui-$V-osx
 DIST=debug
-DIR=target/pod-ui-$V-osx
+DIR=target/$N
 TOOLS_DIR=$(dirname $0)
 
 rm -rf $DIR
-rm -rf "target/pod-ui-$V-osx-unsigned.dmg"
-rm -rf "target/pod-ui-$V-osx.dmg"
+rm -rf "target/$N-unsigned.dmg"
+rm -rf "target/$N.dmg"
 
 C=$DIR/Pod-UI.app/Contents
 mkdir -p $DIR/Pod-UI.app/Contents/{Resources,MacOS}
@@ -59,23 +60,23 @@ do
 done
 
 echo "Creating a DMG file..."
-hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/pod-ui-$V-osx-unsigned.dmg"
+hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/$N-unsigned.dmg"
 
 [ "$SIGN" != "1" ] && { exit; }
 
 source .codesign
 
-
 $TOOLS_DIR/osx-sign-app.sh $DIR
 
 echo "Creating a signed DMG file..."
-hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/pod-ui-$V-osx.dmg"
+hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/$N.dmg"
 
-$TOOLS_DIR/osx-sign-dmg.sh "target/pod-ui-$V-osx.dmg"
+$TOOLS_DIR/osx-sign-dmg.sh "target/$N.dmg"
 
-xcnotary notarize "target/pod-ui-$V-osx.dmg" \
+xcnotary notarize "target/$N.dmg" \
 	--developer-account "$DEVELOPER" \
 	--developer-password-keychain-item "$DEVELOPER_KEY"
-stapler staple -v "target/pod-ui-$V-osx.dmg"
+xcrun stapler staple -v "target/$N.dmg"
 
-echo "!!! $DIR !!!"
+echo "!!! $DIR"
+ls -sh $target/$N*.dmg
