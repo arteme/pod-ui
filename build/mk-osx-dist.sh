@@ -1,6 +1,6 @@
 # http://bazaar.launchpad.net/~widelands-dev/widelands/trunk/view/head:/utils/macos/build_app.sh
 
-V=$(git describe --tags --always --dirty)
+V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V-osx
 DIST=debug
 DIR=target/$N
@@ -13,13 +13,18 @@ rm -rf "target/$N.dmg"
 C=$DIR/Pod-UI.app/Contents
 mkdir -p $DIR/Pod-UI.app/Contents/{Resources,MacOS}
 cp gui/resources/icon.icns $C/Resources/pod-ui.icns
+
+V1=$(echo $V | grep -Eo -- '[0-9]+\.[0-9]+\.[0-9]')
+V2=$(echo $V | grep -Eo -- '-[0-9]+-?' | tr -d -)
+[ -z "$V2" ] && V2=0
+
 cat >$C/Info.plist <<EOF
 {
   CFBundleName = pod-ui;
   CFBundleDisplayName = Pod-UI;
   CFBundleIdentifier = "io.github.arteme.pod-ui";
-  CFBundleShortVersionString = "0.1.0";
-  CFBundleVersion = "0.1.0.0";
+  CFBundleShortVersionString = "$V1";
+  CFBundleVersion = "$V1.$V2";
   CFBundleInfoDictionaryVersion = "6.0";
   CFBundlePackageType = APPL;
   CFBundleSignatue = pdui;

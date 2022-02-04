@@ -1,7 +1,7 @@
 # https://gist.github.com/mjakeman/0add69647a048a5e262d591072c7facb
 # maybe also add win10 theme? https://www.gtk.org/docs/installations/windows
 
-V=$(git describe --tags --always --dirty)
+V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V-win64
 DIST=debug
 DIR=target/$N
