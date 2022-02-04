@@ -61,7 +61,7 @@ realpath() {
 }
 
 echo "0. sanity check"
-UPDATE_ICON_CACHE=$(which gtk3-update-icon-cache gtk-update-icon-cache-3.0)
+UPDATE_ICON_CACHE=$(which gtk3-update-icon-cache gtk-update-icon-cache-3.0 gtk-update-icon-cache 2>/dev/null)
 echo "update-icon-cache: $UPDATE_ICON_CACHE"
 ROOT=$(realpath $(dirname $UPDATE_ICON_CACHE)/..)
 echo "root: $ROOT"
