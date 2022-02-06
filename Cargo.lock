@@ -867,6 +867,8 @@ dependencies = [
  "futures-util",
  "git-version",
  "log",
+ "maplit",
+ "once_cell",
  "pin-project",
  "pod-core",
  "pod-gtk",

@@ -34,7 +34,7 @@ pub fn store_patch_dump(raw: &Raw, page: Option<usize>, config: &Config) -> Vec<
 }
 
 pub fn load_all_dump(raw: &mut Raw, data: &[u8], config: &Config, origin: u8) {
-    let mut chunks = data.chunks(config.program_num);
+    let mut chunks = data.chunks(config.program_size);
     for i in 0 .. config.program_num {
         let chunk = chunks.next().unwrap();
         load_patch_dump(raw, Some(i), chunk, origin);
@@ -43,7 +43,7 @@ pub fn load_all_dump(raw: &mut Raw, data: &[u8], config: &Config, origin: u8) {
 
 pub fn store_all_dump(raw: &Raw, config: &Config) -> Vec<u8> {
     let mut data = vec![0; config.program_size * config.program_num];
-    let mut chunks = data.chunks_mut(config.program_num);
+    let mut chunks = data.chunks_mut(config.program_size);
     for i in 0 .. config.program_num {
         let chunk = chunks.next().unwrap();
         store_patch_dump_buf(raw, Some(i), config, chunk);

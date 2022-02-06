@@ -21,8 +21,11 @@ use std::thread;
 use pod_core::raw::Raw;
 use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
+use std::collections::HashMap;
+use once_cell::sync::Lazy;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use maplit::*;
 use crate::settings::*;
 
 pub enum UIEvent {
@@ -42,6 +45,14 @@ pub struct State {
     pub midi_out_tx: broadcast::Sender<MidiMessage>,
     pub ui_event_tx: mpsc::UnboundedSender<UIEvent>,
 }
+
+use pod_core::model::SwitchControl;
+static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
+    convert_args!(hashmap!(
+        "program" => SwitchControl::default()
+    ))
+
+});
 
 
 fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> () {
@@ -185,7 +196,12 @@ async fn main() -> Result<()> {
     let raw = Arc::new(Mutex::new(Raw::new(config.program_size, config.program_num)));
     let controller = Arc::new(Mutex::new(Controller::new(config.controls.clone())));
 
+    let mut callbacks = Callbacks::new();
+
     let ui = gtk::Builder::from_string(include_str!("ui.glade"));
+    let ui_objects = ObjectList::new(&ui);
+    let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
+    pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut callbacks)?;
 
     let title = format!("POD UI {}", env!("GIT_VERSION"));
 
@@ -207,18 +223,18 @@ async fn main() -> Result<()> {
     let app_grid: gtk::Box = ui.object("app_grid").unwrap();
     app_grid.add(&pod_ui);
 
-    let mut callbacks = Callbacks::new();
     module.wire(controller.clone(), raw.clone(), &mut callbacks)?;
-
-    let objects = ObjectList::new(&ui) + module.objects();
+    let objects = ui_objects + module.objects();
 
     // midi ----------------------------------------------------
 
-    // raw / midi reply -> midi out
+    // raw / ui controller / midi reply -> midi out
     {
         let raw = raw.clone();
+        let ui_controller = ui_controller.clone();
         let config = config.clone();
         let mut rx = raw.lock().unwrap().subscribe();
+        let mut ui_rx = ui_controller.lock().unwrap().subscribe();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         tokio::spawn(async move {
             let make_cc = |idx: usize| -> Option<MidiMessage> {
@@ -231,6 +247,11 @@ async fn main() -> Result<()> {
                         })
                     })
             };
+            let make_pc = || {
+                let ui_controller = ui_controller.lock().unwrap();
+                let v = ui_controller.get(&"program").unwrap();
+                Some(MidiMessage::ProgramChange { channel: 1, program: v as u8 })
+            };
 
             loop {
                 let mut message: Option<MidiMessage> = None;
@@ -239,7 +260,14 @@ async fn main() -> Result<()> {
                   Ok(Event { key: idx, origin: o, .. }) = rx.recv() => {
                         message = make_cc(idx);
                         origin = o;
-                    },
+                    }
+                  Ok(Event { key, origin: o, .. }) = ui_rx.recv() => {
+                        message = match key.as_str() {
+                            "program" => make_pc(),
+                            _ => None
+                        };
+                        origin = o;
+                    }
                 }
                 if origin == MIDI || message.is_none() {
                     continue;
@@ -252,10 +280,11 @@ async fn main() -> Result<()> {
         });
     }
 
-    // midi in -> raw / midi out
+    // midi in -> raw / ui controller / midi out
     {
         let raw = raw.clone();
         let controller = controller.clone();
+        let ui_controller = ui_controller.clone();
         let config = config.clone();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         tokio::spawn(async move {
@@ -278,6 +307,10 @@ async fn main() -> Result<()> {
 
                         raw.set(addr.unwrap() as usize, value, MIDI);
                     },
+                    MidiMessage::ProgramChange { channel: _, program } => {
+                        let mut ui_controller = ui_controller.lock().unwrap();
+                        ui_controller.set("program", program as u16, MIDI);
+                    }
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
                         let mut controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
@@ -541,11 +574,16 @@ async fn main() -> Result<()> {
     // controller -> gui
     {
         let controller = controller.clone();
+        let ui_controller = ui_controller.clone();
         let objects = objects.clone();
 
         let mut rx = {
             let controller = controller.lock().unwrap();
             controller.subscribe()
+        };
+        let mut ui_rx = {
+            let ui_controller = ui_controller.lock().unwrap();
+            ui_controller.subscribe()
         };
 
         let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
@@ -563,9 +601,20 @@ async fn main() -> Result<()> {
                     }
                     animate(&objects, &name, controller.get(&name).unwrap());
                 },
-                Err(_) => {
-                    thread::sleep(time::Duration::from_millis(100));
+                _ => {}
+            }
+            match ui_rx.try_recv() {
+                Ok(Event { key: name, .. }) => {
+                    let vec = callbacks.get_vec(&name);
+                    match vec {
+                        None => { warn!("No GUI callback for '{}'", &name); },
+                        Some(vec) => for cb in vec {
+                            cb()
+                        }
+                    }
+                    animate(&objects, &name, ui_controller.get(&name).unwrap());
                 },
+                _ => {}
             }
             match ui_event_rx.try_recv() {
                 Ok(event) => {
