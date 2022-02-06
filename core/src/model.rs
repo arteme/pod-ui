@@ -9,7 +9,7 @@ pub struct Config {
     pub member: u16,
 
     pub program_size: usize,
-    pub all_programs_size: usize,
+    pub program_num: usize,
     pub pod_id: u8, // used in sysex dump messages
 
     pub amp_models: Vec<Amp>,

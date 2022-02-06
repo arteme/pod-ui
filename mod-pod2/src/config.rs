@@ -115,7 +115,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         member: 0x0300,
 
         program_size: 71,
-        all_programs_size: 71 * 36,
+        program_num: 36,
         pod_id: 0x01,
 
         amp_models: amps!(
