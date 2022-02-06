@@ -8,6 +8,7 @@ use pod_core::model::*;
 use pod_core::raw::Raw;
 use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList};
 use pod_gtk::gtk::prelude::*;
+use crate::config::CONFIG;
 
 pub fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let name = "vol_pedal_position".to_string();
@@ -70,19 +71,20 @@ pub fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &Object
     Ok(())
 }
 
-pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     // controller -> gui
     {
         let objs = objs.clone();
         let controller = controller.clone();
         let name = "amp_select".to_string();
+        let amp_models = config.amp_models.clone();
         callbacks.insert(
             name.clone(),
             Box::new(move || {
                 let (presence, bright_switch) = {
                     let controller = controller.lock().unwrap();
                     let v = controller.get(&name).unwrap();
-                    let amp = controller.config.amp_models.get(v as usize).unwrap();
+                    let amp = amp_models.get(v as usize).unwrap();
                     (amp.presence, amp.bright_switch)
                 };
 
@@ -100,7 +102,8 @@ pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, ca
     Ok(())
 }
 
-fn effect_entry_for_value(config: &Config, value: u16) -> Option<(&EffectEntry, bool, usize)> {
+fn effect_entry_for_value(value: u16) -> Option<(&'static EffectEntry, bool, usize)> {
+    let config = &*CONFIG;
     config.effects.iter()
         .enumerate()
         .flat_map(|(idx, effect)| {
@@ -123,7 +126,7 @@ fn effect_entry_for_value(config: &Config, value: u16) -> Option<(&EffectEntry, 
 fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
 
     let value = controller.get("effect_select:raw").unwrap();
-    let entry_opt = effect_entry_for_value(&controller.config, value);
+    let entry_opt = effect_entry_for_value(value);
     if entry_opt.is_none() {
         return None;
     }
@@ -138,7 +141,8 @@ fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<Ef
 
 fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
 
-    let effect = &controller.config.effects[value as usize];
+    let config = &*CONFIG;
+    let effect = &config.effects[value as usize];
     let delay_enable = controller.get("delay_enable").unwrap() != 0;
 
     let (delay, clean) = (effect.delay.as_ref(), effect.clean.as_ref());
@@ -165,7 +169,8 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
     }
 }
 
-pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
+pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
+    let config = &*CONFIG;
 
     // effect_select -> delay_enable
     {
@@ -207,16 +212,16 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw
                 if v != 0 && origin == GUI {
                     let effect_select = controller.get("effect_select:raw").unwrap();
                     let (_, delay, idx) =
-                        effect_entry_for_value(&controller.config, effect_select).unwrap();
+                        effect_entry_for_value(effect_select).unwrap();
                     if !delay {
                         // if `delay_enable` was switched on in the UI and if coming from
                         // an effect which didn't have delay to begin with, check if it can
                         // have a delay at all (POD 2.0 rotary cannot). If not, then switch
                         // to plain "delay" effect.
-                        let need_reset = controller.config.effects.get(idx)
+                        let need_reset = config.effects.get(idx)
                             .map(|e| e.delay.is_none()).unwrap_or(false);
                         if need_reset {
-                            let v = controller.config.effects[0].delay.as_ref().unwrap().id;
+                            let v = config.effects[0].delay.as_ref().unwrap().id;
                             controller.set("effect_select", 0u16, GUI);
                         }
                     }
@@ -238,7 +243,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw
                 if origin == MIDI {
                     let effect_select = controller.get("effect_select:raw").unwrap();
                     let (entry, _, _) =
-                        effect_entry_for_value(&controller.config, effect_select).unwrap();
+                        effect_entry_for_value(effect_select).unwrap();
                     let control_name = &entry.effect_tweak;
                     if control_name.is_empty() {
                         return;

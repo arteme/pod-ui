@@ -7,7 +7,7 @@ use crate::store::*;
 
 pub struct Controller {
     store: StoreBase<String>,
-    pub config: Config,
+    pub controls: HashMap<String, Control>,
     values: HashMap<String, (u16, u8)>,
 }
 
@@ -17,13 +17,13 @@ pub trait ControllerStoreExt {
 }
 
 impl Controller {
-    pub fn new(config: Config) -> Self {
+    pub fn new(controls: HashMap<String, Control>) -> Self {
         let mut values: HashMap<String, (u16, u8)> = HashMap::new();
-        for (name, _) in config.controls.iter() {
+        for (name, _) in controls.iter() {
             values.insert(name.clone(), (0, 0));
         }
 
-        Controller { store: StoreBase::new(), config, values }
+        Controller { store: StoreBase::new(), controls, values }
     }
 
     pub fn get_origin(&self, name: &str) -> Option<(u16, u8)> {
@@ -31,11 +31,11 @@ impl Controller {
     }
 
     pub fn get_config(&self, name: &str) -> Option<&Control> {
-        self.config.controls.get(name)
+        self.controls.get(name)
     }
 
     pub fn get_config_by_cc(&self, cc: u8) -> Option<(&String, &Control)> {
-        self.config.controls.iter().find(|&(_name, control)| {
+        self.controls.iter().find(|&(_name, control)| {
             match control.get_cc() {
                 Some(v) if v == cc => true,
                 _ => false

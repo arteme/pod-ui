@@ -183,7 +183,7 @@ async fn main() -> Result<()> {
     set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out);
 
     let raw = Arc::new(Mutex::new(Raw::new(config.program_size, config.program_num)));
-    let controller = Arc::new(Mutex::new(Controller::new(config.clone())));
+    let controller = Arc::new(Mutex::new(Controller::new(config.controls.clone())));
 
     let ui = gtk::Builder::from_string(include_str!("ui.glade"));
 
@@ -285,9 +285,9 @@ async fn main() -> Result<()> {
                             error!("Program dump version not supported: {}", ver);
                             continue;
                         }
-                        if data.len() != controller.config.program_size {
+                        if data.len() != config.program_size {
                             error!("Program size mismatch: expected {}, got {}",
-                                  controller.config.program_size, data.len());
+                                  config.program_size, data.len());
                             continue;
                         }
                         program::load_patch_dump(&mut raw, None, data.as_slice(), MIDI);
@@ -297,7 +297,7 @@ async fn main() -> Result<()> {
                         let raw = raw.lock().unwrap();
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
-                            data: program::store_patch_dump(&raw, None, &controller.config) };
+                            data: program::store_patch_dump(&raw, None, &config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
@@ -307,9 +307,9 @@ async fn main() -> Result<()> {
                             error!("Program dump version not supported: {}", ver);
                             continue;
                         }
-                        if data.len() != controller.config.program_size {
+                        if data.len() != config.program_size {
                             error!("Program size mismatch: expected {}, got {}",
-                                  controller.config.program_size, data.len());
+                                  config.program_size, data.len());
                             continue;
                         }
                         program::load_patch_dump(&mut raw, Some(patch as usize), data.as_slice(), MIDI);
@@ -320,7 +320,7 @@ async fn main() -> Result<()> {
                         let res = MidiMessage::ProgramPatchDump {
                             patch,
                             ver: 0,
-                            data: program::store_patch_dump(&raw, Some(patch as usize), &controller.config) };
+                            data: program::store_patch_dump(&raw, Some(patch as usize), &config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::AllProgramsDump { ver, data } => {
@@ -330,19 +330,19 @@ async fn main() -> Result<()> {
                             error!("Program dump version not supported: {}", ver);
                             continue;
                         }
-                        if data.len() != (controller.config.program_size * controller.config.program_num) {
+                        if data.len() != (config.program_size * config.program_num) {
                             error!("Program size mismatch: expected {}, got {}",
-                                  (controller.config.program_size * controller.config.program_num), data.len());
+                                  (config.program_size * config.program_num), data.len());
                             continue;
                         }
-                        program::load_all_dump(&mut raw, data.as_slice(), &controller.config, MIDI);
+                        program::load_all_dump(&mut raw, data.as_slice(), &config, MIDI);
                     },
                     MidiMessage::AllProgramsDumpRequest => {
                         let controller = controller.lock().unwrap();
                         let raw = raw.lock().unwrap();
                         let res = MidiMessage::AllProgramsDump {
                             ver: 0,
-                            data: program::store_all_dump(&raw, &controller.config) };
+                            data: program::store_all_dump(&raw, &config) };
                         midi_out_tx.send(res);
                     },
 

@@ -7,6 +7,7 @@ use pod_core::store::{Signal, StoreSetIm};
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
 use pod_gtk::gtk::{Builder, Widget};
+use crate::config::CONFIG;
 
 use crate::wiring::*;
 
@@ -32,7 +33,7 @@ impl Pod2Module {
 
 impl Module for Pod2Module {
     fn config(&self) -> Config {
-        crate::config::CONFIG.clone()
+        CONFIG.clone()
     }
 
     fn widget(&self) -> Widget {
@@ -44,8 +45,8 @@ impl Module for Pod2Module {
     }
 
     fn wire(&self, controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
+        let config = &*CONFIG;
         {
-            let config = &*crate::config::CONFIG;
             let controller = &*controller.lock().unwrap();
 
             init_combo(controller, &self.objects,
@@ -59,7 +60,7 @@ impl Module for Pod2Module {
         wire(controller.clone(), &self.objects, callbacks)?;
 
         wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
-        wire_amp_select(controller.clone(), &self.objects, callbacks)?;
+        wire_amp_select(controller.clone(), &config, &self.objects, callbacks)?;
         wire_effect_select(controller, raw, callbacks)?;
 
         Ok(())
