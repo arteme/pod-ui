@@ -410,14 +410,19 @@ async fn main() -> Result<()> {
             loop {
                 let mut addr: usize = usize::MAX-1;
                 let mut origin: u8 = UNSET;
-                tokio::select! {
-                Ok(Event { key: idx, origin: o, .. }) = rx.recv() => {
+                match rx.recv().await {
+                    Ok(Event { key: idx, origin: o, .. }) => {
                         addr = idx;
                         origin = o;
                     }
+                    Err(e) => {
+                        error!("Error in 'raw -> controller' rx: {}", e)
+                    }
                 }
 
-                if origin == GUI {
+                // discard messages originating from the 'controller -> raw' setting values
+                // and anything beyond program name address start
+                if origin == GUI || addr >= config.program_name_addr {
                     continue;
                 }
 
@@ -491,10 +496,13 @@ async fn main() -> Result<()> {
             loop {
                 let mut name: String = String::new();
                 let mut signal: Signal = Signal::None;
-                tokio::select! {
-                    Ok(Event { key: n, signal: s, .. }) = rx.recv() => {
+                match rx.recv().await {
+                    Ok(Event { key: n, signal: s, .. }) => {
                         name = n;
                         signal = s;
+                    }
+                    Err(e) => {
+                        error!("Error in 'controller -> raw' rx: {}", e)
                     }
                 }
 

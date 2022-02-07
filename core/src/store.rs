@@ -1,6 +1,8 @@
 use tokio::sync::broadcast;
 use std::sync::{Mutex, Arc};
 
+const CAPACITY: usize = 256;
+
 #[derive(Clone, PartialEq)]
 pub enum Signal {
     None,
@@ -22,7 +24,7 @@ pub struct StoreBase<K: Clone> {
 
 impl <K: Clone> StoreBase<K> {
     pub fn new() -> Self {
-        let (tx, rx) = broadcast::channel::<Event<K>>(16);
+        let (tx, rx) = broadcast::channel::<Event<K>>(CAPACITY);
         StoreBase { tx, rx }
     }
 
