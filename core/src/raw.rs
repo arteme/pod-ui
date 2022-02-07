@@ -30,6 +30,26 @@ impl Raw {
         Ok(())
     }
 
+    pub fn set_page_signal_full(&mut self, page: usize, origin: u8, signal: Signal) -> Result<()> {
+        let prev_page = self.page;
+        self.set_page(page)?;
+
+        for i in 0 .. self.page_size {
+            let old = self.values[prev_page * self.page_size + i];
+            let new = self.values[self.page * self.page_size + i];
+
+            let value_changed = old != new;
+            self.store.send_signal(i, value_changed, origin, signal.clone());
+        }
+
+        Ok(())
+    }
+
+    pub fn set_page_signal(&mut self, page: usize, origin: u8) -> Result<()> {
+        self.set_page_signal_full(page, origin, Signal::Change)
+    }
+
+
     pub fn get_page_value(&self, page: usize, idx: usize) -> Option<u8> {
         if idx > self.page_size || page > self.num_pages {
             return None;

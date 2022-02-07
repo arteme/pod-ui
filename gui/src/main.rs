@@ -140,6 +140,14 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
 }
 
+fn program_change(raw: Arc<Mutex<Raw>>, program: u8, _origin: u8) {
+    let mut raw = raw.lock().unwrap();
+
+    // In case of program change, always send a signal that the data change is coming
+    // from MIDI so that the GUI gets updated, but the MIDI does not
+    raw.set_page_signal(program as usize, MIDI);
+}
+
 use result::prelude::*;
 use tokio::sync::broadcast::error::RecvError;
 use pod_core::names::ProgramNames;
@@ -285,8 +293,7 @@ async fn main() -> Result<()> {
                 }
                 match message {
                     Some(MidiMessage::ProgramChange { program, .. }) => {
-                        raw.lock().unwrap().set_page(program as usize);
-                        // TODO: what else on page change?
+                        program_change( raw.clone(), program, GUI);
                     }
                     _ => {}
                 }
@@ -329,6 +336,7 @@ async fn main() -> Result<()> {
                     MidiMessage::ProgramChange { channel: _, program } => {
                         let mut ui_controller = ui_controller.lock().unwrap();
                         ui_controller.set("program", program as u16, MIDI);
+                        program_change(raw.clone(), program, MIDI);
                     }
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
                         let mut controller = controller.lock().unwrap();
