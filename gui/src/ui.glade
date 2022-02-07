@@ -50,6 +50,9 @@
                 <property name="active">True</property>
                 <property name="draw-indicator">False</property>
                 <property name="group">program</property>
+                <style>
+                  <class name="no_program_name"/>
+                </style>
               </object>
               <packing>
                 <property name="left-attach">0</property>
@@ -66,6 +69,9 @@
                 <property name="active">True</property>
                 <property name="draw-indicator">False</property>
                 <property name="group">program</property>
+                <style>
+                  <class name="no_program_name"/>
+                </style>
               </object>
               <packing>
                 <property name="left-attach">1</property>

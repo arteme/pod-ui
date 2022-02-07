@@ -1,6 +1,7 @@
 mod opts;
 mod util;
 mod settings;
+mod program_button;
 
 use anyhow::*;
 
@@ -32,7 +33,8 @@ use crate::settings::*;
 pub enum UIEvent {
     NewMidiConnection,
     MidiTx,
-    MidiRx
+    MidiRx,
+    Modified(usize)
 }
 
 pub struct State {
@@ -142,6 +144,7 @@ use result::prelude::*;
 use tokio::sync::broadcast::error::RecvError;
 use pod_core::names::ProgramNames;
 use pod_core::strings::Strings;
+use crate::program_button::ProgramButtons;
 
 
 #[tokio::main]
@@ -209,6 +212,7 @@ async fn main() -> Result<()> {
     let ui_objects = ObjectList::new(&ui);
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
     pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut callbacks)?;
+    let mut program_buttons = ProgramButtons::new(&ui_objects);
 
     let title = format!("POD UI {}", env!("GIT_VERSION"));
 
@@ -279,6 +283,13 @@ async fn main() -> Result<()> {
                 if origin == MIDI || message.is_none() {
                     continue;
                 }
+                match message {
+                    Some(MidiMessage::ProgramChange { program, .. }) => {
+                        raw.lock().unwrap().set_page(program as usize);
+                        // TODO: what else on page change?
+                    }
+                    _ => {}
+                }
                 match midi_out_tx.send(message.unwrap()) {
                     Ok(_) => {}
                     Err(err) => { error!("MIDI OUT error: {}", err); }
@@ -294,6 +305,7 @@ async fn main() -> Result<()> {
         let ui_controller = ui_controller.clone();
         let config = config.clone();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
+        let program_names = program_names.clone();
         tokio::spawn(async move {
             loop {
                 let msg = midi_in_rx.recv().await;
@@ -504,6 +516,7 @@ async fn main() -> Result<()> {
         let raw = raw.clone();
         let controller = controller.clone();
         let config = config.clone();
+        let state = state.clone();
         let mut rx = controller.lock().unwrap().subscribe();
         tokio::spawn(async move {
             loop {
@@ -553,9 +566,10 @@ async fn main() -> Result<()> {
                 };
 
                 let (addr, bytes) = control_config.get_addr().unwrap();
-                match bytes {
+                let modified = match bytes {
                     1 => {
                         raw.set_full(addr as usize, *value as u8, GUI, signal);
+                        true
                     }
                     2 => {
                         let bits = match control_config {
@@ -582,8 +596,15 @@ async fn main() -> Result<()> {
                         // cc 62 (fine) than the other way around.
                         raw.set_full((addr+1) as usize, b2 as u8, GUI, Signal::Force);
                         raw.set_full(addr as usize, b1 as u8, GUI, Signal::Force);
+                        true
                     }
-                    n => error!("Unsupported control size in bytes: {}", n)
+                    n => {
+                        error!("Unsupported control size in bytes: {}", n);
+                        false
+                    }
+                };
+                if modified {
+                    state.lock().unwrap().ui_event_tx.send(UIEvent::Modified(raw.page));
                 }
             }
         });
@@ -606,6 +627,7 @@ async fn main() -> Result<()> {
             let ui_controller = ui_controller.lock().unwrap();
             ui_controller.subscribe()
         };
+        let mut names_rx = program_names.lock().unwrap().subscribe();
 
         let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
         let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
@@ -690,9 +712,22 @@ async fn main() -> Result<()> {
 
                             header_bar.set_subtitle(Some(&subtitle));
                         }
+                        UIEvent::Modified(page) => {
+                            program_buttons.get_mut(page)
+                                .map(|button| button.set_modified(true));
+                        }
                     }
 
                 }
+                _ => {}
+            }
+            match names_rx.try_recv() {
+                Ok(Event { key: idx, .. }) => {
+                    program_buttons.get(idx).map(|button| {
+                        let name = program_names.lock().unwrap().get(idx).unwrap_or_default();
+                        button.set_name_label(&name);
+                    });
+                },
                 _ => {}
             }
 
