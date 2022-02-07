@@ -16,3 +16,5 @@ pub mod config;
 pub mod controller;
 pub mod program;
 pub mod raw;
+pub mod strings;
+pub mod names;

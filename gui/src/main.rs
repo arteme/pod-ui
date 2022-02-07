@@ -22,6 +22,7 @@ use pod_core::raw::Raw;
 use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
+use std::future::Future;
 use once_cell::sync::Lazy;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -132,10 +133,15 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
             }
         });
     }
+
+    // Request all programs dump from the POD device
+    state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
 }
 
 use result::prelude::*;
-
+use tokio::sync::broadcast::error::RecvError;
+use pod_core::names::ProgramNames;
+use pod_core::strings::Strings;
 
 
 #[tokio::main]
@@ -195,6 +201,7 @@ async fn main() -> Result<()> {
 
     let raw = Arc::new(Mutex::new(Raw::new(config.program_size, config.program_num)));
     let controller = Arc::new(Mutex::new(Controller::new(config.controls.clone())));
+    let program_names =  Arc::new(Mutex::new(ProgramNames::new(&config)));
 
     let mut callbacks = Callbacks::new();
 
@@ -324,10 +331,12 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_patch_dump(&mut raw, None, data.as_slice(), MIDI);
+                        program_names.lock().unwrap().str_from_raw(&mut raw, None, MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
                         let controller = controller.lock().unwrap();
-                        let raw = raw.lock().unwrap();
+                        let mut raw = raw.lock().unwrap();
+                        program_names.lock().unwrap().str_to_raw(&mut raw, None);
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
                             data: program::store_patch_dump(&raw, None, &config) };
@@ -346,10 +355,12 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_patch_dump(&mut raw, Some(patch as usize), data.as_slice(), MIDI);
+                        program_names.lock().unwrap().str_from_raw(&mut raw, Some(patch as usize), MIDI);
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
                         let controller = controller.lock().unwrap();
-                        let raw = raw.lock().unwrap();
+                        let mut raw = raw.lock().unwrap();
+                        program_names.lock().unwrap().str_to_raw(&mut raw, Some(patch as usize));
                         let res = MidiMessage::ProgramPatchDump {
                             patch,
                             ver: 0,
@@ -369,10 +380,12 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_all_dump(&mut raw, data.as_slice(), &config, MIDI);
+                        program_names.lock().unwrap().all_str_from_raw(&mut raw, MIDI);
                     },
                     MidiMessage::AllProgramsDumpRequest => {
                         let controller = controller.lock().unwrap();
-                        let raw = raw.lock().unwrap();
+                        let mut raw = raw.lock().unwrap();
+                        program_names.lock().unwrap().all_str_to_raw(&mut raw);
                         let res = MidiMessage::AllProgramsDump {
                             ver: 0,
                             data: program::store_all_dump(&raw, &config) };

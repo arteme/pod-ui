@@ -50,3 +50,7 @@ impl<T> OptionToResultsExt for Option<T> {
     }
 }
 
+/// A shorthand for `Default::default()` while waiting on
+pub fn def<T: Default>() -> T {
+    Default::default()
+}
