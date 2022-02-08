@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::ops::Range;
 use tokio::sync::broadcast;
 use crate::model::Config;
@@ -26,7 +27,10 @@ impl ProgramNames {
         for i in 0 .. data.len() {
             data[i] = raw.get_page_value(page, self.name_address.start + i).unwrap_or(0);
         }
-        self.names.set(page, String::from_utf8_lossy(data).to_string(), origin);
+        let str = String::from_utf8_lossy(data).to_string()
+            .trim_matches(|c: char| c.is_whitespace() || c == '\u{0}')
+            .to_string();
+        self.names.set(page, str, origin);
     }
 
     pub fn all_str_from_raw(&mut self, raw: &Raw, origin: u8) {
@@ -39,8 +43,9 @@ impl ProgramNames {
         let page = page.unwrap_or(raw.page);
         let str = self.names.get(page).unwrap();
         let data = str.as_bytes();
-        for i in 0 .. data.len() {
-            raw.set_page_value(page, self.name_address.start + i, data[i]);
+        for i in 0 .. self.name_address.len() {
+            let byte = data.get(i).cloned().unwrap_or(0x20);
+            raw.set_page_value(page, self.name_address.start + i, byte);
         }
     }
 
