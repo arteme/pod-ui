@@ -92,12 +92,12 @@ impl ProgramButtons {
         ProgramButtons { buttons }
     }
 
-    pub fn get(&self, idx: usize) -> Option<&ProgramButton> {
-        self.buttons.get(&format!("program:{}", idx))
+    pub fn get(&self, patch: usize) -> Option<&ProgramButton> {
+        self.buttons.get(&format!("program:{}", patch))
     }
 
-    pub fn get_mut(&mut self, idx: usize) -> Option<&mut ProgramButton> {
-        self.buttons.get_mut(&format!("program:{}", idx))
+    pub fn get_mut(&mut self, patch: usize) -> Option<&mut ProgramButton> {
+        self.buttons.get_mut(&format!("program:{}", patch))
     }
 
     pub fn set_modified(&mut self, idx: usize, modified: bool) {

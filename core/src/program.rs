@@ -2,23 +2,31 @@ use crate::model::Config;
 use crate::store::Store;
 
 use log::*;
+use crate::names::ProgramNames;
 use crate::raw::Raw;
 
-pub fn load_patch_dump(raw: &mut Raw, page: Option<usize>, data: &[u8], origin: u8) {
-    let mut set_value: Box<FnMut(usize, u8)> = if page.is_none() || page.unwrap() == raw.page {
-        Box::new(move |i: usize, byte: u8| raw.set(i, byte, origin))
+// TODO: Move program_names update out of here...
+
+pub fn load_patch_dump(raw: &mut Raw, program_names: &mut ProgramNames,
+                       page: Option<usize>, data: &[u8], origin: u8) {
+    let page = page.unwrap_or(raw.page);
+    let mut set_value: Box<dyn FnMut(usize, u8)> = if page == raw.page {
+        Box::new(|i: usize, byte: u8| raw.set(i, byte, origin))
     } else {
-        let page = page.unwrap();
-        Box::new(move |i: usize, byte: u8| { raw.set_page_value(page, i, byte); })
+        Box::new(|i: usize, byte: u8| { raw.set_page_value(page, i, byte); })
     };
 
     for (i, byte) in data.iter().enumerate() {
         set_value(i, *byte);
     }
+    drop(set_value);
+    program_names.str_from_raw(raw, Some(page), origin);
 }
 
-pub fn store_patch_dump_buf(raw: &Raw, page: Option<usize>, config: &Config, data: &mut [u8]) {
+pub fn store_patch_dump_buf(raw: &mut Raw, program_names: &ProgramNames,
+                            page: Option<usize>, config: &Config, data: &mut [u8]) {
     let page = page.unwrap_or(raw.page);
+    program_names.str_to_raw(raw, Some(page));
     for i in 0 .. config.program_size {
         raw.get_page_value(page, i)
             .map(|v| data[i] = v)
@@ -26,27 +34,29 @@ pub fn store_patch_dump_buf(raw: &Raw, page: Option<usize>, config: &Config, dat
     }
 }
 
-pub fn store_patch_dump(raw: &Raw, page: Option<usize>, config: &Config) -> Vec<u8> {
+pub fn store_patch_dump(raw: &mut Raw, program_names: &ProgramNames,
+                        page: Option<usize>, config: &Config) -> Vec<u8> {
     let mut data = vec![0; config.program_size];
-    store_patch_dump_buf(raw, page, config, data.as_mut_slice());
+    store_patch_dump_buf(raw, program_names, page, config, data.as_mut_slice());
 
     data
 }
 
-pub fn load_all_dump(raw: &mut Raw, data: &[u8], config: &Config, origin: u8) {
+pub fn load_all_dump(raw: &mut Raw, program_names: &mut ProgramNames,
+                     data: &[u8], config: &Config, origin: u8) {
     let mut chunks = data.chunks(config.program_size);
     for i in 0 .. config.program_num {
         let chunk = chunks.next().unwrap();
-        load_patch_dump(raw, Some(i), chunk, origin);
+        load_patch_dump(raw, program_names, Some(i), chunk, origin);
     }
 }
 
-pub fn store_all_dump(raw: &Raw, config: &Config) -> Vec<u8> {
+pub fn store_all_dump(raw: &mut Raw, program_names: &ProgramNames, config: &Config) -> Vec<u8> {
     let mut data = vec![0; config.program_size * config.program_num];
     let mut chunks = data.chunks_mut(config.program_size);
     for i in 0 .. config.program_num {
         let chunk = chunks.next().unwrap();
-        store_patch_dump_buf(raw, Some(i), config, chunk);
+        store_patch_dump_buf(raw, program_names, Some(i), config, chunk);
     }
 
     data

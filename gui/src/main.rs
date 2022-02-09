@@ -145,7 +145,7 @@ fn program_change(raw: Arc<Mutex<Raw>>, program: u8, _origin: u8) {
 
     // In case of program change, always send a signal that the data change is coming
     // from MIDI so that the GUI gets updated, but the MIDI does not
-    raw.set_page_signal(program as usize, MIDI);
+    raw.set_page_signal(program as usize - 1, MIDI);
 }
 
 use result::prelude::*;
@@ -342,8 +342,8 @@ async fn main() -> Result<()> {
                         program_change(raw.clone(), program, MIDI);
                     }
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
-                        let mut controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
+                        let mut program_names = program_names.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -353,21 +353,21 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
-                        program::load_patch_dump(&mut raw, None, data.as_slice(), MIDI);
-                        program_names.lock().unwrap().str_from_raw(&mut raw, None, MIDI);
+                        program::load_patch_dump(
+                            &mut raw, &mut program_names,
+                            None, data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
-                        let controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
-                        program_names.lock().unwrap().str_to_raw(&mut raw, None);
+                        let mut program_names = program_names.lock().unwrap();
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
-                            data: program::store_patch_dump(&raw, None, &config) };
+                            data: program::store_patch_dump(&mut raw, &mut program_names, None, &config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
-                        let mut controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
+                        let mut program_names = program_names.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -377,22 +377,23 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
-                        program::load_patch_dump(&mut raw, Some(patch as usize), data.as_slice(), MIDI);
-                        program_names.lock().unwrap().str_from_raw(&mut raw, Some(patch as usize), MIDI);
+                        program::load_patch_dump(
+                            &mut raw, &mut program_names,
+                            Some(patch as usize), data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
-                        let controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
-                        program_names.lock().unwrap().str_to_raw(&mut raw, Some(patch as usize));
+                        let program_names = program_names.lock().unwrap();
                         let res = MidiMessage::ProgramPatchDump {
                             patch,
                             ver: 0,
-                            data: program::store_patch_dump(&raw, Some(patch as usize), &config) };
+                            data: program::store_patch_dump(&mut raw, &program_names,
+                                                            Some(patch as usize), &config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::AllProgramsDump { ver, data } => {
-                        let mut controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
+                        let mut program_names = program_names.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -402,16 +403,16 @@ async fn main() -> Result<()> {
                                   (config.program_size * config.program_num), data.len());
                             continue;
                         }
-                        program::load_all_dump(&mut raw, data.as_slice(), &config, MIDI);
-                        program_names.lock().unwrap().all_str_from_raw(&mut raw, MIDI);
+                        program::load_all_dump(
+                            &mut raw, &mut program_names,
+                            data.as_slice(), &config, MIDI);
                     },
                     MidiMessage::AllProgramsDumpRequest => {
-                        let controller = controller.lock().unwrap();
                         let mut raw = raw.lock().unwrap();
-                        program_names.lock().unwrap().all_str_to_raw(&mut raw);
+                        let program_names = program_names.lock().unwrap();
                         let res = MidiMessage::AllProgramsDump {
                             ver: 0,
-                            data: program::store_all_dump(&raw, &config) };
+                            data: program::store_all_dump(&mut raw, &program_names, &config) };
                         midi_out_tx.send(res);
                     },
 
@@ -688,7 +689,8 @@ async fn main() -> Result<()> {
                             header_bar.set_subtitle(Some(&subtitle));
                         }
                         UIEvent::Modified(page) => {
-                            program_buttons.get_mut(page)
+                            // patch index is 1-based
+                            program_buttons.get_mut(page + 1)
                                 .map(|button| button.set_modified(true));
                         }
                     }
@@ -698,7 +700,8 @@ async fn main() -> Result<()> {
             }
             match names_rx.try_recv() {
                 Ok(Event { key: idx, .. }) => {
-                    program_buttons.get(idx).map(|button| {
+                    // patch index is 1-based
+                    program_buttons.get(idx + 1).map(|button| {
                         let name = program_names.lock().unwrap().get(idx).unwrap_or_default();
                         button.set_name_label(&name);
                     });
