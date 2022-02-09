@@ -108,6 +108,14 @@ static EFFECT_SELECT_TO_MIDI: [u16; 9] = [
     /*0*/10, /*1*/11, /*2*/14, /*3*/8, /*4*/0, /*5*/1, /*6*/3, /*7*/9, /*8*/2
 ];
 
+fn gate_threshold_from_midi(value: u8) -> u8 {
+    ((127.0 - value as f64) * 194.0/256.0) as u8
+}
+
+fn gate_threshold_to_midi(value: u8) -> u8 {
+    (127.0 - (value as f64 * 256.0/194.0)) as u8
+}
+
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     Config {
         name: "POD 2.0".to_string(),
@@ -231,7 +239,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "chan_volume" => RangeControl { cc: 17, addr: 15, config: short!(),
                format: fmt_percent!(), ..def!() },
            // noise gate
-           "gate_threshold" => RangeControl { cc: 23, addr: 16, config: short!(0,96),
+           "gate_threshold" => RangeControl { cc: 23, addr: 16,
+               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi },
                format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
            "gate_decay" => RangeControl { cc: 24, addr: 17, config: short!(),
                 format: fmt_percent!(), ..def!() }, // todo: 8.1 msec .. 159 msec

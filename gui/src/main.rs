@@ -12,7 +12,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{AbstractControl, Config, Control, RangeConfig, RangeControl, Select};
+use pod_core::model::{AbstractControl, Config, Control, RangeConfig, RangeControl};
 use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
@@ -149,9 +149,7 @@ fn program_change(raw: Arc<Mutex<Raw>>, program: u8, _origin: u8) {
 }
 
 use result::prelude::*;
-use tokio::sync::broadcast::error::RecvError;
 use pod_core::names::ProgramNames;
-use pod_core::strings::Strings;
 use crate::program_button::ProgramButtons;
 
 
@@ -261,8 +259,10 @@ async fn main() -> Result<()> {
                     .next()
                     .and_then(|cc| {
                         let value = raw.lock().unwrap().get(idx as usize);
-                        value.map(|v| {
-                            MidiMessage::ControlChange { channel: 1, control: cc, value: v }
+                        value.map(|value| {
+                            let control = config.cc_to_control(cc).unwrap().1;
+                            let value = control.value_to_midi(value);
+                            MidiMessage::ControlChange { channel: 1, control: cc, value }
                         })
                     })
             };
@@ -320,6 +320,7 @@ async fn main() -> Result<()> {
                     return; // shutdown
                 }
                 let msg = msg.unwrap();
+                trace!(">> {:?}", msg);
                 match msg {
                     MidiMessage::ControlChange { channel: _, control, value } => {
                         let controller = controller.lock().unwrap();
@@ -330,6 +331,8 @@ async fn main() -> Result<()> {
                             warn!("Control for CC={} not defined!", control);
                             continue;
                         }
+                        let control = config.cc_to_control(control).unwrap().1;
+                        let value = control.value_from_midi(value);
 
                         raw.set(addr.unwrap() as usize, value, MIDI);
                     },
@@ -468,28 +471,11 @@ async fn main() -> Result<()> {
                 }
 
                 control_configs.for_each(|(name, config)| {
-                    let scale= match &config {
-                        Control::SwitchControl(_) => 64u16,
-                        Control::RangeControl(RangeControl{ config: RangeConfig::Short { to, .. }, .. }) => 127 / *to as u16,
-                        _ => 1
-                    };
-                    let value = raw.get(addr).unwrap() as u16 / scale;
-                    let value = match config {
-                        Control::Select(Select { from_midi: Some(from_midi), .. }) => {
-                            from_midi.get(value as usize)
-                                .or_else(|| {
-                                    warn!("From midi conversion failed for select {:?} value {}",
-                                name, value);
-                                    None
-                                })
-                                .unwrap_or(&value)
-                        },
-                        _ => &value
-                    };
+                    let value = raw.get(addr).unwrap() as u16;
                     let (caddr, bytes) = config.get_addr().unwrap();
                     match bytes {
                         1 => {
-                            controller.set(name, *value, MIDI);
+                            controller.set(name, value, MIDI);
                         }
                         2 => {
                             let bits = match config {
@@ -507,7 +493,7 @@ async fn main() -> Result<()> {
                                 let mask = (1 << bits[1]) - 1;
                                 (mask, 0)
                             };
-                            let v = (cvalue & !mask) | (*value << shift);
+                            let v = (cvalue & !mask) | (value << shift);
                             controller.set(name, v, MIDI);
 
                         }
@@ -548,35 +534,16 @@ async fn main() -> Result<()> {
                     continue;
                 }
 
-                let (val, origin) = controller.get_origin(&name).unwrap();
+                let (value, origin) = controller.get_origin(&name).unwrap();
                 if origin != GUI {
                     continue;
                 }
 
                 let control_config = control_config.unwrap();
-                let scale = match control_config {
-                    Control::SwitchControl(_) => 64u16,
-                    Control::RangeControl(RangeControl{ config: RangeConfig::Short { to, .. }, .. }) => 127 / *to as u16,
-                    _ => 1
-                };
-                let value = val * scale;
-                let value = match control_config {
-                    Control::Select(Select { to_midi: Some(to_midi), .. }) => {
-                        to_midi.get(value as usize)
-                            .or_else(|| {
-                                warn!("To midi conversion failed for select {:?} value {}",
-                                name, value);
-                                None
-                            })
-                            .unwrap_or(&value)
-                    },
-                    _ => &value
-                };
-
                 let (addr, bytes) = control_config.get_addr().unwrap();
                 let modified = match bytes {
                     1 => {
-                        raw.set_full(addr as usize, *value as u8, GUI, signal);
+                        raw.set_full(addr as usize, value as u8, GUI, signal);
                         true
                     }
                     2 => {
@@ -585,8 +552,8 @@ async fn main() -> Result<()> {
                             _ => &[0u8, 0u8]
                         };
 
-                        let b1 = *value >> bits[1];
-                        let b2 = *value & ((1 << bits[1]) - 1);
+                        let b1 = value >> bits[1];
+                        let b2 = value & ((1 << bits[1]) - 1);
 
                         // For "delay time" knob, Line6 Edit always sends the
                         // "time 1 fine cc 62" first, and then "time 1 coarse

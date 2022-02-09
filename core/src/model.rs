@@ -93,6 +93,7 @@ pub enum RangeConfig {
     Normal,
     Short { from: u8, to: u8 },
     Long { bits: [u8;2] },
+    Function { from_midi: fn(u8) -> u8, to_midi: fn(u8) -> u8 }
 }
 
 #[derive(Clone, Debug)]
@@ -142,6 +143,10 @@ impl From<Select> for Control {
 pub trait AbstractControl {
     fn get_cc(&self) -> Option<u8>;
     fn get_addr(&self) -> Option<(u8, u8)>;
+
+    fn value_from_midi(&self, value: u8) -> u8;
+    fn value_to_midi(&self, value: u8) -> u8;
+
 }
 
 impl AbstractControl for RangeControl {
@@ -153,16 +158,76 @@ impl AbstractControl for RangeControl {
         };
         Some((self.addr, bytes))
     }
+
+    fn value_from_midi(&self, value: u8) -> u8 {
+        match &self.config {
+            RangeConfig::Short { from, to } => {
+                let scale = 127 / (to - from);
+                value / scale + from
+            }
+            RangeConfig::Function { from_midi, .. } => {
+                from_midi(value)
+            }
+            _ => value
+        }
+    }
+
+    fn value_to_midi(&self, value: u8) -> u8 {
+        match &self.config {
+            RangeConfig::Short { from, to } => {
+                let scale = 127 / (to - from);
+                (value - from) * scale
+            }
+            RangeConfig::Function { to_midi, .. } => {
+                to_midi(value)
+            }
+            _ => value
+        }
+    }
 }
 
 impl AbstractControl for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
+
+    fn value_from_midi(&self, value: u8) -> u8 {
+        value / 64
+    }
+
+    fn value_to_midi(&self, value: u8) -> u8 {
+        if value > 0 { 127 } else { 0 }
+    }
 }
 
 impl AbstractControl for Select {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
+
+    fn value_from_midi(&self, value: u8) -> u8 {
+        self.from_midi.as_ref().and_then(|mapping| {
+            mapping.get(value as usize).map(|v| *v as u8)
+                .or_else(|| {
+                    // TODO: How to get the control name here?
+                    warn!("From midi conversion failed for select {:?} value {}",
+                                "<name?>", value);
+                    None
+                })
+        })
+            .unwrap_or(value)
+    }
+
+    fn value_to_midi(&self, value: u8) -> u8 {
+        self.to_midi.as_ref().and_then(|mapping| {
+            mapping.get(value as usize).map(|v| *v as u8)
+                .or_else(|| {
+                    // TODO: How to get the control name here?
+                    warn!("To midi conversion failed for select {:?} value {}",
+                                "<name?>", value);
+                    None
+                })
+        })
+            .unwrap_or(value)
+    }
 }
 
 impl Control {
@@ -184,6 +249,14 @@ impl AbstractControl for Control {
     fn get_addr(&self) -> Option<(u8, u8)> {
         self.abstract_control().get_addr()
     }
+
+    fn value_from_midi(&self, value: u8) -> u8 {
+        self.abstract_control().value_from_midi(value)
+    }
+
+    fn value_to_midi(&self, value: u8) -> u8 {
+        self.abstract_control().value_to_midi(value)
+    }
 }
 
 // --
@@ -193,6 +266,11 @@ impl RangeControl {
         match self.config {
             RangeConfig::Normal => (0.0, 127.0),
             RangeConfig::Short { from, to } => (from as f64, to as f64),
+            RangeConfig::Function { from_midi, .. } => {
+                let a = from_midi(0) as f64;
+                let b = from_midi(127) as f64;
+                (a.min(b), a.max(b))
+            }
             RangeConfig::Long { bits } => {
                 let to: u32 = (1 << (bits[0] + bits[1])) - 1;
                 (0.0, to as f64)
