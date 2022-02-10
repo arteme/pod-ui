@@ -20,7 +20,6 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     return;
                 }
             }
-
             info!("Wiring {:?} {:?}", name, obj);
             obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
                 // wire GtkScale and its internal GtkAdjustment
@@ -221,6 +220,32 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         })
                     )
                 }
+            });
+            obj.dynamic_cast_ref::<gtk::Button>().map(|button| {
+                // wire GtkButton
+                let controller = controller.clone();
+                {
+                    let controller = controller.lock().unwrap();
+                    match controller.get_config(&name) {
+                        Some(Control::Button(_)) => {},
+                        _ => {
+                            warn!("Control {:?} is not a button!", name);
+                            return;
+                        }
+                    }
+                }
+
+                // wire gui -> controller
+                {
+                    let controller = controller.clone();
+                    let name = name.clone();
+                    button.connect_clicked(move |button| {
+                        let mut controller = controller.lock().unwrap();
+                        controller.set_full(&name, 1, GUI, Signal::Force);
+                    });
+                }
+                // wire controller -> gui
+                // Nothing here. This is UI-only!
             });
         });
 

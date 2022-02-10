@@ -12,7 +12,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{AbstractControl, Config, Control, RangeConfig, RangeControl};
+use pod_core::model::{AbstractControl, Button, Config, Control, RangeConfig, RangeControl};
 use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
@@ -52,9 +52,14 @@ pub struct State {
 use pod_core::model::SwitchControl;
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     convert_args!(hashmap!(
-        "program" => SwitchControl::default()
+        "program" => SwitchControl::default(),
+        "load_button" => Button::default(),
+        "load_patch_button" => Button::default(),
+        "load_all_button" => Button::default(),
+        "store_button" => Button::default(),
+        "store_patch_button" => Button::default(),
+        "store_all_button" => Button::default(),
     ))
-
 });
 
 
@@ -151,6 +156,7 @@ fn program_change(raw: Arc<Mutex<Raw>>, program: u8, _origin: u8) {
 use result::prelude::*;
 use pod_core::names::ProgramNames;
 use crate::program_button::ProgramButtons;
+use crate::UIEvent::MidiTx;
 
 
 #[tokio::main]
@@ -271,6 +277,23 @@ async fn main() -> Result<()> {
                 let v = ui_controller.get(&"program").unwrap();
                 Some(MidiMessage::ProgramChange { channel: 1, program: v as u8 })
             };
+            enum Program {
+                EditBuffer,
+                Current,
+                All
+            }
+            let make_dump_request = |program: Program| {
+                let ui_controller = ui_controller.lock().unwrap();
+                let message = match program {
+                    Program::EditBuffer => MidiMessage::ProgramEditBufferDumpRequest,
+                    Program::Current => {
+                        let current = ui_controller.get(&"program").unwrap();
+                        MidiMessage::ProgramPatchDumpRequest { patch: current as u8 }
+                    }
+                    Program::All => MidiMessage::AllProgramsDumpRequest,
+                };
+                Some(message)
+            };
 
             loop {
                 let mut message: Option<MidiMessage> = None;
@@ -283,6 +306,9 @@ async fn main() -> Result<()> {
                   Ok(Event { key, origin: o, .. }) = ui_rx.recv() => {
                         message = match key.as_str() {
                             "program" => make_pc(),
+                            "load_button" => make_dump_request(Program::EditBuffer),
+                            "load_patch_button" => make_dump_request(Program::Current),
+                            "load_all_button" => make_dump_request(Program::All),
                             _ => None
                         };
                         origin = o;

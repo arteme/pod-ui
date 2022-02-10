@@ -48,7 +48,8 @@ pub struct EffectEntry {
 pub enum Control {
     SwitchControl(SwitchControl),
     RangeControl(RangeControl),
-    Select(Select)
+    Select(Select),
+    Button(Button)
 }
 
 #[derive(Clone)]
@@ -99,7 +100,8 @@ pub enum RangeConfig {
 #[derive(Clone, Debug)]
 pub struct Select { pub cc: u8, pub addr: u8,
     pub from_midi: Option<Vec<u16>>, pub to_midi: Option<Vec<u16>> }
-
+#[derive(Clone, Debug)]
+pub struct Button {}
 
 
 
@@ -137,6 +139,18 @@ impl Default for Select {
 impl From<Select> for Control {
     fn from(c: Select) -> Self {
         Control::Select(c)
+    }
+}
+
+impl Default for Button {
+    fn default() -> Self {
+        Button {}
+    }
+}
+
+impl From<Button> for Control {
+    fn from(c: Button) -> Self {
+        Control::Button(c)
     }
 }
 
@@ -230,12 +244,31 @@ impl AbstractControl for Select {
     }
 }
 
+impl AbstractControl for Button {
+    fn get_cc(&self) -> Option<u8> {
+        None
+    }
+
+    fn get_addr(&self) -> Option<(u8, u8)> {
+        None
+    }
+
+    fn value_from_midi(&self, value: u8) -> u8 {
+        value
+    }
+
+    fn value_to_midi(&self, value: u8) -> u8 {
+        value
+    }
+}
+
 impl Control {
     fn abstract_control(&self) -> &dyn AbstractControl {
         match self {
             Control::SwitchControl(c) => c,
             Control::RangeControl(c) => c,
-            Control::Select(c) => c
+            Control::Select(c) => c,
+            Control::Button(c) => c
         }
     }
 }
