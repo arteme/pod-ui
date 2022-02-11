@@ -570,8 +570,7 @@ async fn main() -> Result<()> {
                 let (addr, bytes) = control_config.get_addr().unwrap();
                 let modified = match bytes {
                     1 => {
-                        raw.set_full(addr as usize, value as u8, GUI, signal);
-                        true
+                        raw.set_full(addr as usize, value as u8, GUI, signal)
                     }
                     2 => {
                         let bits = match control_config {
@@ -596,9 +595,9 @@ async fn main() -> Result<()> {
                         // and sending cc 30 is like sending cc 62 = 0 !!! ;(
                         // Still it's better so send cc 30 (coarse) overriding
                         // cc 62 (fine) than the other way around.
-                        raw.set_full((addr+1) as usize, b2 as u8, GUI, Signal::Force);
-                        raw.set_full(addr as usize, b1 as u8, GUI, Signal::Force);
-                        true
+                        let c2 = raw.set_full((addr+1) as usize, b2 as u8, GUI, Signal::Force);
+                        let c1 = raw.set_full(addr as usize, b1 as u8, GUI, Signal::Force);
+                        c1 || c2
                     }
                     n => {
                         error!("Unsupported control size in bytes: {}", n);

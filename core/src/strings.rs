@@ -24,18 +24,19 @@ impl Store<usize, String, usize> for Strings {
         self.values.get(idx).cloned()
     }
 
-    fn set_full(&mut self, idx: usize, val: String, origin: u8, signal: Signal) -> () {
+    fn set_full(&mut self, idx: usize, val: String, origin: u8, signal: Signal) -> bool {
         info!("set {:?} = {:?} <{}>", idx, val, origin);
 
         let prev = self.values.get(idx);
         if prev.is_none() {
-            return;
+            return false;
         }
 
         let value_changed = prev.unwrap() != &val;
         self.values[idx] = val;
 
         self.store.send_signal(idx, value_changed, origin, signal);
+        value_changed
     }
 
     fn subscribe(&self) -> broadcast::Receiver<Event<usize>> {

@@ -11,7 +11,7 @@ pub fn load_patch_dump(raw: &mut Raw, program_names: &mut ProgramNames,
                        page: Option<usize>, data: &[u8], origin: u8) {
     let page = page.unwrap_or(raw.page);
     let mut set_value: Box<dyn FnMut(usize, u8)> = if page == raw.page {
-        Box::new(|i: usize, byte: u8| raw.set(i, byte, origin))
+        Box::new(|i: usize, byte: u8| { raw.set(i, byte, origin); })
     } else {
         Box::new(|i: usize, byte: u8| { raw.set_page_value(page, i, byte); })
     };

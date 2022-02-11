@@ -77,16 +77,17 @@ impl Store<usize, u8, usize> for Raw {
         self.get_page_value(self.page, idx)
     }
 
-    fn set_full(&mut self, idx: usize, val: u8, origin: u8, signal: Signal) -> () {
+    fn set_full(&mut self, idx: usize, val: u8, origin: u8, signal: Signal) -> bool {
         info!("set {:?} = 0x{:02x} ({}) <{}>", idx, val, val, origin);
 
         let prev = self.set_page_value(self.page, idx, val);
         if prev.is_none() {
-            return;
+            return false;
         }
 
         let value_changed = prev.unwrap() != val;
         self.store.send_signal(idx, value_changed, origin, signal);
+        value_changed
     }
 
     fn subscribe(&self) -> broadcast::Receiver<Event<usize>> {

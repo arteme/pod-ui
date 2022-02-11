@@ -53,7 +53,7 @@ impl Store<&str, u16, String> for Controller {
         self.values.get(name).map(|v| v.0)
     }
 
-    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> () {
+    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> bool {
         info!("set {:?} = {} <{}>", name, value, origin);
         let store = &self.store;
         self.values.get_mut(name).map(|v| {
@@ -65,7 +65,8 @@ impl Store<&str, u16, String> for Controller {
             }
 
             store.send_signal(name.to_string(), value_changed, origin, signal);
-        });
+            value_changed
+        }).unwrap_or(false)
     }
 
     fn subscribe(&self) -> broadcast::Receiver<Event<String>> {

@@ -49,8 +49,8 @@ impl <K: Clone> StoreBase<K> {
 pub trait Store<K, V, E: Clone> {
     fn has(&self, key: K) -> bool;
     fn get(&self, key: K) -> Option<V>;
-    fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) -> ();
-    fn set(&mut self, key: K, value: V, origin: u8) -> () {
+    fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) -> bool;
+    fn set(&mut self, key: K, value: V, origin: u8) -> bool {
         self.set_full(key, value, origin, Signal::Change)
     }
 
@@ -58,8 +58,8 @@ pub trait Store<K, V, E: Clone> {
 }
 
 pub trait StoreSetIm<K, V, E> {
-    fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) -> ();
-    fn set(&self, key: K, value: V, origin: u8) -> () {
+    fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) -> bool;
+    fn set(&self, key: K, value: V, origin: u8) -> bool {
         self.set_full(key, value, origin, Signal::Change)
     }
 }
@@ -75,9 +75,9 @@ impl<K, V, E: Clone, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
         s.get(key)
     }
 
-    fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) {
+    fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) -> bool {
         let mut s = self.lock().unwrap();
-        s.set_full(key, value, origin, signal);
+        s.set_full(key, value, origin, signal)
     }
 
     fn subscribe(&self) -> broadcast::Receiver<Event<E>> {
@@ -87,9 +87,9 @@ impl<K, V, E: Clone, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
 }
 
 impl<K, V, E: Clone, T: Store<K,V,E>> StoreSetIm<K, V, E> for Arc<Mutex<T>> {
-    fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) {
+    fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) -> bool {
         let mut s = self.lock().unwrap();
-        s.set_full(key, value, origin, signal);
+        s.set_full(key, value, origin, signal)
     }
 }
 
