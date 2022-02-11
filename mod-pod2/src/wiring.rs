@@ -92,8 +92,8 @@ pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs
                 // schedule a one-off idle loop function
                 let objs = objs.clone();
                 glib::idle_add_local(move || {
-                    animate(&objs, "presence", presence as u16);
-                    animate(&objs, "brightness_switch", bright_switch as u16);
+                    animate(&objs, "presence:show", presence as u16);
+                    animate(&objs, "bright_switch:show", bright_switch as u16);
                     Continue(false)
                 });
             })
