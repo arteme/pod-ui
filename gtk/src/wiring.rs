@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::sync::{Arc, Mutex};
 use log::*;
 use anyhow::*;
@@ -10,15 +11,52 @@ use pod_core::model::{Control, Format};
 use pod_core::store::*;
 use crate::{Callbacks, ObjectList};
 
-fn without_signal<F,T,R>(instance: &T, handler_id: &SignalHandlerId, f: F) -> R
-where F: Fn() -> R,
-      T: ObjectType
-{
-    glib::signal::signal_handler_block(instance, &handler_id);
-    let r = f();
-    glib::signal::signal_handler_unblock(instance, &handler_id);
+struct SignalHandler {
+    handler_id: SignalHandlerId,
+    object: glib::Object
+}
 
-    r
+trait SignalHandlerExt {
+    fn blocked<F: Fn() -> R,R>(&self, f: F) -> R;
+}
+
+impl SignalHandler {
+    pub fn new<T: ObjectType>(instance: &T, handler_id: SignalHandlerId) -> Self {
+        Self { handler_id, object: instance.clone().dynamic_cast::<glib::Object>().unwrap() }
+    }
+
+    pub fn block(&self) {
+        glib::signal::signal_handler_block(&self.object, &self.handler_id);
+    }
+
+    pub fn unblock(&self) {
+        glib::signal::signal_handler_unblock(&self.object, &self.handler_id);
+    }
+
+    pub fn blocked<T: Borrow<SignalHandler>, F: Fn() -> R,R>(handlers: &[T], f: F) -> R {
+        for handler in handlers {
+            handler.borrow().block();
+        }
+        let r = f();
+        for handler in handlers {
+            handler.borrow().unblock();
+        }
+
+        r
+    }
+}
+
+impl SignalHandlerExt for SignalHandler {
+    fn blocked<F: Fn() -> R, R>(&self, f: F) -> R {
+        SignalHandler::blocked(&[self], f)
+    }
+}
+
+impl SignalHandlerExt for Vec<SignalHandler> {
+    fn blocked<F: Fn() -> R, R>(&self, f: F) -> R {
+        let s = self.as_slice();
+        SignalHandler::blocked(s, f)
+    }
 }
 
 pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
@@ -68,16 +106,17 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         }
                     }
                 }
-                let handler_id;
+                let handler;
 
                 // wire gui -> controller
                 {
                     let controller = controller.clone();
                     let name = name.clone();
-                    handler_id = adj.connect_value_changed(move |adj| {
+                    let h = adj.connect_value_changed(move |adj| {
                         let mut controller = controller.lock().unwrap();
                         controller.set(&name, adj.value() as u16, GUI);
                     });
+                    handler = SignalHandler::new(&adj, h);
                 }
                 // wire controller -> gui
                 {
@@ -92,8 +131,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                 let controller = controller.lock().unwrap();
                                 controller.get(&name).unwrap()
                             };
-                            without_signal(&adj, &handler_id,
-                                           || adj.set_value(v as f64));
+                            handler.blocked(|| adj.set_value(v as f64));
                         })
                     )
                 }
@@ -112,15 +150,16 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         }
                     }
                 }
-                let handler_id;
+                let handler;
 
                 // wire gui -> controller
                 {
                     let controller = controller.clone();
                     let name = name.clone();
-                    handler_id = check.connect_toggled(move |check| {
+                    let h = check.connect_toggled(move |check| {
                         controller.set(&name, check.is_active() as u16, GUI);
                     });
+                    handler = SignalHandler::new(check, h);
                 }
                 // wire controller -> gui
                 {
@@ -131,8 +170,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         name.clone(),
                         Box::new(move || {
                             let v = controller.get(&name).unwrap();
-                            without_signal(&check, &handler_id,
-                                           || check.set_active(v > 0));
+                            handler.blocked(|| check.set_active(v > 0));
                         })
                     )
                 }
@@ -149,6 +187,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         }
                     }
                 }
+                let mut handlers = Vec::<SignalHandler>::new();
 
                 // this is a group, look up the children
                 let group = radio.group();
@@ -164,12 +203,12 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         // value not of "name:N" pattern, skip
                         continue;
                     }
-                    // TODO: block these signals too
-                    radio.connect_toggled(move |radio| {
+                    let h = radio.connect_toggled(move |radio| {
                         if !radio.is_active() { return; }
                         let mut controller = controller.lock().unwrap();
                         controller.set(&name, value.unwrap(), GUI);
                     });
+                    handlers.push(SignalHandler::new(&radio, h));
                 }
                 // wire controller -> gui
                 {
@@ -185,7 +224,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                             let item_name = format!("{}:{}", name, v);
                             group.iter().find(|radio| ObjectList::object_name(*radio).unwrap_or_default() == item_name)
                                 .and_then(|item| {
-                                    item.set_active(true);
+                                    handlers.blocked(|| item.set_active(true));
                                     Some(())
                                 })
                                 .or_else( || {
@@ -206,17 +245,18 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         None
                     }
                 };
-                let handler_id;
+                let handler;
 
                 // wire gui -> controller
                 {
                     let controller = controller.clone();
                     let name = name.clone();
-                    handler_id = combo.connect_changed(move |combo| {
+                    let h = combo.connect_changed(move |combo| {
                         combo.active().map(|v| {
                             controller.set(&name, v as u16, GUI);
                         });
                     });
+                    handler = SignalHandler::new(combo, h);
                 }
                 // wire controller -> gui
                 {
@@ -227,8 +267,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         name.clone(),
                         Box::new(move || {
                             let v = controller.get(&name).unwrap() as u16;
-                            without_signal(&combo, &handler_id,
-                                           || combo.set_active(Some(v as u32)));
+                            handler.blocked(|| combo.set_active(Some(v as u32)));
                         })
                     )
                 }
