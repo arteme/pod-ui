@@ -49,6 +49,7 @@ pub enum Control {
     SwitchControl(SwitchControl),
     RangeControl(RangeControl),
     Select(Select),
+    VirtualSelect(VirtualSelect),
     Button(Button)
 }
 
@@ -98,8 +99,9 @@ pub enum RangeConfig {
 }
 
 #[derive(Clone, Debug)]
-pub struct Select { pub cc: u8, pub addr: u8,
-    pub from_midi: Option<Vec<u16>>, pub to_midi: Option<Vec<u16>> }
+pub struct Select { pub cc: u8, pub addr: u8 }
+#[derive(Clone, Debug)]
+pub struct VirtualSelect {}
 #[derive(Clone, Debug)]
 pub struct Button {}
 
@@ -132,13 +134,25 @@ impl From<RangeControl> for Control {
 
 impl Default for Select {
     fn default() -> Self {
-        Select { cc: 0, addr: 0, from_midi: None, to_midi: None }
+        Select { cc: 0, addr: 0 }
     }
 }
 
 impl From<Select> for Control {
     fn from(c: Select) -> Self {
         Control::Select(c)
+    }
+}
+
+impl Default for VirtualSelect {
+    fn default() -> Self {
+        VirtualSelect {}
+    }
+}
+
+impl From<VirtualSelect> for Control {
+    fn from(c: VirtualSelect) -> Self {
+        Control::VirtualSelect(c)
     }
 }
 
@@ -155,11 +169,11 @@ impl From<Button> for Control {
 }
 
 pub trait AbstractControl {
-    fn get_cc(&self) -> Option<u8>;
-    fn get_addr(&self) -> Option<(u8, u8)>;
+    fn get_cc(&self) -> Option<u8> { None }
+    fn get_addr(&self) -> Option<(u8, u8)> { None }
 
-    fn value_from_midi(&self, value: u8) -> u8;
-    fn value_to_midi(&self, value: u8) -> u8;
+    fn value_from_midi(&self, value: u8) -> u8 { value }
+    fn value_to_midi(&self, value: u8) -> u8 { value }
 
 }
 
@@ -216,51 +230,11 @@ impl AbstractControl for SwitchControl {
 impl AbstractControl for Select {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
-
-    fn value_from_midi(&self, value: u8) -> u8 {
-        self.from_midi.as_ref().and_then(|mapping| {
-            mapping.get(value as usize).map(|v| *v as u8)
-                .or_else(|| {
-                    // TODO: How to get the control name here?
-                    warn!("From midi conversion failed for select {:?} value {}",
-                                "<name?>", value);
-                    None
-                })
-        })
-            .unwrap_or(value)
-    }
-
-    fn value_to_midi(&self, value: u8) -> u8 {
-        self.to_midi.as_ref().and_then(|mapping| {
-            mapping.get(value as usize).map(|v| *v as u8)
-                .or_else(|| {
-                    // TODO: How to get the control name here?
-                    warn!("To midi conversion failed for select {:?} value {}",
-                                "<name?>", value);
-                    None
-                })
-        })
-            .unwrap_or(value)
-    }
 }
 
-impl AbstractControl for Button {
-    fn get_cc(&self) -> Option<u8> {
-        None
-    }
+impl AbstractControl for VirtualSelect {}
 
-    fn get_addr(&self) -> Option<(u8, u8)> {
-        None
-    }
-
-    fn value_from_midi(&self, value: u8) -> u8 {
-        value
-    }
-
-    fn value_to_midi(&self, value: u8) -> u8 {
-        value
-    }
-}
+impl AbstractControl for Button {}
 
 impl Control {
     fn abstract_control(&self) -> &dyn AbstractControl {
@@ -268,6 +242,7 @@ impl Control {
             Control::SwitchControl(c) => c,
             Control::RangeControl(c) => c,
             Control::Select(c) => c,
+            Control::VirtualSelect(c) => c,
             Control::Button(c) => c
         }
     }

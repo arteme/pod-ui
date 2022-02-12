@@ -567,6 +567,10 @@ async fn main() -> Result<()> {
                 }
 
                 let control_config = control_config.unwrap();
+                let addr= control_config.get_addr();
+                if addr.is_none() {
+                    continue; // skip virtual controls
+                }
                 let (addr, bytes) = control_config.get_addr().unwrap();
                 let modified = match bytes {
                     1 => {

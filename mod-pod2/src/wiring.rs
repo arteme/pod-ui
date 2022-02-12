@@ -123,7 +123,7 @@ fn effect_entry_for_value(value: u16) -> Option<(&'static EffectEntry, bool, usi
 
 }
 
-fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
+fn effect_select_from_midi(controller: &mut Controller) -> Option<EffectEntry> {
 
     let value = controller.get("effect_select:raw").unwrap();
     let entry_opt = effect_entry_for_value(value);
@@ -134,13 +134,14 @@ fn effect_select_from_midi(controller: &mut Controller, value: u16) -> Option<Ef
     let entry = entry.clone();
 
     controller.set("delay_enable", delay as u16, MIDI);
-    // TODO: effect tweak, fx enable
+    controller.set("effect_select", index as u16, MIDI);
 
     Some(entry)
 }
 
-fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<EffectEntry> {
+fn effect_select_from_gui(controller: &mut Controller) -> Option<EffectEntry> {
 
+    let value = controller.get("effect_select").unwrap();
     let config = &*CONFIG;
     let effect = &config.effects[value as usize];
     let delay_enable = controller.get("delay_enable").unwrap() != 0;
@@ -154,7 +155,6 @@ fn effect_select_from_gui(controller: &mut Controller, value: u16) -> Option<Eff
             .unwrap().clone();
 
     controller.set("effect_select:raw", entry.id as u16, GUI);
-    // TODO: effect tweak, fx enable
 
     Some(entry)
 }
@@ -172,7 +172,19 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
 pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
     let config = &*CONFIG;
 
-    // effect_select -> delay_enable
+    // effect_select: raw -> controller
+    {
+        let controller = controller.clone();
+        let name = "effect_select:raw".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let mut controller = controller.lock().unwrap();
+                effect_select_from_midi(&mut controller);
+            })
+        );
+    }
+    // effect_select: controller -> raw
     {
         let controller = controller.clone();
         let name = "effect_select".to_string();
@@ -180,26 +192,14 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Ra
             name.clone(),
             Box::new(move || {
                 let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
-
-                let entry = match origin {
-                    MIDI => effect_select_from_midi(&mut controller, v),
-                    GUI => {
-                        effect_select_from_gui(&mut controller, v);
-                        // HACK: adjust UI to the "effect_select:raw" midi value set above
-                        effect_select_from_midi(&mut controller, v)
-                            .map(|e| {
-                                effect_select_send_controls(&mut controller, &e);
-                                e
-                            })
-                    },
-                    _ => None
-                };
+                if let Some(e) = effect_select_from_gui(&mut controller) {
+                    effect_select_send_controls(&mut controller, &e);
+                }
             })
-        )
+        );
     }
 
-    // delay_enable -> effect_select
+    // delay_enable: controller -> raw
     {
         let controller = controller.clone();
         let name = "delay_enable".to_string();
@@ -221,7 +221,6 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Ra
                         let need_reset = config.effects.get(idx)
                             .map(|e| e.delay.is_none()).unwrap_or(false);
                         if need_reset {
-                            let v = config.effects[0].delay.as_ref().unwrap().id;
                             controller.set("effect_select", 0u16, GUI);
                         }
                     }
@@ -258,6 +257,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Ra
 
                     let config = controller.get_config(&control_name).unwrap();
                     let addr = config.get_addr().unwrap().0 as usize;
+                    let val = config.value_from_midi(val);
                     raw.set(addr, val, MIDI);
                 }
             })

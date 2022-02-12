@@ -100,14 +100,6 @@ static EFFECT_ROTARY_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
     string_vec!["rotary_speed", "rotary_fast_speed", "rotary_slow_speed", "effect_tweak"]
 });
 
-static EFFECT_SELECT_FROM_MIDI: [u16; 16] = [
-    /*0*/4, /*1*/5, /*2*/8, /*3*/6, /*4*/3, /*5*/7, /*6*/0, /*7*/1,
-    /*8*/3, /*9*/7, /*A*/0, /*B*/1, /*C*/4, /*D*/5, /*E*/2, /*F*/6
-];
-static EFFECT_SELECT_TO_MIDI: [u16; 9] = [
-    /*0*/10, /*1*/11, /*2*/14, /*3*/8, /*4*/0, /*5*/1, /*6*/3, /*7*/9, /*8*/2
-];
-
 fn gate_threshold_from_midi(value: u8) -> u8 {
     ((127.0 - value as f64) * 194.0/256.0) as u8
 }
@@ -279,11 +271,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "air" => RangeControl { cc: 72, addr: 45,config: short!(),
                 format: fmt_percent!(), ..def!() },
            // effect
-           "effect_select" => Select { cc: 19, addr: 46,
-               from_midi: Some(EFFECT_SELECT_FROM_MIDI.to_vec()),
-               to_midi: Some(EFFECT_SELECT_TO_MIDI.to_vec())
-           }, // 0 - bypass, 1..15 - effects
-           "effect_select:raw" => Select { cc: 19, addr: 46, ..def!() }, // special!
+           "effect_select:raw" => Select { cc: 19, addr: 46 }, // 0 - bypass, 1..15 - effects
+           "effect_select" => VirtualSelect {}, // select control for the ui
            "effect_tweak" => RangeControl { cc: 1, addr: 47, config: short!(),
                 format: fmt_percent!(), ..def!() }, // in ui: rotary depth
            // effect parameters
