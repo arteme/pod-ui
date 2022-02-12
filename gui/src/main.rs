@@ -634,8 +634,10 @@ async fn main() -> Result<()> {
         let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
 
         glib::idle_add_local(move || {
+            let mut processed = false;
             match rx.try_recv() {
                 Ok(Event { key: name, .. }) => {
+                    processed = true;
                     let vec = callbacks.get_vec(&name);
                     match vec {
                         None => { warn!("No GUI callback for '{}'", &name); },
@@ -649,6 +651,7 @@ async fn main() -> Result<()> {
             }
             match ui_rx.try_recv() {
                 Ok(Event { key: name, .. }) => {
+                    processed = true;
                     let vec = callbacks.get_vec(&name);
                     match vec {
                         None => { warn!("No GUI callback for '{}'", &name); },
@@ -662,6 +665,7 @@ async fn main() -> Result<()> {
             }
             match ui_event_rx.try_recv() {
                 Ok(event) => {
+                    processed = true;
                     match event {
                         UIEvent::MidiTx => {
                             transfer_icon_up.set_opacity(1.0);
@@ -725,6 +729,7 @@ async fn main() -> Result<()> {
             }
             match names_rx.try_recv() {
                 Ok(Event { key: idx, .. }) => {
+                    processed = true;
                     // patch index is 1-based
                     program_buttons.get(idx + 1).map(|button| {
                         let name = program_names.lock().unwrap().get(idx).unwrap_or_default();
@@ -734,6 +739,10 @@ async fn main() -> Result<()> {
                 _ => {}
             }
 
+            // an ugly hack to stop the app from consuming 100% cpu
+            if !processed {
+                thread::sleep(Duration::from_millis(100));
+            }
             Continue(true)
         });
 
