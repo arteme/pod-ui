@@ -34,7 +34,7 @@ pub enum UIEvent {
     NewMidiConnection,
     MidiTx,
     MidiRx,
-    Modified(usize)
+    Modified(usize, bool)
 }
 
 pub struct State {
@@ -339,6 +339,7 @@ async fn main() -> Result<()> {
         let config = config.clone();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         let program_names = program_names.clone();
+        let state = state.clone();
         tokio::spawn(async move {
             loop {
                 let msg = midi_in_rx.recv().await;
@@ -406,6 +407,8 @@ async fn main() -> Result<()> {
                         program::load_patch_dump(
                             &mut raw, &mut program_names,
                             Some(patch as usize), data.as_slice(), MIDI);
+                        state.lock().unwrap()
+                            .ui_event_tx.send(UIEvent::Modified(patch as usize, false));
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
                         let mut raw = raw.lock().unwrap();
@@ -432,6 +435,10 @@ async fn main() -> Result<()> {
                         program::load_all_dump(
                             &mut raw, &mut program_names,
                             data.as_slice(), &config, MIDI);
+                        let state = state.lock().unwrap();
+                        for i in 0 .. config.program_num {
+                            state.ui_event_tx.send(UIEvent::Modified(i, false));
+                        }
                     },
                     MidiMessage::AllProgramsDumpRequest => {
                         let mut raw = raw.lock().unwrap();
@@ -609,7 +616,8 @@ async fn main() -> Result<()> {
                     }
                 };
                 if modified {
-                    state.lock().unwrap().ui_event_tx.send(UIEvent::Modified(raw.page));
+                    trace!("modified triggered by {:?}", name);
+                    state.lock().unwrap().ui_event_tx.send(UIEvent::Modified(raw.page, true));
                 }
             }
         });
@@ -721,10 +729,10 @@ async fn main() -> Result<()> {
 
                             header_bar.set_subtitle(Some(&subtitle));
                         }
-                        UIEvent::Modified(page) => {
+                        UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
                             program_buttons.get_mut(page + 1)
-                                .map(|button| button.set_modified(true));
+                                .map(|button| button.set_modified(modified));
                         }
                     }
 
