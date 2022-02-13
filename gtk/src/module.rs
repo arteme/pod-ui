@@ -14,6 +14,6 @@ pub trait Module {
     fn widget(&self) -> gtk::Widget;
     fn objects(&self) -> ObjectList;
 
-    fn wire(&self, controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()>;
-    fn init(&self, controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>) -> Result<()>;
+    fn wire(&self, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()>;
+    fn init(&self, controller: Arc<Mutex<Controller>>) -> Result<()>;
 }

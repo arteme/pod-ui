@@ -61,7 +61,7 @@ macro_rules! short {
     () => ( short!(0, 63) );
 }
 macro_rules! long {
-    ( $a:expr, $b:expr ) => ( RangeConfig::Long { bits: [$a, $b] } )
+    ( $from:expr, $to:expr ) => ( RangeConfig::Long { from: $from, to: $to } )
 }
 
 macro_rules! string_vec {
@@ -100,11 +100,11 @@ static EFFECT_ROTARY_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
     string_vec!["rotary_speed", "rotary_fast_speed", "rotary_slow_speed", "effect_tweak"]
 });
 
-fn gate_threshold_from_midi(value: u8) -> u8 {
-    ((127.0 - value as f64) * 194.0/256.0) as u8
+fn gate_threshold_from_midi(value: u8) -> u16 {
+    ((127.0 - value as f64) * 194.0/256.0) as u16
 }
 
-fn gate_threshold_to_midi(value: u8) -> u8 {
+fn gate_threshold_to_midi(value: u16) -> u8 {
     (127.0 - (value as f64 * 256.0/194.0)) as u8
 }
 
@@ -246,7 +246,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
            "vol_minimum" => RangeControl { cc: 46, addr: 23, format: fmt_percent!(), ..def!() },
            "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
            // delay
-           "delay_time" => RangeControl { cc: 30, addr: 26, config: long!(7,7),
+           "delay_time" => RangeControl { cc: 30, addr: 26, /*config: long!(7,7),*/
                format: Format::Data(FormatData { k: 6.0 * 0.03205, b: 0.0, format: "{val:1.2f} ms".into() }),
                 ..def!() }, // 0 .. 3150 ms / 128 steps
            "delay_time:fine" => RangeControl { cc: 62, addr: 27, ..def!() }, // todo: what to do with this?
@@ -285,14 +285,14 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                ))),
                ..def!() }, // off, 1.4:1, 2:1, 3:1, 6:1, inf:1
             // TODO: how to make all these below long?
-           "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, /*config: long!(7,5),*/
-               format: Format::Data(FormatData { k: 515.0, b: 200.0, format: "{val:1.0f} ms".into() }),
+           "chorus_flanger_speed" => RangeControl { cc: 51, addr: 48, config: long!(0,6250),
+               format: Format::Data(FormatData { k: 1.0, b: 0.0, format: "{val:1.0f} ms".into() }),
                ..def!() }, // todo: 200 .. 65535 ms (x * 50)
-           "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, config: long!(7,1),
+           "chorus_flanger_depth" => RangeControl { cc: 52, addr: 50, config: long!(0,312),
                 format: fmt_percent!(),..def!() }, // 0..312 samples @ 31.2KHz (x * 256 / 104)
            "chorus_flanger_feedback" => RangeControl { cc: 53, addr: 52,
                format: fmt_percent!(signed), ..def!() }, // 0(max)..63(min) negative, 64(min)..127(max) positive
-           "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, config: long!(7,2),
+           "chorus_flanger_pre_delay" => RangeControl { cc: 54, addr: 53, config: long!(1,780),
                format: fmt_percent!(), ..def!() }, // 1..780 samples @31.2KHz (x * 256 / 42)
            "rotary_speed" => RangeControl { cc: 55, addr: 48, config: short!(0,1),
                format: Format::Labels(convert_args!(vec!("slow", "fast"))),

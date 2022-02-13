@@ -1,62 +1,123 @@
-use crate::model::Config;
+use std::borrow::BorrowMut;
+use futures_util::StreamExt;
+use crate::model::{AbstractControl, Config, Control};
 use crate::store::Store;
 
 use log::*;
+use crate::controller::Controller;
+use crate::dump::ProgramsDump;
 use crate::names::ProgramNames;
 use crate::raw::Raw;
 
-// TODO: Move program_names update out of here...
-
-pub fn load_patch_dump(raw: &mut Raw, program_names: &mut ProgramNames,
-                       page: Option<usize>, data: &[u8], origin: u8) {
-    let page = page.unwrap_or(raw.page);
-    let mut set_value: Box<dyn FnMut(usize, u8)> = if page == raw.page {
-        Box::new(|i: usize, byte: u8| { raw.set(i, byte, origin); })
-    } else {
-        Box::new(|i: usize, byte: u8| { raw.set_page_value(page, i, byte); })
-    };
-
-    for (i, byte) in data.iter().enumerate() {
-        set_value(i, *byte);
-    }
-    drop(set_value);
-    program_names.str_from_raw(raw, Some(page), origin);
+fn ordered_controls(controller: &Controller) -> Vec<(String, Control)> {
+    let mut refs = controller.controls.iter()
+        .filter(|(_,c)| c.get_addr().is_some())
+        .map(|(n,c)| (n.clone(),c.clone())).collect::<Vec<_>>();
+    refs.sort_by(|a,b| {
+        Ord::cmp(&b.1.get_addr().unwrap().0, &a.1.get_addr().unwrap().0)
+    });
+    refs
 }
 
-pub fn store_patch_dump_buf(raw: &mut Raw, program_names: &ProgramNames,
-                            page: Option<usize>, config: &Config, data: &mut [u8]) {
-    let page = page.unwrap_or(raw.page);
-    program_names.str_to_raw(raw, Some(page));
-    for i in 0 .. config.program_size {
-        raw.get_page_value(page, i)
-            .map(|v| data[i] = v)
-            .or_else(|| { warn!("No value at position {}", i); None });
+fn store_patch_dump_ctrl_buf(controller: &Controller, buffer: &mut [u8]) {
+    for (name, control) in ordered_controls(controller) {
+        let value = controller.get(&name).unwrap();
+        let (addr, len) = control.get_addr().unwrap();
+        let addr = addr as usize;
+        match len {
+            1 => {
+                if value > u8::MAX as u16 {
+                    warn!("Control {:?} value {} out of bounds!", name, value);
+                }
+                buffer[addr] = value as u8;
+            }
+            2 => {
+                buffer[addr] = ((value >> 8) & 0xff) as u8;
+                buffer[addr + 1] = (value & 0xff) as u8;
+            }
+            n => {
+                error!("Control width {} not supported!", n)
+            }
+        }
     }
 }
 
-pub fn store_patch_dump(raw: &mut Raw, program_names: &ProgramNames,
-                        page: Option<usize>, config: &Config) -> Vec<u8> {
+pub fn load_patch_dump_ctrl(controller: &mut Controller, buffer: &[u8], origin: u8) {
+    for (name, control) in ordered_controls(controller) {
+        let (addr, len) = control.get_addr().unwrap();
+        let addr = addr as usize;
+        let value = match len {
+            1 => {
+                buffer[addr] as u16
+            }
+            2 => {
+                let a = buffer[addr] as u16;
+                let b = buffer[addr + 1] as u16;
+                (a << 8) | b
+            }
+            n => {
+                error!("Control width {} not supported!", n);
+                0u16
+            }
+        };
+        controller.set(&name, value, origin);
+    }
+}
+
+pub fn store_patch_dump_ctrl(controller: &Controller, config: &Config) -> Vec<u8> {
     let mut data = vec![0; config.program_size];
-    store_patch_dump_buf(raw, program_names, page, config, data.as_mut_slice());
+    store_patch_dump_ctrl_buf(controller, data.as_mut_slice());
 
     data
 }
 
-pub fn load_all_dump(raw: &mut Raw, program_names: &mut ProgramNames,
+// --
+
+pub fn load_patch_dump(programs_dump: &mut ProgramsDump,
+                       page: usize, data: &[u8], origin: u8) {
+
+    let program_buffer = programs_dump.data_mut(page);
+    if program_buffer.is_none() {
+        return;
+    }
+
+    let program_buffer = program_buffer.unwrap();
+    program_buffer.copy_from_slice(data);
+    programs_dump.update_name_from_data(page, origin);
+}
+
+pub fn store_patch_dump_buf(programs_dump: &ProgramsDump, page: usize, buffer: &mut [u8]) {
+    let program_buffer = programs_dump.data(page);
+    if program_buffer.is_none() {
+        return;
+    }
+
+    let program_buffer = program_buffer.unwrap();
+    buffer.copy_from_slice(program_buffer);
+}
+
+pub fn store_patch_dump(programs_dump: &ProgramsDump, page: usize, config: &Config) -> Vec<u8> {
+    let mut data = vec![0; config.program_size];
+    store_patch_dump_buf(programs_dump, page, data.as_mut_slice());
+
+    data
+}
+
+pub fn load_all_dump(programs_dump: &mut ProgramsDump,
                      data: &[u8], config: &Config, origin: u8) {
     let mut chunks = data.chunks(config.program_size);
     for i in 0 .. config.program_num {
         let chunk = chunks.next().unwrap();
-        load_patch_dump(raw, program_names, Some(i), chunk, origin);
+        load_patch_dump(programs_dump, i, chunk, origin);
     }
 }
 
-pub fn store_all_dump(raw: &mut Raw, program_names: &ProgramNames, config: &Config) -> Vec<u8> {
+pub fn store_all_dump(programs_dump: &ProgramsDump, config: &Config) -> Vec<u8> {
     let mut data = vec![0; config.program_size * config.program_num];
     let mut chunks = data.chunks_mut(config.program_size);
     for i in 0 .. config.program_num {
         let chunk = chunks.next().unwrap();
-        store_patch_dump_buf(raw, program_names, Some(i), config, chunk);
+        store_patch_dump_buf(programs_dump, i, chunk);
     }
 
     data

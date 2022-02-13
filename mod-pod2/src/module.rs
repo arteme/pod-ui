@@ -44,7 +44,7 @@ impl Module for Pod2Module {
         self.objects.clone()
     }
 
-    fn wire(&self, controller: Arc<Mutex<Controller>>, raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
+    fn wire(&self, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
         let config = &*CONFIG;
         {
             let controller = &*controller.lock().unwrap();
@@ -61,12 +61,12 @@ impl Module for Pod2Module {
 
         wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
         wire_amp_select(controller.clone(), &config, &self.objects, callbacks)?;
-        wire_effect_select(controller, raw, callbacks)?;
+        wire_effect_select(controller, callbacks)?;
 
         Ok(())
     }
 
-    fn init(&self, controller: Arc<Mutex<Controller>>, _raw: Arc<Mutex<Raw>>) -> anyhow::Result<()> {
+    fn init(&self, controller: Arc<Mutex<Controller>>) -> anyhow::Result<()> {
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
         Ok(())

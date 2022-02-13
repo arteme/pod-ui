@@ -20,41 +20,28 @@ impl ProgramNames {
         ProgramNames { names, name_address }
     }
 
-    pub fn str_from_raw(&mut self, raw: &Raw, page: Option<usize>, origin: u8) {
-        let page = page.unwrap_or(raw.page);
+    pub fn str_from_data(&mut self, page: usize, data: &[u8], origin: u8) {
         let mut vec = vec![0u8; self.name_address.len()];
-        let mut data = vec.as_mut_slice();
-        for i in 0 .. data.len() {
-            data[i] = raw.get_page_value(page, self.name_address.start + i).unwrap_or(0);
+        let mut vec_data = vec.as_mut_slice();
+        for i in 0 .. vec_data.len() {
+            vec_data[i] = data.get(self.name_address.start + i).cloned().unwrap_or(0);
         }
-        let str = String::from_utf8_lossy(data).to_string()
+        let str = String::from_utf8_lossy(vec_data).to_string()
             .trim_matches(|c: char| c.is_whitespace() || c == '\u{0}')
             .to_string();
         self.names.set(page, str, origin);
     }
 
-    pub fn all_str_from_raw(&mut self, raw: &Raw, origin: u8) {
-        for i in 0 .. raw.num_pages {
-            self.str_from_raw(raw, Some(i), origin);
-        }
-    }
-
-    pub fn str_to_raw(&self, raw: &mut Raw, page: Option<usize>) {
-        let page = page.unwrap_or(raw.page);
+    pub fn str_to_data(&self, data: &mut [u8], page: usize) {
         let str = self.names.get(page).unwrap();
-        let data = str.as_bytes();
+        let str_data = str.as_bytes();
         for i in 0 .. self.name_address.len() {
-            let byte = data.get(i).cloned().unwrap_or(0x20);
-            raw.set_page_value(page, self.name_address.start + i, byte);
-        }
-    }
-
-    pub fn all_str_to_raw(&self, raw: &mut Raw) {
-        for i in 0 .. raw.num_pages {
-            self.str_to_raw(raw, Some(i));
+            let byte = str_data.get(i).cloned().unwrap_or(0x20);
+            data[self.name_address.start + i] = byte;
         }
     }
 }
+
 impl Store<usize, String, usize> for ProgramNames {
     fn has(&self, idx: usize) -> bool {
         self.names.has(idx)

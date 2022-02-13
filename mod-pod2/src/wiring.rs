@@ -3,7 +3,7 @@ use log::*;
 use anyhow::*;
 use pod_core::config::{GUI, MIDI};
 use pod_core::store::{Signal, Store};
-use pod_core::controller::Controller;
+use pod_core::controller::{Controller, ControllerStoreExt};
 use pod_core::model::*;
 use pod_core::raw::Raw;
 use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList};
@@ -169,7 +169,7 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
     }
 }
 
-pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Raw>>, callbacks: &mut Callbacks) -> Result<()> {
+pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
     let config = &*CONFIG;
 
     // effect_select: raw -> controller
@@ -249,16 +249,13 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>,  raw: Arc<Mutex<Ra
                     }
 
                     // HACK: as if everything's coming straight from MIDI
-                    let mut raw = raw.lock().unwrap();
-
                     let config = controller.get_config(&name).unwrap();
-                    let addr = config.get_addr().unwrap().0 as usize;
-                    let val = raw.get(addr).unwrap();
+                    let val = controller.get(&name).unwrap();
+                    let val = config.value_to_midi(val);
 
                     let config = controller.get_config(&control_name).unwrap();
-                    let addr = config.get_addr().unwrap().0 as usize;
                     let val = config.value_from_midi(val);
-                    raw.set(addr, val, MIDI);
+                    controller.set(&control_name, val, MIDI);
                 }
             })
         )

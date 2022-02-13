@@ -18,3 +18,4 @@ pub mod program;
 pub mod raw;
 pub mod strings;
 pub mod names;
+pub mod dump;

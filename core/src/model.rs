@@ -94,8 +94,8 @@ pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub
 pub enum RangeConfig {
     Normal,
     Short { from: u8, to: u8 },
-    Long { bits: [u8;2] },
-    Function { from_midi: fn(u8) -> u8, to_midi: fn(u8) -> u8 }
+    Long { from: u16, to: u16 },
+    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 }
 }
 
 #[derive(Clone, Debug)]
@@ -172,8 +172,8 @@ pub trait AbstractControl {
     fn get_cc(&self) -> Option<u8> { None }
     fn get_addr(&self) -> Option<(u8, u8)> { None }
 
-    fn value_from_midi(&self, value: u8) -> u8 { value }
-    fn value_to_midi(&self, value: u8) -> u8 { value }
+    fn value_from_midi(&self, value: u8) -> u16 { value as u16 }
+    fn value_to_midi(&self, value: u16) -> u8 { value as u8 }
 
 }
 
@@ -187,29 +187,42 @@ impl AbstractControl for RangeControl {
         Some((self.addr, bytes))
     }
 
-    fn value_from_midi(&self, value: u8) -> u8 {
+    fn value_from_midi(&self, value: u8) -> u16 {
         match &self.config {
             RangeConfig::Short { from, to } => {
                 let scale = 127 / (to - from);
-                value / scale + from
+                (value / scale + from) as u16
+            }
+            RangeConfig::Long { from, to } => {
+                let (from, to) = (*from as f64, *to as f64);
+                let scale = (to - from) / 127.0;
+                let v = value as f64 * scale + from;
+                v.min(to).max(from) as u16
             }
             RangeConfig::Function { from_midi, .. } => {
                 from_midi(value)
             }
-            _ => value
+            _ => value as u16
         }
     }
 
-    fn value_to_midi(&self, value: u8) -> u8 {
+    fn value_to_midi(&self, value: u16) -> u8 {
         match &self.config {
             RangeConfig::Short { from, to } => {
                 let scale = 127 / (to - from);
-                (value - from) * scale
+                println!("{} {} {} {}", value, from, to, scale);
+                (value as u8 - from) * scale
+            }
+            RangeConfig::Long { from, to } => {
+                let (from, to) = (*from as f64, *to as f64);
+                let scale = (to - from) / 127.0;
+                let v = (value as f64 - from) / scale;
+                v.min(127.0).max(0.0) as u8
             }
             RangeConfig::Function { to_midi, .. } => {
                 to_midi(value)
             }
-            _ => value
+            _ => value as u8
         }
     }
 }
@@ -218,11 +231,11 @@ impl AbstractControl for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 
-    fn value_from_midi(&self, value: u8) -> u8 {
-        value / 64
+    fn value_from_midi(&self, value: u8) -> u16 {
+        value as u16 / 64
     }
 
-    fn value_to_midi(&self, value: u8) -> u8 {
+    fn value_to_midi(&self, value: u16) -> u8 {
         if value > 0 { 127 } else { 0 }
     }
 }
@@ -258,11 +271,11 @@ impl AbstractControl for Control {
         self.abstract_control().get_addr()
     }
 
-    fn value_from_midi(&self, value: u8) -> u8 {
+    fn value_from_midi(&self, value: u8) -> u16 {
         self.abstract_control().value_from_midi(value)
     }
 
-    fn value_to_midi(&self, value: u8) -> u8 {
+    fn value_to_midi(&self, value: u16) -> u8 {
         self.abstract_control().value_to_midi(value)
     }
 }
@@ -279,10 +292,7 @@ impl RangeControl {
                 let b = from_midi(127) as f64;
                 (a.min(b), a.max(b))
             }
-            RangeConfig::Long { bits } => {
-                let to: u32 = (1 << (bits[0] + bits[1])) - 1;
-                (0.0, to as f64)
-            }
+            RangeConfig::Long { from, to } => (from as f64, to as f64)
         }
     }
 

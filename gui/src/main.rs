@@ -8,7 +8,7 @@ use anyhow::*;
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
 use pod_core::pod::*;
-use pod_core::controller::Controller;
+use pod_core::controller::{Controller, ControllerStoreExt};
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
@@ -145,15 +145,17 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
 }
 
-fn program_change(raw: Arc<Mutex<Raw>>, program: u8, _origin: u8) {
-    let mut raw = raw.lock().unwrap();
+fn program_change(dump: &ProgramsDump, controller: &mut Controller, program: u8, _origin: u8) {
+    let page = program as usize - 1;
+    let data = dump.data(page).unwrap();
 
     // In case of program change, always send a signal that the data change is coming
     // from MIDI so that the GUI gets updated, but the MIDI does not
-    raw.set_page_signal(program as usize - 1, MIDI);
+    program::load_patch_dump_ctrl(controller, data, MIDI);
 }
 
 use result::prelude::*;
+use pod_core::dump::ProgramsDump;
 use pod_core::names::ProgramNames;
 use crate::program_button::ProgramButtons;
 use crate::UIEvent::MidiTx;
@@ -214,9 +216,8 @@ async fn main() -> Result<()> {
 
     set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out);
 
-    let raw = Arc::new(Mutex::new(Raw::new(config.program_size, config.program_num)));
     let controller = Arc::new(Mutex::new(Controller::new(config.controls.clone())));
-    let program_names =  Arc::new(Mutex::new(ProgramNames::new(&config)));
+    let dump = Arc::new(Mutex::new(ProgramsDump::new(&config)));
 
     let mut callbacks = Callbacks::new();
 
@@ -246,31 +247,42 @@ async fn main() -> Result<()> {
     let app_grid: gtk::Box = ui.object("app_grid").unwrap();
     app_grid.add(&pod_ui);
 
-    module.wire(controller.clone(), raw.clone(), &mut callbacks)?;
+    module.wire(controller.clone(), &mut callbacks)?;
     let objects = ui_objects + module.objects();
 
     // midi ----------------------------------------------------
 
-    // raw / ui controller / midi reply -> midi out
+    // controller / ui controller / midi reply -> midi out
     {
-        let raw = raw.clone();
+        let controller = controller.clone();
         let ui_controller = ui_controller.clone();
         let config = config.clone();
-        let mut rx = raw.lock().unwrap().subscribe();
+        let dump = dump.clone();
+        let mut rx = controller.lock().unwrap().subscribe();
         let mut ui_rx = ui_controller.lock().unwrap().subscribe();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         tokio::spawn(async move {
-            let make_cc = |idx: usize| -> Option<MidiMessage> {
-                config.addr_to_cc_iter(idx)
-                    .next()
-                    .and_then(|cc| {
-                        let value = raw.lock().unwrap().get(idx as usize);
-                        value.map(|value| {
-                            let control = config.cc_to_control(cc).unwrap().1;
-                            let value = control.value_to_midi(value);
-                            MidiMessage::ControlChange { channel: 1, control: cc, value }
-                        })
-                    })
+            let make_cc = |name: &str| -> Option<MidiMessage> {
+                let control = controller.get_config(name);
+                if control.is_none() {
+                    warn!("Control {:?} not found!", name);
+                    return None;
+                }
+
+                let (value, origin) = controller.get_origin(name).unwrap();
+                if origin != GUI {
+                    // not forwarding MIDI events back to MIDI,
+                    // value_to_midi() below may overflow on union control getting incorrect data
+                    return None;
+                }
+                let control = control.unwrap();
+                let cc = control.get_cc();
+                if cc.is_none() {
+                    return None; // skip virtual controls
+                }
+
+                let value = control.value_to_midi(value);
+                Some(MidiMessage::ControlChange { channel: 1, control: cc.unwrap(), value })
             };
             let make_pc = || {
                 let ui_controller = ui_controller.lock().unwrap();
@@ -299,8 +311,8 @@ async fn main() -> Result<()> {
                 let mut message: Option<MidiMessage> = None;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
-                  Ok(Event { key: idx, origin: o, .. }) = rx.recv() => {
-                        message = make_cc(idx);
+                  Ok(Event { key: name, origin: o, .. }) = rx.recv() => {
+                        message = make_cc(&name);
                         origin = o;
                     }
                   Ok(Event { key, origin: o, .. }) = ui_rx.recv() => {
@@ -319,7 +331,9 @@ async fn main() -> Result<()> {
                 }
                 match message {
                     Some(MidiMessage::ProgramChange { program, .. }) => {
-                        program_change( raw.clone(), program, GUI);
+                        let dump = dump.lock().unwrap();
+                        let mut controller = controller.lock().unwrap();
+                        program_change(&dump, &mut controller, program, GUI);
                     }
                     _ => {}
                 }
@@ -331,14 +345,13 @@ async fn main() -> Result<()> {
         });
     }
 
-    // midi in -> raw / ui controller / midi out
+    // midi in -> controller / ui controller / midi out
     {
-        let raw = raw.clone();
         let controller = controller.clone();
         let ui_controller = ui_controller.clone();
         let config = config.clone();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
-        let program_names = program_names.clone();
+        let dump = dump.clone();
         let state = state.clone();
         tokio::spawn(async move {
             loop {
@@ -349,28 +362,28 @@ async fn main() -> Result<()> {
                 let msg = msg.unwrap();
                 trace!(">> {:?}", msg);
                 match msg {
-                    MidiMessage::ControlChange { channel: _, control, value } => {
-                        let controller = controller.lock().unwrap();
-                        let mut raw = raw.lock().unwrap();
+                    MidiMessage::ControlChange { channel: _, control: cc, value } => {
+                        let mut controller = controller.lock().unwrap();
 
-                        let addr = config.cc_to_addr(control);
-                        if addr.is_none() {
-                            warn!("Control for CC={} not defined!", control);
+                        let control = config.cc_to_control(cc);
+                        if control.is_none() {
+                            warn!("Control for CC={} not defined!", cc);
                             continue;
                         }
-                        let control = config.cc_to_control(control).unwrap().1;
+                        let (name, control) = control.unwrap();
                         let value = control.value_from_midi(value);
-
-                        raw.set(addr.unwrap() as usize, value, MIDI);
+                        controller.set(name, value, MIDI);
                     },
                     MidiMessage::ProgramChange { channel: _, program } => {
                         let mut ui_controller = ui_controller.lock().unwrap();
                         ui_controller.set("program", program as u16, MIDI);
-                        program_change(raw.clone(), program, MIDI);
+
+                        let dump = dump.lock().unwrap();
+                        let mut controller = controller.lock().unwrap();
+                        program_change(&dump, &mut controller, program, MIDI);
                     }
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
-                        let mut raw = raw.lock().unwrap();
-                        let mut program_names = program_names.lock().unwrap();
+                        // TODO: program name
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -380,21 +393,19 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
-                        program::load_patch_dump(
-                            &mut raw, &mut program_names,
-                            None, data.as_slice(), MIDI);
+                        program::load_patch_dump_ctrl(
+                            &mut controller.lock().unwrap(), data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
-                        let mut raw = raw.lock().unwrap();
-                        let mut program_names = program_names.lock().unwrap();
+                        // TODO: program name
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
-                            data: program::store_patch_dump(&mut raw, &mut program_names, None, &config) };
+                            data: program::store_patch_dump_ctrl(&controller.lock().unwrap(), &config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
-                        let mut raw = raw.lock().unwrap();
-                        let mut program_names = program_names.lock().unwrap();
+                        //let mut raw = raw.lock().unwrap();
+                        //let mut program_names = program_names.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -404,25 +415,21 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
-                        program::load_patch_dump(
-                            &mut raw, &mut program_names,
-                            Some(patch as usize), data.as_slice(), MIDI);
+                        program::load_patch_dump_ctrl(
+                            &mut controller.lock().unwrap(), data.as_slice(), MIDI);
                         state.lock().unwrap()
                             .ui_event_tx.send(UIEvent::Modified(patch as usize, false));
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
-                        let mut raw = raw.lock().unwrap();
-                        let program_names = program_names.lock().unwrap();
+                        let dump = dump.lock().unwrap();
                         let res = MidiMessage::ProgramPatchDump {
                             patch,
                             ver: 0,
-                            data: program::store_patch_dump(&mut raw, &program_names,
-                                                            Some(patch as usize), &config) };
+                            data: program::store_patch_dump(&dump, patch as usize, &config) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::AllProgramsDump { ver, data } => {
-                        let mut raw = raw.lock().unwrap();
-                        let mut program_names = program_names.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -433,19 +440,17 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_all_dump(
-                            &mut raw, &mut program_names,
-                            data.as_slice(), &config, MIDI);
+                            &mut dump, data.as_slice(), &config, MIDI);
                         let state = state.lock().unwrap();
                         for i in 0 .. config.program_num {
                             state.ui_event_tx.send(UIEvent::Modified(i, false));
                         }
                     },
                     MidiMessage::AllProgramsDumpRequest => {
-                        let mut raw = raw.lock().unwrap();
-                        let program_names = program_names.lock().unwrap();
+                        let dump = dump.lock().unwrap();
                         let res = MidiMessage::AllProgramsDump {
                             ver: 0,
-                            data: program::store_all_dump(&mut raw, &program_names, &config) };
+                            data: program::store_all_dump(&dump, &config) };
                         midi_out_tx.send(res);
                     },
 
@@ -468,76 +473,8 @@ async fn main() -> Result<()> {
         });
     }
 
+    /*
     // raw -----------------------------------------------------
-
-    // raw -> controller
-    {
-        let raw = raw.clone();
-        let controller = controller.clone();
-        let config = config.clone();
-        let mut rx = raw.lock().unwrap().subscribe();
-        tokio::spawn(async move {
-            loop {
-                let mut addr: usize = usize::MAX-1;
-                let mut origin: u8 = UNSET;
-                match rx.recv().await {
-                    Ok(Event { key: idx, origin: o, .. }) => {
-                        addr = idx;
-                        origin = o;
-                    }
-                    Err(e) => {
-                        error!("Error in 'raw -> controller' rx: {}", e)
-                    }
-                }
-
-                // discard messages originating from the 'controller -> raw' setting values
-                // and anything beyond program name address start
-                if origin == GUI || addr >= config.program_name_addr {
-                    continue;
-                }
-
-                let mut controller = controller.lock().unwrap();
-                let raw = raw.lock().unwrap();
-                let mut control_configs = config.addr_to_control_iter(addr).peekable();
-                if control_configs.peek().is_none() {
-                    warn!("Control for address {} not found!", addr);
-                    continue;
-                }
-
-                control_configs.for_each(|(name, config)| {
-                    let value = raw.get(addr).unwrap() as u16;
-                    let (caddr, bytes) = config.get_addr().unwrap();
-                    match bytes {
-                        1 => {
-                            controller.set(name, value, MIDI);
-                        }
-                        2 => {
-                            let bits = match config {
-                                Control::RangeControl(RangeControl{ config: RangeConfig::Long { bits }, .. }) => bits,
-                                _ => &[0u8, 0u8]
-                            };
-                            let cvalue = controller.get(name).unwrap();
-
-                            let (mask, shift) = if addr == caddr as usize {
-                                // first byte
-                                let shift = bits[1];
-                                let mask = ((1 << bits[0]) - 1) << shift;
-                                (mask, shift)
-                            } else {
-                                let mask = (1 << bits[1]) - 1;
-                                (mask, 0)
-                            };
-                            let v = (cvalue & !mask) | (value << shift);
-                            controller.set(name, v, MIDI);
-
-                        }
-                        n => error!("Unsupported control size in bytes: {}", n)
-                    }
-                });
-            }
-        });
-
-    }
 
     // controller -> raw
     {
@@ -622,7 +559,7 @@ async fn main() -> Result<()> {
             }
         });
     }
-
+*/
 
     // ---------------------------------------------------------
 
@@ -640,7 +577,7 @@ async fn main() -> Result<()> {
             let ui_controller = ui_controller.lock().unwrap();
             ui_controller.subscribe()
         };
-        let mut names_rx = program_names.lock().unwrap().subscribe();
+        let mut names_rx = dump.lock().unwrap().subscribe_to_name_updates();
 
         let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
         let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
@@ -742,11 +679,11 @@ async fn main() -> Result<()> {
             match names_rx.try_recv() {
                 Ok(Event { key: idx, .. }) => {
                     processed = true;
-                    // patch index is 1-based
-                    program_buttons.get(idx + 1).map(|button| {
-                        let name = program_names.lock().unwrap().get(idx).unwrap_or_default();
+                    let name = dump.lock().unwrap().name(idx).unwrap_or_default();
+                    // program button index is 1-based
+                    if let Some(button) = program_buttons.get(idx + 1) {
                         button.set_name_label(&name);
-                    });
+                    }
                 },
                 _ => {}
             }
@@ -765,7 +702,7 @@ async fn main() -> Result<()> {
     window.resize(1, 1);
 
     init_all(&config, controller.clone(), &objects);
-    module.init(controller, raw)?;
+    module.init(controller)?;
 
     debug!("starting gtk main loop");
     gtk::main();
