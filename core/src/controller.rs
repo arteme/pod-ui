@@ -1,4 +1,4 @@
-use crate::model::{Config, Control, AbstractControl};
+use crate::model::{Control, AbstractControl};
 use std::collections::HashMap;
 use tokio::sync::broadcast;
 use log::*;

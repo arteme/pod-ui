@@ -3,7 +3,6 @@ use pod_core::controller::Controller;
 use pod_core::model::Config;
 use anyhow::Result;
 use multimap::MultiMap;
-use pod_core::raw::Raw;
 
 use crate::ObjectList;
 

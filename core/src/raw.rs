@@ -1,7 +1,6 @@
 use anyhow::*;
 use tokio::sync::broadcast;
 use log::*;
-use crate::config::UNSET;
 use crate::store::*;
 
 pub struct Raw {

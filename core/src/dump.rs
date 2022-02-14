@@ -20,6 +20,15 @@ impl ProgramsDump {
         Self { program_num, program_size, data, names }
     }
 
+    pub fn program_num(&self) -> usize {
+        self.program_num
+    }
+
+
+    pub fn program_size(&self) -> usize {
+        self.program_size
+    }
+
     #[inline]
     pub fn data(&self, page: usize) -> Option<&[u8]> {
         nth_chunk(&self.data, page, self.program_size)

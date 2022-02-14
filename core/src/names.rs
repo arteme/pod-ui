@@ -1,8 +1,6 @@
-use std::ffi::CStr;
 use std::ops::Range;
 use tokio::sync::broadcast;
 use crate::model::Config;
-use crate::raw::Raw;
 use crate::store::{Event, Signal, Store};
 use crate::strings::Strings;
 
@@ -22,7 +20,7 @@ impl ProgramNames {
 
     pub fn str_from_data(&mut self, page: usize, data: &[u8], origin: u8) {
         let mut vec = vec![0u8; self.name_address.len()];
-        let mut vec_data = vec.as_mut_slice();
+        let vec_data = vec.as_mut_slice();
         for i in 0 .. vec_data.len() {
             vec_data[i] = data.get(self.name_address.start + i).cloned().unwrap_or(0);
         }

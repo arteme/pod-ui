@@ -72,10 +72,9 @@ impl ObjectList {
                 }
                  */
                 println!("}}");
-
+                /*
                 let sc = obj.dynamic_cast_ref::<gtk::Widget>().map(|x| x.style_context()).unwrap_or_default();
                 let cc = sc.list_classes();
-                /*
                 let ss = cc.iter().map(|p| p.to_string()).collect::<Vec<_>>();
                 //println!("{:?}", ss);
 

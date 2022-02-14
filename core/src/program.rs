@@ -1,13 +1,9 @@
-use std::borrow::BorrowMut;
-use futures_util::StreamExt;
 use crate::model::{AbstractControl, Config, Control};
 use crate::store::Store;
 
 use log::*;
 use crate::controller::Controller;
 use crate::dump::ProgramsDump;
-use crate::names::ProgramNames;
-use crate::raw::Raw;
 
 fn ordered_controls(controller: &Controller) -> Vec<(String, Control)> {
     let mut refs = controller.controls.iter()
@@ -96,26 +92,25 @@ pub fn store_patch_dump_buf(programs_dump: &ProgramsDump, page: usize, buffer: &
     buffer.copy_from_slice(program_buffer);
 }
 
-pub fn store_patch_dump(programs_dump: &ProgramsDump, page: usize, config: &Config) -> Vec<u8> {
-    let mut data = vec![0; config.program_size];
+pub fn store_patch_dump(programs_dump: &ProgramsDump, page: usize) -> Vec<u8> {
+    let mut data = vec![0; programs_dump.program_size()];
     store_patch_dump_buf(programs_dump, page, data.as_mut_slice());
 
     data
 }
 
-pub fn load_all_dump(programs_dump: &mut ProgramsDump,
-                     data: &[u8], config: &Config, origin: u8) {
-    let mut chunks = data.chunks(config.program_size);
-    for i in 0 .. config.program_num {
+pub fn load_all_dump(programs_dump: &mut ProgramsDump, data: &[u8], origin: u8) {
+    let mut chunks = data.chunks(programs_dump.program_size());
+    for i in 0 .. programs_dump.program_num() {
         let chunk = chunks.next().unwrap();
         load_patch_dump(programs_dump, i, chunk, origin);
     }
 }
 
-pub fn store_all_dump(programs_dump: &ProgramsDump, config: &Config) -> Vec<u8> {
-    let mut data = vec![0; config.program_size * config.program_num];
-    let mut chunks = data.chunks_mut(config.program_size);
-    for i in 0 .. config.program_num {
+pub fn store_all_dump(programs_dump: &ProgramsDump) -> Vec<u8> {
+    let mut data = vec![0; programs_dump.program_size() * programs_dump.program_num()];
+    let mut chunks = data.chunks_mut(programs_dump.program_size());
+    for i in 0 .. programs_dump.program_num() {
         let chunk = chunks.next().unwrap();
         store_patch_dump_buf(programs_dump, i, chunk);
     }

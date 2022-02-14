@@ -238,7 +238,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
             obj.dynamic_cast_ref::<gtk::ComboBoxText>().map(|combo| {
                 // wire GtkComboBox
                 let controller = controller.clone();
-                let cfg = match controller.get_config(&name) {
+                match controller.get_config(&name) {
                     Some(Control::Select(c)) => Some(c),
                     _ => {
                         warn!("Control {:?} is not a select control!", name);
@@ -290,7 +290,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                 {
                     let controller = controller.clone();
                     let name = name.clone();
-                    button.connect_clicked(move |button| {
+                    button.connect_clicked(move |_button| {
                         let mut controller = controller.lock().unwrap();
                         controller.set_full(&name, 1, GUI, Signal::Force);
                     });

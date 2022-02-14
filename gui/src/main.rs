@@ -12,18 +12,15 @@ use pod_core::controller::{Controller, ControllerStoreExt};
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
-use pod_core::model::{AbstractControl, Button, Config, Control, RangeConfig, RangeControl};
+use pod_core::model::{AbstractControl, Button, Config, Control};
 use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::MidiMessage;
 use tokio::sync::{broadcast, mpsc, oneshot};
-use core::time;
 use std::thread;
-use pod_core::raw::Raw;
-use pod_core::store::{Event, Signal, Store};
+use pod_core::store::{Event, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
-use std::future::Future;
 use once_cell::sync::Lazy;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -256,7 +253,6 @@ async fn main() -> Result<()> {
     {
         let controller = controller.clone();
         let ui_controller = ui_controller.clone();
-        let config = config.clone();
         let dump = dump.clone();
         let mut rx = controller.lock().unwrap().subscribe();
         let mut ui_rx = ui_controller.lock().unwrap().subscribe();
@@ -404,8 +400,6 @@ async fn main() -> Result<()> {
                         midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
-                        //let mut raw = raw.lock().unwrap();
-                        //let mut program_names = program_names.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -425,7 +419,7 @@ async fn main() -> Result<()> {
                         let res = MidiMessage::ProgramPatchDump {
                             patch,
                             ver: 0,
-                            data: program::store_patch_dump(&dump, patch as usize, &config) };
+                            data: program::store_patch_dump(&dump, patch as usize) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::AllProgramsDump { ver, data } => {
@@ -440,7 +434,7 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_all_dump(
-                            &mut dump, data.as_slice(), &config, MIDI);
+                            &mut dump, data.as_slice(), MIDI);
                         let state = state.lock().unwrap();
                         for i in 0 .. config.program_num {
                             state.ui_event_tx.send(UIEvent::Modified(i, false));
@@ -450,7 +444,7 @@ async fn main() -> Result<()> {
                         let dump = dump.lock().unwrap();
                         let res = MidiMessage::AllProgramsDump {
                             ver: 0,
-                            data: program::store_all_dump(&dump, &config) };
+                            data: program::store_all_dump(&dump) };
                         midi_out_tx.send(res);
                     },
 
