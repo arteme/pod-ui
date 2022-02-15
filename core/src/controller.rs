@@ -42,6 +42,16 @@ impl Controller {
             }
         })
     }
+
+    pub fn ordered_controls(&self) -> Vec<(String, Control)> {
+        let mut refs = self.controls.iter()
+            .filter(|(_,c)| c.get_addr().is_some())
+            .map(|(n,c)| (n.clone(),c.clone())).collect::<Vec<_>>();
+        refs.sort_by(|a,b| {
+            Ord::cmp(&b.1.get_addr().unwrap().0, &a.1.get_addr().unwrap().0)
+        });
+        refs
+    }
 }
 
 impl Store<&str, u16, String> for Controller {

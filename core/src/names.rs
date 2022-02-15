@@ -18,20 +18,28 @@ impl ProgramNames {
         ProgramNames { names, name_address }
     }
 
-    pub fn str_from_data(&mut self, page: usize, data: &[u8], origin: u8) {
+    pub fn update_from_data(&mut self, page: usize, data: &[u8], origin: u8) {
+        let str = self.str_from_data(data);
+        self.names.set(page, str, origin);
+    }
+
+    pub fn update_to_data(&self, data: &mut [u8], page: usize) {
+        let str = self.names.get(page).unwrap();
+        self.str_to_data(&str, data);
+    }
+
+    pub fn str_from_data(&mut self, data: &[u8]) -> String {
         let mut vec = vec![0u8; self.name_address.len()];
         let vec_data = vec.as_mut_slice();
         for i in 0 .. vec_data.len() {
             vec_data[i] = data.get(self.name_address.start + i).cloned().unwrap_or(0);
         }
-        let str = String::from_utf8_lossy(vec_data).to_string()
+        String::from_utf8_lossy(vec_data).to_string()
             .trim_matches(|c: char| c.is_whitespace() || c == '\u{0}')
-            .to_string();
-        self.names.set(page, str, origin);
+            .to_string()
     }
 
-    pub fn str_to_data(&self, data: &mut [u8], page: usize) {
-        let str = self.names.get(page).unwrap();
+    pub fn str_to_data(&self, str: &str, data: &mut [u8]) {
         let str_data = str.as_bytes();
         for i in 0 .. self.name_address.len() {
             let byte = str_data.get(i).cloned().unwrap_or(0x20);

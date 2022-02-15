@@ -51,7 +51,7 @@ impl ProgramsDump {
     pub fn update_name_from_data(&mut self, page: usize, origin: u8) {
         let data = nth_chunk(&self.data, page, self.program_size);
         if let Some(data) = data {
-            self.names.str_from_data(page, data, origin)
+            self.names.update_from_data(page, data, origin)
         }
     }
 

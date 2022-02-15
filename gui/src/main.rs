@@ -18,7 +18,7 @@ use crate::opts::*;
 use pod_core::midi::MidiMessage;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
-use pod_core::store::{Event, Store};
+use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
@@ -50,6 +50,7 @@ use pod_core::model::SwitchControl;
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     convert_args!(hashmap!(
         "program" => SwitchControl::default(),
+        "program:prev" => SwitchControl::default(),
         "load_button" => Button::default(),
         "load_patch_button" => Button::default(),
         "load_all_button" => Button::default(),
@@ -142,18 +143,37 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
 }
 
-fn program_change(dump: &ProgramsDump, controller: &mut Controller, program: u8, _origin: u8) {
-    let page = program as usize - 1;
-    let data = dump.data(page).unwrap();
 
-    // In case of program change, always send a signal that the data change is coming
-    // from MIDI so that the GUI gets updated, but the MIDI does not
-    program::load_patch_dump_ctrl(controller, data, MIDI);
+fn program_change(dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
+                  ui_controller: &mut Controller, program: u8, origin: u8) {
+    let program_range = 1 ..= dump.program_num();
+    let prev_program = ui_controller.get("program:prev").unwrap_or(0) as usize;
+    if program_range.contains(&prev_program) {
+        // store edit buffer to the programs dump
+        let prev_page = prev_program - 1;
+        let program_data = program::store_patch_dump_ctrl(edit_buffer);
+        program::load_patch_dump(dump, prev_page, program_data.as_slice(), origin);
+    }
+
+    let program = program as usize;
+    if program_range.contains(&program) {
+        // load program dump into the edit buffer
+        let page = program - 1;
+        let data = dump.data(page).unwrap();
+
+        // In case of program change, always send a signal that the data change is coming
+        // from MIDI so that the GUI gets updated, but the MIDI does not
+        program::load_patch_dump_ctrl(edit_buffer, data, MIDI);
+    }
+
+    ui_controller.set("program", program as u16, origin);
+    ui_controller.set("program:prev", program as u16, origin);
 }
 
 use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::names::ProgramNames;
+use pod_core::edit::EditBuffer;
 use crate::program_button::ProgramButtons;
 use crate::UIEvent::MidiTx;
 
@@ -213,7 +233,11 @@ async fn main() -> Result<()> {
 
     set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out);
 
-    let controller = Arc::new(Mutex::new(Controller::new(config.controls.clone())));
+    // edit buffer
+    let edit_buffer = Arc::new(Mutex::new(EditBuffer::new(&config)));
+    let controller = edit_buffer.lock().unwrap().controller();
+
+    // programs
     let dump = Arc::new(Mutex::new(ProgramsDump::new(&config)));
 
     let mut callbacks = Callbacks::new();
@@ -247,11 +271,15 @@ async fn main() -> Result<()> {
     module.wire(controller.clone(), &mut callbacks)?;
     let objects = ui_objects + module.objects();
 
+    // ---------------------------------------------------------
+    edit_buffer.lock().unwrap().start_thread();
+
     // midi ----------------------------------------------------
 
     // controller / ui controller / midi reply -> midi out
     {
         let controller = controller.clone();
+        let edit_buffer = edit_buffer.clone();
         let ui_controller = ui_controller.clone();
         let dump = dump.clone();
         let mut rx = controller.lock().unwrap().subscribe();
@@ -292,15 +320,18 @@ async fn main() -> Result<()> {
             }
             let make_dump_request = |program: Program| {
                 let ui_controller = ui_controller.lock().unwrap();
-                let message = match program {
-                    Program::EditBuffer => MidiMessage::ProgramEditBufferDumpRequest,
+                match program {
+                    Program::EditBuffer => Some(MidiMessage::ProgramEditBufferDumpRequest),
                     Program::Current => {
                         let current = ui_controller.get(&"program").unwrap();
-                        MidiMessage::ProgramPatchDumpRequest { patch: current as u8 }
+                        if current > 0 {
+                            Some(MidiMessage::ProgramPatchDumpRequest { patch: (current - 1) as u8 })
+                        } else {
+                            None
+                        }
                     }
-                    Program::All => MidiMessage::AllProgramsDumpRequest,
-                };
-                Some(message)
+                    Program::All => Some(MidiMessage::AllProgramsDumpRequest),
+                }
             };
 
             loop {
@@ -327,9 +358,10 @@ async fn main() -> Result<()> {
                 }
                 match message {
                     Some(MidiMessage::ProgramChange { program, .. }) => {
-                        let dump = dump.lock().unwrap();
-                        let mut controller = controller.lock().unwrap();
-                        program_change(&dump, &mut controller, program, GUI);
+                        let mut dump = dump.lock().unwrap();
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut ui_controller = ui_controller.lock().unwrap();
+                        program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI);
                     }
                     _ => {}
                 }
@@ -343,6 +375,7 @@ async fn main() -> Result<()> {
 
     // midi in -> controller / ui controller / midi out
     {
+        let edit_buffer = edit_buffer.clone();
         let controller = controller.clone();
         let ui_controller = ui_controller.clone();
         let config = config.clone();
@@ -356,7 +389,7 @@ async fn main() -> Result<()> {
                     return; // shutdown
                 }
                 let msg = msg.unwrap();
-                trace!(">> {:?}", msg);
+                trace!("<< {:?}", msg);
                 match msg {
                     MidiMessage::ControlChange { channel: _, control: cc, value } => {
                         let mut controller = controller.lock().unwrap();
@@ -372,11 +405,10 @@ async fn main() -> Result<()> {
                     },
                     MidiMessage::ProgramChange { channel: _, program } => {
                         let mut ui_controller = ui_controller.lock().unwrap();
-                        ui_controller.set("program", program as u16, MIDI);
-
-                        let dump = dump.lock().unwrap();
-                        let mut controller = controller.lock().unwrap();
-                        program_change(&dump, &mut controller, program, MIDI);
+                        let mut dump = dump.lock().unwrap();
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        program_change(&mut dump, &mut edit_buffer,
+                                       &mut ui_controller, program, MIDI);
                     }
                     MidiMessage::ProgramEditBufferDump { ver, data } => {
                         // TODO: program name
@@ -390,13 +422,13 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_patch_dump_ctrl(
-                            &mut controller.lock().unwrap(), data.as_slice(), MIDI);
+                            &mut edit_buffer.lock().unwrap(), data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
                         // TODO: program name
                         let res = MidiMessage::ProgramEditBufferDump {
                             ver: 0,
-                            data: program::store_patch_dump_ctrl(&controller.lock().unwrap(), &config) };
+                            data: program::store_patch_dump_ctrl(&edit_buffer.lock().unwrap()) };
                         midi_out_tx.send(res);
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
@@ -409,8 +441,14 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
-                        program::load_patch_dump_ctrl(
-                            &mut controller.lock().unwrap(), data.as_slice(), MIDI);
+                        let mut dump = dump.lock().unwrap();
+                        let current = ui_controller.get("program").unwrap();
+                        program::load_patch_dump(&mut dump, patch as usize, data.as_slice(), MIDI);
+                        if current > 0 && patch as u16 == (current - 1) {
+                            // update edit buffer as well
+                            program::load_patch_dump_ctrl(
+                                &mut edit_buffer.lock().unwrap(), data.as_slice(), MIDI);
+                        }
                         state.lock().unwrap()
                             .ui_event_tx.send(UIEvent::Modified(patch as usize, false));
                     },
@@ -438,6 +476,13 @@ async fn main() -> Result<()> {
                         let state = state.lock().unwrap();
                         for i in 0 .. config.program_num {
                             state.ui_event_tx.send(UIEvent::Modified(i, false));
+                        }
+                        // update edit buffer
+                        let current = ui_controller.get("program").unwrap();
+                        if current > 0 && current as usize <= dump.program_num() {
+                            program::load_patch_dump_ctrl(
+                                &mut edit_buffer.lock().unwrap(),
+                                dump.data(current as usize - 1).unwrap(), MIDI);
                         }
                     },
                     MidiMessage::AllProgramsDumpRequest => {
@@ -576,10 +621,13 @@ async fn main() -> Result<()> {
         let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
         let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
 
+        // This is a cache of the current page number of the whole of the glib idle callback
+        let mut current_page = 0usize;
+
         glib::idle_add_local(move || {
             let mut processed = false;
             match rx.try_recv() {
-                Ok(Event { key: name, .. }) => {
+                Ok(Event { key: name, origin, signal }) => {
                     processed = true;
                     let vec = callbacks.get_vec(&name);
                     match vec {
@@ -589,6 +637,12 @@ async fn main() -> Result<()> {
                         }
                     }
                     animate(&objects, &name, controller.get(&name).unwrap());
+                    if origin == GUI && signal != Signal::Force {
+                        // control changed by the user - set the modified flag
+                        state.lock().unwrap()
+                            .ui_event_tx.send(UIEvent::Modified(current_page, true));
+                    }
+
                 },
                 _ => {}
             }
@@ -602,7 +656,12 @@ async fn main() -> Result<()> {
                             cb()
                         }
                     }
-                    animate(&objects, &name, ui_controller.get(&name).unwrap());
+                    let val = ui_controller.get(&name).unwrap();
+                    animate(&objects, &name, val);
+
+                    if name == "program" {
+                        current_page = if val > 0 { val as usize - 1 } else { 0usize };
+                    }
                 },
                 _ => {}
             }
