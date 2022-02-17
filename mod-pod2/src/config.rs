@@ -307,6 +307,9 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                format: Format::Data(FormatData { k: 515.0, b: 150.0, format: "{val:1.0f} ms".into() }),
                ..def!() }, // 150 .. 65535 ms period (x * 25)
            "trem_depth" => RangeControl { cc: 59, addr: 50, format: fmt_percent!(), ..def!() },
+
+            // special used for ui wiring only
+            "name_change" => Button {}
        )),
         init_controls: convert_args!(vec!(
            "distortion_enable",

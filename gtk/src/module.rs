@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
-use pod_core::controller::Controller;
 use pod_core::model::Config;
 use anyhow::Result;
 use multimap::MultiMap;
+use pod_core::edit::EditBuffer;
 
 use crate::ObjectList;
 
@@ -13,6 +13,6 @@ pub trait Module {
     fn widget(&self) -> gtk::Widget;
     fn objects(&self) -> ObjectList;
 
-    fn wire(&self, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()>;
-    fn init(&self, controller: Arc<Mutex<Controller>>) -> Result<()>;
+    fn wire(&self, controller: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> Result<()>;
+    fn init(&self, controller: Arc<Mutex<EditBuffer>>) -> Result<()>;
 }

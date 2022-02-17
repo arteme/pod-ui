@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 use pod_core::config::{MIDI, UNSET};
-use pod_core::controller::Controller;
+use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
-use pod_core::raw::Raw;
 use pod_core::store::{Signal, StoreSetIm};
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
@@ -30,7 +29,6 @@ impl Pod2Module {
     }
 }
 
-
 impl Module for Pod2Module {
     fn config(&self) -> Config {
         CONFIG.clone()
@@ -44,16 +42,17 @@ impl Module for Pod2Module {
         self.objects.clone()
     }
 
-    fn wire(&self, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
+    fn wire(&self, edit: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
         let config = &*CONFIG;
+        let controller = edit.lock().unwrap().controller();
         {
-            let controller = &*controller.lock().unwrap();
+            let controller = controller.lock().unwrap();
 
-            init_combo(controller, &self.objects,
+            init_combo(&controller, &self.objects,
                        "cab_select", &config.cab_models, |s| s.as_str() )?;
-            init_combo(controller, &self.objects,
+            init_combo(&controller, &self.objects,
                        "amp_select", &config.amp_models, |amp| amp.name.as_str() )?;
-            init_combo(controller, &self.objects,
+            init_combo(&controller, &self.objects,
                        "effect_select", &config.effects, |eff| eff.name.as_str() )?;
         }
 
@@ -62,11 +61,13 @@ impl Module for Pod2Module {
         wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
         wire_amp_select(controller.clone(), &config, &self.objects, callbacks)?;
         wire_effect_select(controller, callbacks)?;
+        wire_name_change(edit, &config, &self.objects, callbacks)?;
 
         Ok(())
     }
 
-    fn init(&self, controller: Arc<Mutex<Controller>>) -> anyhow::Result<()> {
+    fn init(&self, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
+        let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
         Ok(())

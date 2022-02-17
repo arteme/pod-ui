@@ -1,15 +1,17 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 use crate::controller::Controller;
 use crate::model::{AbstractControl, Config, Control};
-use crate::store::{Event, Store};
+use crate::store::{Event, Signal, Store};
 use log::*;
 use tokio::task::JoinHandle;
+use crate::names::ProgramNames;
+use crate::str_encoder::StrEncoder;
+use crate::strings::Strings;
 
 pub struct EditBuffer {
     controller: Arc<Mutex<Controller>>,
     raw: Arc<Mutex<Box<[u8]>>>,
-    pub name: String,
-    pub modified: bool
+    encoder: StrEncoder
 }
 
 impl EditBuffer {
@@ -19,13 +21,9 @@ impl EditBuffer {
 
         let controller = Arc::new(Mutex::new(controller));
         let raw = Arc::new(Mutex::new(raw));
+        let encoder = StrEncoder::new(&config);
 
-        Self {
-            controller,
-            raw,
-            name: String::default(),
-            modified: false
-        }
+        Self { controller, raw, encoder }
     }
 
     pub fn start_thread(&self) -> JoinHandle<()> {
@@ -72,6 +70,17 @@ impl EditBuffer {
         for (name, _) in ordered_controls(&controller) {
             control_value_from_buffer(&mut controller, &name, &raw, origin);
         }
+        controller.set_full("name_change", 1, origin, Signal::Force);
+    }
+
+    pub fn name(&self) -> String {
+        let raw = self.raw.lock().unwrap();
+        self.encoder.str_from_buffer(&raw)
+    }
+
+    pub fn set_name(&mut self, str: &str) {
+        let mut  raw = self.raw.lock().unwrap();
+        self.encoder.str_to_buffer(str, &mut raw);
     }
 }
 

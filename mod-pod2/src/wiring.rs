@@ -4,9 +4,10 @@ use anyhow::*;
 use pod_core::config::{GUI, MIDI};
 use pod_core::store::{Signal, Store};
 use pod_core::controller::{Controller, ControllerStoreExt};
+use pod_core::edit::EditBuffer;
 use pod_core::model::*;
 use pod_core::raw::Raw;
-use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList};
+use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList, SignalHandler, SignalHandlerExt};
 use pod_gtk::gtk::prelude::*;
 use crate::config::CONFIG;
 
@@ -96,6 +97,37 @@ pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs
                     animate(&objs, "bright_switch:show", bright_switch as u16);
                     Continue(false)
                 });
+            })
+        )
+    };
+    Ok(())
+}
+
+pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let entry = objs.ref_by_name::<gtk::Entry>("program_name").unwrap();
+    entry.set_max_length(config.program_name_length as i32);
+    //entry.set_width_chars(config.program_name_length as i32);
+
+    let handler;
+
+    // gui -> edit buffer
+    {
+        let edit = edit.clone();
+        let h = entry.connect_changed(move |entry| {
+            let str = entry.text();
+            edit.lock().unwrap().set_name(str.as_str());
+        });
+        handler = SignalHandler::new(&entry, h);
+    }
+
+    // controller -> gui
+    {
+        let name = "name_change".to_string();
+        callbacks.insert(
+            name.clone(),
+            Box::new(move || {
+                let name = edit.lock().unwrap().name();
+                handler.blocked(|| entry.set_text(&name));
             })
         )
     };

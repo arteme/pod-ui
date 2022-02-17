@@ -11,12 +11,12 @@ use pod_core::model::{Control, Format};
 use pod_core::store::*;
 use crate::{Callbacks, ObjectList};
 
-struct SignalHandler {
+pub struct SignalHandler {
     handler_id: SignalHandlerId,
     object: glib::Object
 }
 
-trait SignalHandlerExt {
+pub trait SignalHandlerExt {
     fn blocked<F: Fn() -> R,R>(&self, f: F) -> R;
 }
 

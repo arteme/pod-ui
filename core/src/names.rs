@@ -2,49 +2,30 @@ use std::ops::Range;
 use tokio::sync::broadcast;
 use crate::model::Config;
 use crate::store::{Event, Signal, Store};
+use crate::str_encoder::StrEncoder;
 use crate::strings::Strings;
 
 pub struct ProgramNames {
     names: Strings,
-    name_address: Range<usize>
+    encoder: StrEncoder
 }
 
 impl ProgramNames {
     pub fn new(config: &Config) -> Self {
         let names = Strings::new(config.program_num);
-        let name_address =
-            config.program_name_addr .. config.program_name_addr + config.program_name_length;
+        let encoder = StrEncoder::new(&config);
 
-        ProgramNames { names, name_address }
+        Self { names, encoder }
     }
 
     pub fn update_from_data(&mut self, page: usize, data: &[u8], origin: u8) {
-        let str = self.str_from_data(data);
+        let str = self.encoder.str_from_buffer(data);
         self.names.set(page, str, origin);
     }
 
     pub fn update_to_data(&self, data: &mut [u8], page: usize) {
         let str = self.names.get(page).unwrap();
-        self.str_to_data(&str, data);
-    }
-
-    pub fn str_from_data(&mut self, data: &[u8]) -> String {
-        let mut vec = vec![0u8; self.name_address.len()];
-        let vec_data = vec.as_mut_slice();
-        for i in 0 .. vec_data.len() {
-            vec_data[i] = data.get(self.name_address.start + i).cloned().unwrap_or(0);
-        }
-        String::from_utf8_lossy(vec_data).to_string()
-            .trim_matches(|c: char| c.is_whitespace() || c == '\u{0}')
-            .to_string()
-    }
-
-    pub fn str_to_data(&self, str: &str, data: &mut [u8]) {
-        let str_data = str.as_bytes();
-        for i in 0 .. self.name_address.len() {
-            let byte = str_data.get(i).cloned().unwrap_or(0x20);
-            data[self.name_address.start + i] = byte;
-        }
+        self.encoder.str_to_buffer(&str, data);
     }
 }
 

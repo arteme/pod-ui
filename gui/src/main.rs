@@ -174,6 +174,7 @@ use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::names::ProgramNames;
 use pod_core::edit::EditBuffer;
+use pod_gtk::gtk::gdk;
 use crate::program_button::ProgramButtons;
 use crate::UIEvent::MidiTx;
 
@@ -264,11 +265,18 @@ async fn main() -> Result<()> {
 
     wire_settings_dialog(state.clone(), &ui);
 
+    let css = gtk::CssProvider::new();
+    gtk::StyleContext::add_provider_for_screen(
+        &gdk::Screen::default().expect("Error initializing GTK CSS provider"),
+        &css,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION
+    );
+
     let pod_ui = module.widget();
     let app_grid: gtk::Box = ui.object("app_grid").unwrap();
     app_grid.add(&pod_ui);
 
-    module.wire(controller.clone(), &mut callbacks)?;
+    module.wire(edit_buffer.clone(), &mut callbacks)?;
     let objects = ui_objects + module.objects();
 
     // ---------------------------------------------------------
@@ -755,7 +763,7 @@ async fn main() -> Result<()> {
     window.resize(1, 1);
 
     init_all(&config, controller.clone(), &objects);
-    module.init(controller)?;
+    module.init(edit_buffer)?;
 
     debug!("starting gtk main loop");
     gtk::main();

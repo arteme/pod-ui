@@ -194,134 +194,184 @@
         <property name="can-focus">False</property>
         <property name="border-width">5</property>
         <property name="orientation">vertical</property>
-        <property name="spacing">10</property>
         <child>
-          <!-- n-columns=6 n-rows=2 -->
-          <object class="GtkGrid">
+          <object class="GtkBox">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
-            <property name="column-homogeneous">True</property>
+            <property name="spacing">10</property>
             <child>
-              <object class="GtkCheckButton" id="noise_gate_enable">
-                <property name="label" translatable="yes">Gate</property>
-                <property name="name">noise_gate_enable</property>
+              <!-- n-columns=6 n-rows=2 -->
+              <object class="GtkGrid">
                 <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">False</property>
-                <property name="draw-indicator">True</property>
-              </object>
-              <packing>
-                <property name="left-attach">0</property>
-                <property name="top-attach">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkCheckButton" id="amp_enable">
-                <property name="label" translatable="yes">Amp</property>
-                <property name="name">amp_enable</property>
-                <property name="visible">True</property>
-                <property name="sensitive">False</property>
                 <property name="can-focus">False</property>
-                <property name="has-default">True</property>
-                <property name="receives-default">False</property>
-                <property name="active">True</property>
-                <property name="draw-indicator">True</property>
+                <property name="column-homogeneous">True</property>
+                <child>
+                  <object class="GtkCheckButton" id="noise_gate_enable">
+                    <property name="label" translatable="yes">Gate</property>
+                    <property name="name">noise_gate_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">0</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="amp_enable">
+                    <property name="label" translatable="yes">Amp</property>
+                    <property name="name">amp_enable</property>
+                    <property name="visible">True</property>
+                    <property name="sensitive">False</property>
+                    <property name="can-focus">False</property>
+                    <property name="has-default">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="active">True</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">1</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="volume_enable">
+                    <property name="label" translatable="yes">Volume</property>
+                    <property name="name">volume_enable</property>
+                    <property name="visible">True</property>
+                    <property name="sensitive">False</property>
+                    <property name="can-focus">False</property>
+                    <property name="has-default">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="active">True</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">2</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="effect_enable">
+                    <property name="label" translatable="yes">FX</property>
+                    <property name="name">effect_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
+                    <style>
+                      <class name="effect_select=0:opacity=0"/>
+                      <class name="effect_select=1:opacity=0"/>
+                      <class name="effect_select=2:opacity=0"/>
+                      <class name="effect_select=*:opacity=1"/>
+                    </style>
+                  </object>
+                  <packing>
+                    <property name="left-attach">3</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="delay_enable">
+                    <property name="label" translatable="yes">Delay</property>
+                    <property name="name">delay_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">4</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="reverb_enable">
+                    <property name="label" translatable="yes">Reverb</property>
+                    <property name="name">reverb_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">5</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkButton" id="vol_pedal_position">
+                    <property name="label" translatable="yes">&gt;</property>
+                    <property name="name">vol_pedal_position</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">True</property>
+                    <property name="valign">start</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">1</property>
+                    <property name="top-attach">0</property>
+                    <property name="width">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
               </object>
               <packing>
-                <property name="left-attach">1</property>
-                <property name="top-attach">1</property>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="pack-type">end</property>
+                <property name="position">0</property>
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="volume_enable">
-                <property name="label" translatable="yes">Volume</property>
-                <property name="name">volume_enable</property>
+              <object class="GtkFrame">
                 <property name="visible">True</property>
-                <property name="sensitive">False</property>
                 <property name="can-focus">False</property>
-                <property name="has-default">True</property>
-                <property name="receives-default">False</property>
-                <property name="active">True</property>
-                <property name="draw-indicator">True</property>
+                <property name="vexpand">True</property>
+                <property name="label-xalign">0</property>
+                <property name="shadow-type">etched-out</property>
+                <child>
+                  <object class="GtkAlignment">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="left-padding">12</property>
+                    <property name="right-padding">12</property>
+                    <child>
+                      <object class="GtkEntry">
+                        <property name="name">program_name</property>
+                        <property name="visible">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="valign">center</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child type="label">
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label" translatable="yes">Program</property>
+                  </object>
+                </child>
               </object>
               <packing>
-                <property name="left-attach">2</property>
-                <property name="top-attach">1</property>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
               </packing>
-            </child>
-            <child>
-              <object class="GtkCheckButton" id="effect_enable">
-                <property name="label" translatable="yes">FX</property>
-                <property name="name">effect_enable</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">False</property>
-                <property name="draw-indicator">True</property>
-                <style>
-                  <class name="effect_select=0:opacity=0"/>
-                  <class name="effect_select=1:opacity=0"/>
-                  <class name="effect_select=2:opacity=0"/>
-                  <class name="effect_select=*:opacity=1"/>
-                </style>
-              </object>
-              <packing>
-                <property name="left-attach">3</property>
-                <property name="top-attach">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkCheckButton" id="delay_enable">
-                <property name="label" translatable="yes">Delay</property>
-                <property name="name">delay_enable</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">False</property>
-                <property name="draw-indicator">True</property>
-              </object>
-              <packing>
-                <property name="left-attach">4</property>
-                <property name="top-attach">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkCheckButton" id="reverb_enable">
-                <property name="label" translatable="yes">Reverb</property>
-                <property name="name">reverb_enable</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">False</property>
-                <property name="draw-indicator">True</property>
-              </object>
-              <packing>
-                <property name="left-attach">5</property>
-                <property name="top-attach">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkButton" id="vol_pedal_position">
-                <property name="label" translatable="yes">&gt;</property>
-                <property name="name">vol_pedal_position</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-              </object>
-              <packing>
-                <property name="left-attach">1</property>
-                <property name="top-attach">0</property>
-                <property name="width">2</property>
-              </packing>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
-            </child>
-            <child>
-              <placeholder/>
             </child>
           </object>
           <packing>
