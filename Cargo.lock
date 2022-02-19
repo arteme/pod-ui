@@ -1240,7 +1240,7 @@ checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
 
 [[package]]
 name = "pod-core"
-version = "0.4.0-dev"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -1257,7 +1257,7 @@ dependencies = [
 
 [[package]]
 name = "pod-gtk"
-version = "0.4.0-dev"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "gdk",
@@ -1272,7 +1272,7 @@ dependencies = [
 
 [[package]]
 name = "pod-gui"
-version = "0.4.0-dev"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1295,7 +1295,7 @@ dependencies = [
 
 [[package]]
 name = "pod-mod-pod2"
-version = "0.4.0-dev"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "log",
