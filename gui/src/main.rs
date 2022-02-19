@@ -177,6 +177,76 @@ fn program_change(dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
     modified
 }
 
+enum Program {
+    EditBuffer,
+    Current,
+    Number(usize),
+    All
+}
+
+fn program_dump_message(
+    program: Program, dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
+    ui_controller: &Controller, ui_event_tx: &mpsc::UnboundedSender<UIEvent>
+) -> Option<MidiMessage> {
+    let cur_program = ui_controller.get(&"program").unwrap() as usize;
+    let cur_program_valid = cur_program > 0 && cur_program < dump.program_num();
+    let save_buffer = match program {
+        Program::EditBuffer => false,
+        Program::Number(n) if n != cur_program => false,
+        _ => true
+    };
+    if edit_buffer.modified() && save_buffer && cur_program_valid {
+        let buffer = dump.data_mut(cur_program - 1).unwrap();
+        program::store_patch_dump_ctrl_buf(&edit_buffer, buffer);
+        edit_buffer.set_modified(false);
+    }
+
+    match program {
+        Program::EditBuffer => {
+            Some(MidiMessage::ProgramEditBufferDump {
+                ver: 0,
+                data: program::store_patch_dump_ctrl(&edit_buffer)
+            })
+        }
+        Program::Current if !cur_program_valid => { None }
+        Program::Current => {
+            let patch = cur_program - 1;
+            dump.set_modified(patch, false);
+            ui_event_tx.send(UIEvent::Modified(patch, false));
+
+            Some(MidiMessage::ProgramPatchDump {
+                patch: patch as u8,
+                ver: 0,
+                data: program::store_patch_dump(&dump, patch)
+            })
+        }
+        Program::Number(n) => {
+            let patch = n - 1;
+            dump.set_modified(patch, false);
+            ui_event_tx.send(UIEvent::Modified(patch, false));
+
+            Some(MidiMessage::ProgramPatchDump {
+                patch: patch as u8,
+                ver: 0,
+                data: program::store_patch_dump(&dump, patch)
+            })
+        }
+        Program::All => {
+            dump.set_all_modified(false);
+            for i in 0 .. dump.program_num() {
+                ui_event_tx.send(UIEvent::Modified(i, false));
+            }
+
+            Some(MidiMessage::AllProgramsDump {
+                ver: 0,
+                data: program::store_all_dump(&dump)
+            })
+        }
+    }
+
+}
+
+
 fn set_current_program_modified(edit: &mut EditBuffer, ui_controller: &Controller, state: &State) {
     let cur_program = ui_controller.get(&"program").unwrap() as usize;
     let program_num = ui_controller.get(&"program_num").unwrap() as usize;
@@ -342,11 +412,6 @@ async fn main() -> Result<()> {
                 let v = ui_controller.get(&"program").unwrap();
                 Some(MidiMessage::ProgramChange { channel: 1, program: v as u8 })
             };
-            enum Program {
-                EditBuffer,
-                Current,
-                All
-            }
             let make_dump_request = |program: Program| {
                 let ui_controller = ui_controller.lock().unwrap();
                 match program {
@@ -360,56 +425,16 @@ async fn main() -> Result<()> {
                         }
                     }
                     Program::All => Some(MidiMessage::AllProgramsDumpRequest),
+                    _ => None // we never do number request (yet!)
                 }
             };
             let make_dump = |program: Program| {
                 let mut edit_buffer = edit_buffer.lock().unwrap();
                 let mut dump = dump.lock().unwrap();
-                let cur_program = ui_controller.lock().unwrap().get(&"program").unwrap() as usize;
-                let cur_program_valid = cur_program > 0 && cur_program < dump.program_num();
-                let save_buffer = match program {
-                    Program::EditBuffer => false,
-                    _ => true
-                };
-                if edit_buffer.modified() && save_buffer && cur_program_valid {
-                    let buffer = dump.data_mut(cur_program - 1).unwrap();
-                    program::store_patch_dump_ctrl_buf(&edit_buffer, buffer);
-                    edit_buffer.set_modified(false);
-                }
-
-                match program {
-                    Program::EditBuffer => {
-                        Some(MidiMessage::ProgramEditBufferDump {
-                            ver: 0,
-                            data: program::store_patch_dump_ctrl(&edit_buffer)
-                        })
-                    }
-                    Program::Current if !cur_program_valid => { None }
-                    Program::Current => {
-                        let patch = cur_program - 1;
-                        dump.set_modified(patch, false);
-                        state.lock().unwrap()
-                            .ui_event_tx.send(UIEvent::Modified(patch, false));
-
-                        Some(MidiMessage::ProgramPatchDump {
-                            patch: patch as u8,
-                            ver: 0,
-                            data: program::store_patch_dump(&dump, patch)
-                        })
-                    }
-                    Program::All => {
-                        dump.set_all_modified(false);
-                        let state = state.lock().unwrap();
-                        for i in 0 .. dump.program_num() {
-                            state.ui_event_tx.send(UIEvent::Modified(i, false));
-                        }
-
-                        Some(MidiMessage::AllProgramsDump {
-                            ver: 0,
-                            data: program::store_all_dump(&dump)
-                        })
-                    }
-                }
+                let ui_controller = ui_controller.lock().unwrap();
+                let state = state.lock().unwrap();
+                program_dump_message(program, &mut dump, &mut edit_buffer,
+                                     &ui_controller, &state.ui_event_tx)
             };
 
             loop {
@@ -533,11 +558,14 @@ async fn main() -> Result<()> {
                             &mut edit_buffer.lock().unwrap(), data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
-                        // TODO: program name
-                        let res = MidiMessage::ProgramEditBufferDump {
-                            ver: 0,
-                            data: program::store_patch_dump_ctrl(&edit_buffer.lock().unwrap()) };
-                        midi_out_tx.send(res);
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
+                        let ui_controller = ui_controller.lock().unwrap();
+                        let state = state.lock().unwrap();
+                        let msg = program_dump_message(
+                            Program::EditBuffer, &mut dump, &mut edit_buffer,
+                            &ui_controller, &state.ui_event_tx);
+                        midi_out_tx.send(msg.unwrap());
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
                         if ver != 0 {
@@ -561,12 +589,14 @@ async fn main() -> Result<()> {
                             .ui_event_tx.send(UIEvent::Modified(patch as usize, false));
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
-                        let dump = dump.lock().unwrap();
-                        let res = MidiMessage::ProgramPatchDump {
-                            patch,
-                            ver: 0,
-                            data: program::store_patch_dump(&dump, patch as usize) };
-                        midi_out_tx.send(res);
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
+                        let ui_controller = ui_controller.lock().unwrap();
+                        let state = state.lock().unwrap();
+                        let msg = program_dump_message(
+                            Program::Number(patch as usize + 1), &mut dump, &mut edit_buffer,
+                            &ui_controller, &state.ui_event_tx);
+                        midi_out_tx.send(msg.unwrap());
                     },
                     MidiMessage::AllProgramsDump { ver, data } => {
                         let mut dump = dump.lock().unwrap();
@@ -594,11 +624,14 @@ async fn main() -> Result<()> {
                         }
                     },
                     MidiMessage::AllProgramsDumpRequest => {
-                        let dump = dump.lock().unwrap();
-                        let res = MidiMessage::AllProgramsDump {
-                            ver: 0,
-                            data: program::store_all_dump(&dump) };
-                        midi_out_tx.send(res);
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
+                        let ui_controller = ui_controller.lock().unwrap();
+                        let state = state.lock().unwrap();
+                        let msg = program_dump_message(
+                            Program::All, &mut dump, &mut edit_buffer,
+                            &ui_controller, &state.ui_event_tx);
+                        midi_out_tx.send(msg.unwrap());
                     },
 
                     // pretend we're a POD
