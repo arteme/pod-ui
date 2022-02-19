@@ -8,6 +8,7 @@ build = "build.rs"
 [dependencies]
 clap = { version = "=3.0.6", features = ["derive"] }
 simple_logger = "=1.6.0"
+sentry = "0.24.3"
 
 pin-project = "=0.4.29" # needed to get glib dep to comile :(
 

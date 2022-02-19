@@ -270,6 +270,10 @@ use crate::UIEvent::MidiTx;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _guard = sentry::init(("https://bf6f7de248b147dea1fb48c221f785f0@o1148278.ingest.sentry.io/6219700", sentry::ClientOptions {
+        release: Some(env!("GIT_VERSION").into()),
+        ..Default::default()
+    }));
     simple_logger::init()?;
 
     let opts: Opts = Opts::parse();
