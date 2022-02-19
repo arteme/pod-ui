@@ -7,7 +7,7 @@ use crate::dump::ProgramsDump;
 use crate::edit::EditBuffer;
 
 
-fn store_patch_dump_ctrl_buf(edit: &EditBuffer, buffer: &mut [u8]) {
+pub fn store_patch_dump_ctrl_buf(edit: &EditBuffer, buffer: &mut [u8]) {
     let raw = edit.raw_locked();
     buffer.copy_from_slice(&raw);
 }

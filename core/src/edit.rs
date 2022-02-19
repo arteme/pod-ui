@@ -11,6 +11,7 @@ use crate::strings::Strings;
 pub struct EditBuffer {
     controller: Arc<Mutex<Controller>>,
     raw: Arc<Mutex<Box<[u8]>>>,
+    modified: bool,
     encoder: StrEncoder
 }
 
@@ -23,7 +24,7 @@ impl EditBuffer {
         let raw = Arc::new(Mutex::new(raw));
         let encoder = StrEncoder::new(&config);
 
-        Self { controller, raw, encoder }
+        Self { controller, raw, encoder, modified: false }
     }
 
     pub fn start_thread(&self) -> JoinHandle<()> {
@@ -81,6 +82,14 @@ impl EditBuffer {
     pub fn set_name(&mut self, str: &str) {
         let mut  raw = self.raw.lock().unwrap();
         self.encoder.str_to_buffer(str, &mut raw);
+    }
+
+    pub fn modified(&self) -> bool {
+        self.modified
+    }
+
+    pub fn set_modified(&mut self, modified: bool) {
+        self.modified = modified
     }
 }
 

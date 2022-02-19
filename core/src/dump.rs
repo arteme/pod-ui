@@ -7,6 +7,7 @@ pub struct ProgramsDump {
     program_num: usize,
     program_size: usize,
     data: Box<[u8]>,
+    modified: Box<[bool]>,
     names: ProgramNames
 }
 
@@ -15,9 +16,10 @@ impl ProgramsDump {
         let program_num = config.program_num;
         let program_size = config.program_size;
         let data = vec![0u8; program_num * program_size].into_boxed_slice();
+        let modified = vec![false; program_num * program_size].into_boxed_slice();
         let names = ProgramNames::new(config);
 
-        Self { program_num, program_size, data, names }
+        Self { program_num, program_size, data, modified, names }
     }
 
     pub fn program_num(&self) -> usize {
@@ -66,6 +68,18 @@ impl ProgramsDump {
 
     pub fn set_name(&mut self, page: usize, name: String, origin: u8) -> bool {
         self.names.set(page, name, origin)
+    }
+
+    pub fn modified(&self, page: usize) -> bool {
+        self.modified.get(page).unwrap_or(&false).clone()
+    }
+
+    pub fn set_modified(&mut self, page: usize, modified: bool) {
+        self.modified.get_mut(page).map(|m| *m = modified);
+    }
+
+    pub fn set_all_modified(&mut self, modified: bool) {
+        self.modified.iter_mut().map(|m| *m = modified);
     }
 }
 fn nth_chunk(data: &[u8], page: usize, page_size: usize) -> Option<&[u8]> {

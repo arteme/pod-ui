@@ -76,7 +76,10 @@ impl Store<&str, u16, String> for Controller {
 
             store.send_signal(name.to_string(), value_changed, origin, signal);
             value_changed
-        }).unwrap_or(false)
+        }).unwrap_or_else(|| {
+            warn!("No control {:?} defined", name);
+            false
+        })
     }
 
     fn subscribe(&self) -> broadcast::Receiver<Event<String>> {

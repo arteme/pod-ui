@@ -51,6 +51,7 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     convert_args!(hashmap!(
         "program" => SwitchControl::default(),
         "program:prev" => SwitchControl::default(),
+        "program_num" => SwitchControl::default(),
         "load_button" => Button::default(),
         "load_patch_button" => Button::default(),
         "load_all_button" => Button::default(),
@@ -145,7 +146,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
 
 
 fn program_change(dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
-                  ui_controller: &mut Controller, program: u8, origin: u8) {
+                  ui_controller: &mut Controller, program: u8, origin: u8) -> bool {
     let program_range = 1 ..= dump.program_num();
     let prev_program = ui_controller.get("program:prev").unwrap_or(0) as usize;
     if program_range.contains(&prev_program) {
@@ -153,9 +154,11 @@ fn program_change(dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
         let prev_page = prev_program - 1;
         let program_data = program::store_patch_dump_ctrl(edit_buffer);
         program::load_patch_dump(dump, prev_page, program_data.as_slice(), origin);
+        dump.set_modified(prev_page, edit_buffer.modified());
     }
 
     let program = program as usize;
+    let mut modified = false;
     if program_range.contains(&program) {
         // load program dump into the edit buffer
         let page = program - 1;
@@ -164,10 +167,26 @@ fn program_change(dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
         // In case of program change, always send a signal that the data change is coming
         // from MIDI so that the GUI gets updated, but the MIDI does not
         program::load_patch_dump_ctrl(edit_buffer, data, MIDI);
+        modified = dump.modified(page);
+        edit_buffer.set_modified(modified);
     }
 
     ui_controller.set("program", program as u16, origin);
     ui_controller.set("program:prev", program as u16, origin);
+
+    modified
+}
+
+fn set_current_program_modified(edit: &mut EditBuffer, ui_controller: &Controller, state: &State) {
+    let cur_program = ui_controller.get(&"program").unwrap() as usize;
+    let program_num = ui_controller.get(&"program_num").unwrap() as usize;
+    let cur_program_valid = cur_program > 0 && cur_program < program_num;
+    if cur_program_valid {
+        let current_page = cur_program - 1;
+        state.ui_event_tx.send(UIEvent::Modified(current_page, true));
+
+    }
+    edit.set_modified(true);
 }
 
 use result::prelude::*;
@@ -277,6 +296,7 @@ async fn main() -> Result<()> {
     app_grid.add(&pod_ui);
 
     module.wire(edit_buffer.clone(), &mut callbacks)?;
+    ui_controller.lock().unwrap().set("program_num", module.config().program_num as u16, UNSET);
     let objects = ui_objects + module.objects();
 
     // ---------------------------------------------------------
@@ -286,6 +306,7 @@ async fn main() -> Result<()> {
 
     // controller / ui controller / midi reply -> midi out
     {
+        let state = state.clone();
         let controller = controller.clone();
         let edit_buffer = edit_buffer.clone();
         let ui_controller = ui_controller.clone();
@@ -341,6 +362,55 @@ async fn main() -> Result<()> {
                     Program::All => Some(MidiMessage::AllProgramsDumpRequest),
                 }
             };
+            let make_dump = |program: Program| {
+                let mut edit_buffer = edit_buffer.lock().unwrap();
+                let mut dump = dump.lock().unwrap();
+                let cur_program = ui_controller.lock().unwrap().get(&"program").unwrap() as usize;
+                let cur_program_valid = cur_program > 0 && cur_program < dump.program_num();
+                let save_buffer = match program {
+                    Program::EditBuffer => false,
+                    _ => true
+                };
+                if edit_buffer.modified() && save_buffer && cur_program_valid {
+                    let buffer = dump.data_mut(cur_program - 1).unwrap();
+                    program::store_patch_dump_ctrl_buf(&edit_buffer, buffer);
+                    edit_buffer.set_modified(false);
+                }
+
+                match program {
+                    Program::EditBuffer => {
+                        Some(MidiMessage::ProgramEditBufferDump {
+                            ver: 0,
+                            data: program::store_patch_dump_ctrl(&edit_buffer)
+                        })
+                    }
+                    Program::Current if !cur_program_valid => { None }
+                    Program::Current => {
+                        let patch = cur_program - 1;
+                        dump.set_modified(patch, false);
+                        state.lock().unwrap()
+                            .ui_event_tx.send(UIEvent::Modified(patch, false));
+
+                        Some(MidiMessage::ProgramPatchDump {
+                            patch: patch as u8,
+                            ver: 0,
+                            data: program::store_patch_dump(&dump, patch)
+                        })
+                    }
+                    Program::All => {
+                        dump.set_all_modified(false);
+                        let state = state.lock().unwrap();
+                        for i in 0 .. dump.program_num() {
+                            state.ui_event_tx.send(UIEvent::Modified(i, false));
+                        }
+
+                        Some(MidiMessage::AllProgramsDump {
+                            ver: 0,
+                            data: program::store_all_dump(&dump)
+                        })
+                    }
+                }
+            };
 
             loop {
                 let mut message: Option<MidiMessage> = None;
@@ -356,6 +426,9 @@ async fn main() -> Result<()> {
                             "load_button" => make_dump_request(Program::EditBuffer),
                             "load_patch_button" => make_dump_request(Program::Current),
                             "load_all_button" => make_dump_request(Program::All),
+                            "store_button" => make_dump(Program::EditBuffer),
+                            "store_patch_button" => make_dump(Program::Current),
+                            "store_all_button" => make_dump(Program::All),
                             _ => None
                         };
                         origin = o;
@@ -364,15 +437,34 @@ async fn main() -> Result<()> {
                 if origin == MIDI || message.is_none() {
                     continue;
                 }
-                match message {
+                let send_buffer = match message {
+                    Some(MidiMessage::ControlChange { ..}) => {
+                        // CC from GUI layer -> set modified flag
+                        set_current_program_modified(
+                            &mut edit_buffer.lock().unwrap(),
+                            &ui_controller.lock().unwrap(),
+                            &state.lock().unwrap()
+                        );
+                        false
+                    }
                     Some(MidiMessage::ProgramChange { program, .. }) => {
                         let mut dump = dump.lock().unwrap();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut ui_controller = ui_controller.lock().unwrap();
-                        program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI);
+                        program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI)
                     }
-                    _ => {}
+                    _ => { false }
+                };
+
+                // If the selected program was modified, Line6 Edit doesn't send a
+                // PC followed by an edit buffer dump, which would be logical, but sends an
+                // edit buffer dump only. Indeed, if we send PC first and then the edit buffer
+                // dump, Pod 2.0 gets all confused and switches to a completely different
+                // program altogether. So, following Line6 Edit we only sent the edit buffer dump!
+                if send_buffer {
+                    message = make_dump(Program::EditBuffer);
                 }
+
                 match midi_out_tx.send(message.unwrap()) {
                     Ok(_) => {}
                     Err(err) => { error!("MIDI OUT error: {}", err); }
@@ -409,7 +501,15 @@ async fn main() -> Result<()> {
                         }
                         let (name, control) = control.unwrap();
                         let value = control.value_from_midi(value);
-                        controller.set(name, value, MIDI);
+                        let modified = controller.set(name, value, MIDI);
+                        if modified {
+                            // CC from MIDI -> set modified flag
+                            set_current_program_modified(
+                                &mut edit_buffer.lock().unwrap(),
+                                &ui_controller.lock().unwrap(),
+                                &state.lock().unwrap()
+                            );
+                        }
                     },
                     MidiMessage::ProgramChange { channel: _, program } => {
                         let mut ui_controller = ui_controller.lock().unwrap();
@@ -612,6 +712,7 @@ async fn main() -> Result<()> {
 
     // controller -> gui
     {
+        let edit_buffer = edit_buffer.clone();
         let controller = controller.clone();
         let ui_controller = ui_controller.clone();
         let objects = objects.clone();
@@ -645,12 +746,6 @@ async fn main() -> Result<()> {
                         }
                     }
                     animate(&objects, &name, controller.get(&name).unwrap());
-                    if origin == GUI && signal != Signal::Force {
-                        // control changed by the user - set the modified flag
-                        state.lock().unwrap()
-                            .ui_event_tx.send(UIEvent::Modified(current_page, true));
-                    }
-
                 },
                 _ => {}
             }

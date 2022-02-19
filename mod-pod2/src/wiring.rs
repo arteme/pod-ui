@@ -225,7 +225,11 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Ca
             Box::new(move || {
                 let mut controller = controller.lock().unwrap();
                 if let Some(e) = effect_select_from_gui(&mut controller) {
+                    /*
+                    // POD sends controls after effect select
+                    // Line6 Edit requests an edit buffer dump from the device
                     effect_select_send_controls(&mut controller, &e);
+                    */
                 }
             })
         );
