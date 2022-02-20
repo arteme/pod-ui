@@ -94,7 +94,7 @@ glib-compile-schemas $DIR/share/glib-2.0/schemas/
 
 echo "5. gdkpixbuf loaders"
 mkdir -p $DIR/lib
-cp -R $ROOT/lib/gdk-pixbuf-2.0 $DIR/lib/
+cp -RL $ROOT/lib/gdk-pixbuf-2.0 $DIR/lib/
 find $DIR/lib/gdk-pixbuf-2.0 -name '*.a' -delete
 
 # update cache with relative paths
