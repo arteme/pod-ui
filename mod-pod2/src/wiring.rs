@@ -3,10 +3,9 @@ use log::*;
 use anyhow::*;
 use pod_core::config::{GUI, MIDI};
 use pod_core::store::{Signal, Store};
-use pod_core::controller::{Controller, ControllerStoreExt};
+use pod_core::controller::Controller;
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
-use pod_core::raw::Raw;
 use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList, SignalHandler, SignalHandlerExt};
 use pod_gtk::gtk::prelude::*;
 use crate::config::CONFIG;
@@ -273,7 +272,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Ca
             name.clone(),
             Box::new(move || {
                 let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
+                let (_, origin) = controller.get_origin(&name).unwrap();
 
                 if origin == MIDI {
                     let effect_select = controller.get("effect_select:raw").unwrap();

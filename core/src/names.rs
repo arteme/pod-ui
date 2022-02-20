@@ -1,4 +1,3 @@
-use std::ops::Range;
 use tokio::sync::broadcast;
 use crate::model::Config;
 use crate::store::{Event, Signal, Store};

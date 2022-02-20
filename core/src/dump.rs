@@ -79,7 +79,7 @@ impl ProgramsDump {
     }
 
     pub fn set_all_modified(&mut self, modified: bool) {
-        self.modified.iter_mut().map(|m| *m = modified);
+        self.modified.iter_mut().for_each(|m| *m = modified);
     }
 }
 fn nth_chunk(data: &[u8], page: usize, page_size: usize) -> Option<&[u8]> {

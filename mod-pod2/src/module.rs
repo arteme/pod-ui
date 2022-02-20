@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use pod_core::config::{MIDI, UNSET};
+use pod_core::config::MIDI;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
@@ -11,7 +11,6 @@ use crate::config::CONFIG;
 use crate::wiring::*;
 
 struct Pod2Module {
-    builder: Builder,
     widget: Widget,
     objects: ObjectList
 }
@@ -25,7 +24,7 @@ impl Pod2Module {
         let widget = widow.child().unwrap();
         widow.remove(&widget);
 
-        Pod2Module { widget, builder, objects }
+        Pod2Module { widget, objects }
     }
 }
 

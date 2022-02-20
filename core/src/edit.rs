@@ -4,9 +4,7 @@ use crate::model::{AbstractControl, Config, Control};
 use crate::store::{Event, Signal, Store};
 use log::*;
 use tokio::task::JoinHandle;
-use crate::names::ProgramNames;
 use crate::str_encoder::StrEncoder;
-use crate::strings::Strings;
 
 pub struct EditBuffer {
     controller: Arc<Mutex<Controller>>,

@@ -18,7 +18,7 @@ use crate::opts::*;
 use pod_core::midi::MidiMessage;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
-use pod_core::store::{Event, Signal, Store};
+use pod_core::store::{Event, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
@@ -261,11 +261,9 @@ fn set_current_program_modified(edit: &mut EditBuffer, ui_controller: &Controlle
 
 use result::prelude::*;
 use pod_core::dump::ProgramsDump;
-use pod_core::names::ProgramNames;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
 use crate::program_button::ProgramButtons;
-use crate::UIEvent::MidiTx;
 
 
 #[tokio::main]
@@ -773,7 +771,7 @@ async fn main() -> Result<()> {
         glib::idle_add_local(move || {
             let mut processed = false;
             match rx.try_recv() {
-                Ok(Event { key: name, origin, signal }) => {
+                Ok(Event { key: name, .. }) => {
                     processed = true;
                     let vec = callbacks.get_vec(&name);
                     match vec {
@@ -861,8 +859,7 @@ async fn main() -> Result<()> {
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
-                            program_buttons.get_mut(page + 1)
-                                .map(|button| button.set_modified(modified));
+                            program_buttons.set_modified(page + 1, modified);
                         }
                     }
 

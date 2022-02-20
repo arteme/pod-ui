@@ -12,7 +12,6 @@ use result::prelude::*;
 use crate::midi::*;
 use crate::config::configs;
 use crate::model::Config;
-use crate::util::OptionToResultsExt;
 use tokio::sync::mpsc;
 
 pub struct MidiIn {

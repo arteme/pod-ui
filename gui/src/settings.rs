@@ -5,7 +5,6 @@ use pod_gtk::gtk::prelude::*;
 use pod_gtk::gtk::{IconSize, ResponseType};
 use crate::util::ManualPoll;
 
-use anyhow::*;
 use log::*;
 use pod_gtk::glib;
 

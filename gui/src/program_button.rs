@@ -1,9 +1,7 @@
 // TODO: redo this as a proper widget
 
 use std::collections::HashMap;
-use gtk::gdk::pango_context_get;
-use gtk::pango::AttrType::FontDesc;
-use gtk::pango::{AttrFontDesc, AttrList, FontDescription, Style, Weight};
+use gtk::pango::{Style, Weight};
 use crate::glib;
 use crate::gtk;
 use gtk::prelude::*;
