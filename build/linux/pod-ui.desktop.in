@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Exec=@EXEC@
+Name=Pod-UI
+Comment=A cross-platform UI for controlling Line6 POD 2.0 modelling amp over MIDI
+Icon=pod-ui
+Categories=Audio;Midi;
+Terminal=false
