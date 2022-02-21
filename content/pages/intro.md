@@ -7,14 +7,15 @@ save_as: index.html
 guitar modelling amp via MIDI. For pre-build binaries check out the 
 [releases page](https://github.com/arteme/pod-ui/releases).
 
-The app is a work-in-progress and many features are still missing,
-however basic editing of the current preset already works. 
-I intended to get feature parity with **Line6 Edit** on things like:
+The app is a work-in-progress and many features may still missing,
+however I intended to get feature parity with **Line6 Edit** on things like:
 
- - controlling the POD;
- - up-/downloading individual patches;
- - up-/downloading patch libraries;
- - loading `.l6t` and `.lib` files;
+ - [x] controlling the POD;
+ - [x] up-/downloading individual patches;
+ - [x] up-/downloading patch libraries;
+ - [ ] loading `.l6t` and `.lib` files;
+ - [x] support for POD 2.0 device;
+ - [ ] support for PODxt/Bass POD/other Line6 devices;
 
 I would like to support other MIDI-based Line6 products, such as
 PODxt, Bass POD, etc. I do not own any of these and would need

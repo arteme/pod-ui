@@ -44,11 +44,11 @@ GITHUB_CORNER_URL = 'https://github.com/arteme/pod-ui'
 STATIC_PATHS = [ 'images', 'static' ]
 CUSTOM_CSS = 'static/extra.css'
 
-#MARKDOWN = {
-#    'extensions': [
-#        'markdown_checklist.extension'
-#    ]
-#}
+MARKDOWN = {
+    'extensions': [
+        'markdown_checklist.extension'
+    ]
+}
 
 from datetime import datetime
 COPYRIGHT_NAME = '<a href="https://github.com/arteme">Artem E</a>'
