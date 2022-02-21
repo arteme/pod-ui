@@ -2,3 +2,7 @@ aside div img {
 	border-radius: 0;
 	filter: drop-shadow(5px 5px 5px #222222);
 }
+
+ul.checklist {
+	list-style: none;
+}
