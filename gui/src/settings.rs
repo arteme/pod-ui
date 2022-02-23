@@ -129,7 +129,7 @@ fn wire_test_button(settings: &SettingsDialog) {
     let settings = settings.clone();
     settings.test_button.clone().connect_clicked(move |button| {
         let midi_in = settings.midi_in_combo.active_text();
-        let midi_out = settings.midi_in_combo.active_text();
+        let midi_out = settings.midi_out_combo.active_text();
 
         if midi_in.is_none() || midi_out.is_none() {
             settings.set_message("dialog-warning", "Select MIDI input & output device");
