@@ -3,8 +3,7 @@ use anyhow::{Result, Context};
 use regex::Regex;
 use std::str::FromStr;
 use std::time::Duration;
-use futures::StreamExt;
-use futures::stream::FuturesUnordered;
+use async_stream::stream;
 use tokio::time::sleep;
 use log::*;
 use result::prelude::*;
@@ -13,6 +12,7 @@ use crate::midi::*;
 use crate::config::configs;
 use crate::model::Config;
 use tokio::sync::mpsc;
+use unicycle::IndexedStreamsUnordered;
 
 pub struct MidiIn {
     pub name: String,
@@ -235,11 +235,14 @@ async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Ve
 
     let udi = MidiMessage::UniversalDeviceInquiry { channel: Channel::all() }.to_bytes();
 
-    let mut futures = FuturesUnordered::new();
-    for (i, p) in in_ports.into_iter().enumerate() {
-        futures.push(async move {
-            p.rx.recv().await.map(|v| (i, v))
-        })
+    let mut streams = IndexedStreamsUnordered::new();
+    for p in in_ports.iter_mut() {
+        let s = stream! {
+          while let Some(data) = p.recv().await {
+                yield data;
+            }
+        };
+        streams.push(s);
     }
     let mut delay = Box::pin(sleep(DETECT_DELAY));
 
@@ -250,7 +253,7 @@ async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Ve
     let mut replied_midi_in = Vec::<usize>::new();
     loop {
         tokio::select! {
-            Some(Some((i, bytes))) = futures.next() => {
+            Some((i, Some(bytes))) = streams.next() => {
                 let event = MidiMessage::from_bytes(bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, .. }) => {

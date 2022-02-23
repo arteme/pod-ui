@@ -80,8 +80,10 @@ impl MidiMessage {
             if bytes[1] == 0x7e && bytes.len() == 17 {
                 // universal device inquiry response
 
-                assert_eq!(array_ref!(bytes, 5, 3), &[0x00, 0x01, 0x0c]);
-                //    .context("Not a Line6 manufacturer id");
+                let id = array_ref!(bytes, 5, 3);
+                if id != &[0x00, 0x01, 0x0c] {
+                    bail!("Not a Line6 manufacturer id: {:x?}", id);
+                }
 
                 return Ok(MidiMessage::UniversalDeviceInquiryResponse {
                     channel: bytes[2],

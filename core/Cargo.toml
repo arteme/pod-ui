@@ -11,8 +11,10 @@ log = "0.4.8"
 anyhow = "1.0.31"
 arrayref = "0.3.6"
 tokio = { version = "1.15.0", features = ["sync", "macros", "rt", "rt-multi-thread", "time"] }
+async-stream = "0.3.2"
 regex = "1.5.4"
 strfmt = "0.1.6"
 futures = "0.3.19"
 futures-util = "0.3.19"
 result = "1.0.0"
+unicycle = { version = "0.8.0", features = ['futures-rs'] }
