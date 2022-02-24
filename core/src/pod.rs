@@ -331,6 +331,7 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
 
                 if found.is_some() {
                     channel = found;
+                    break;
                 }
             },
             _ = &mut delay => { break; }
