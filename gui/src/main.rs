@@ -15,14 +15,15 @@ use std::sync::{Arc, Mutex};
 use pod_core::model::{AbstractControl, Button, Config, Control};
 use pod_core::config::{GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
-use pod_core::midi::MidiMessage;
+use pod_core::midi::{Channel, MidiMessage};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
 use pod_core::store::{Event, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
+use std::ops::Add;
 use once_cell::sync::Lazy;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 use maplit::*;
 use crate::settings::*;
@@ -44,6 +45,8 @@ pub struct State {
     pub midi_in_tx: mpsc::UnboundedSender<MidiMessage>,
     pub midi_out_tx: broadcast::Sender<MidiMessage>,
     pub ui_event_tx: mpsc::UnboundedSender<UIEvent>,
+
+    pub midi_channel_num: u8
 }
 
 use pod_core::model::SwitchControl;
@@ -68,7 +71,8 @@ fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectLi
     }
 }
 
-pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>) {
+pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
+                       midi_channel: u8) {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
@@ -79,6 +83,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.midi_out_name = None;
         state.midi_out_cancel = None;
         state.ui_event_tx.send(UIEvent::NewMidiConnection);
+        state.midi_channel_num = 0;
         return;
     }
 
@@ -94,6 +99,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     state.midi_out_name = Some(midi_out.name.clone());
     state.midi_out_cancel = Some(out_cancel_tx);
 
+    state.midi_channel_num = midi_channel;
     state.ui_event_tx.send(UIEvent::NewMidiConnection);
 
     // midi in
@@ -293,7 +299,8 @@ async fn main() -> Result<()> {
         midi_out_cancel: None,
         midi_in_tx,
         midi_out_tx,
-        ui_event_tx
+        ui_event_tx,
+        midi_channel_num: 0
     }));
 
     // register POD 2.0 module
@@ -304,14 +311,14 @@ async fn main() -> Result<()> {
         (None, None) => true,
         _ => false
     };
-    let (mut midi_in, mut midi_out) = if autodetect {
+    let (mut midi_in, mut midi_out, midi_channel) = if autodetect {
         match pod_core::pod::autodetect().await {
             Ok((midi_in, midi_out, channel)) => {
-                (Some(midi_in), Some(midi_out))
+                (Some(midi_in), Some(midi_out), channel)
             }
             Err(err) => {
                 error!("MIDI autodetect failed: {}", err);
-                (None, None)
+                (None, None, 0)
             }
         }
     } else {
@@ -319,11 +326,15 @@ async fn main() -> Result<()> {
             opts.input.map(MidiIn::new_for_address).invert()?;
         let midi_out =
             opts.output.map(MidiOut::new_for_address).invert()?;
+        let midi_channel = opts.channel.unwrap_or(0);
 
-        (midi_in, midi_out)
+        (midi_in, midi_out, midi_channel)
     };
 
-    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out);
+    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
+
+    // midi channel number
+    let midi_channel_num = Arc::new(AtomicU8::new(0));
 
     // edit buffer
     let edit_buffer = Arc::new(Mutex::new(EditBuffer::new(&config)));
@@ -386,6 +397,7 @@ async fn main() -> Result<()> {
         let mut rx = controller.lock().unwrap().subscribe();
         let mut ui_rx = ui_controller.lock().unwrap().subscribe();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
+        let midi_channel_num = midi_channel_num.clone();
         tokio::spawn(async move {
             let make_cc = |name: &str| -> Option<MidiMessage> {
                 let control = controller.get_config(name);
@@ -406,13 +418,17 @@ async fn main() -> Result<()> {
                     return None; // skip virtual controls
                 }
 
+                let channel = midi_channel_num.load(Ordering::Relaxed);
+                let channel = if channel == Channel::all() { 0 } else { channel };
                 let value = control.value_to_midi(value);
-                Some(MidiMessage::ControlChange { channel: 1, control: cc.unwrap(), value })
+                Some(MidiMessage::ControlChange { channel, control: cc.unwrap(), value })
             };
             let make_pc = || {
+                let channel = midi_channel_num.load(Ordering::Relaxed);
+                let channel = if channel == Channel::all() { 0 } else { channel };
                 let ui_controller = ui_controller.lock().unwrap();
                 let v = ui_controller.get(&"program").unwrap();
-                Some(MidiMessage::ProgramChange { channel: 1, program: v as u8 })
+                Some(MidiMessage::ProgramChange { channel, program: v as u8 })
             };
             let make_dump_request = |program: Program| {
                 let ui_controller = ui_controller.lock().unwrap();
@@ -509,6 +525,7 @@ async fn main() -> Result<()> {
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         let dump = dump.clone();
         let state = state.clone();
+        let midi_channel_num = midi_channel_num.clone();
         tokio::spawn(async move {
             loop {
                 let msg = midi_in_rx.recv().await;
@@ -518,7 +535,12 @@ async fn main() -> Result<()> {
                 let msg = msg.unwrap();
                 trace!("<< {:?}", msg);
                 match msg {
-                    MidiMessage::ControlChange { channel: _, control: cc, value } => {
+                    MidiMessage::ControlChange { channel, control: cc, value } => {
+                        let expected_channel = midi_channel_num.load(Ordering::Relaxed);
+                        if expected_channel != Channel::all() && channel != expected_channel {
+                            // Ignore midi messages sent to a different channel
+                            continue;
+                        }
                         let mut controller = controller.lock().unwrap();
 
                         let control = config.cc_to_control(cc);
@@ -538,7 +560,12 @@ async fn main() -> Result<()> {
                             );
                         }
                     },
-                    MidiMessage::ProgramChange { channel: _, program } => {
+                    MidiMessage::ProgramChange { channel, program } => {
+                        let expected_channel = midi_channel_num.load(Ordering::Relaxed);
+                        if expected_channel != Channel::all() && channel != expected_channel {
+                            // Ignore midi messages sent to a different channel
+                            continue;
+                        }
                         let mut ui_controller = ui_controller.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
@@ -638,6 +665,12 @@ async fn main() -> Result<()> {
 
                     // pretend we're a POD
                     MidiMessage::UniversalDeviceInquiry { channel } => {
+                        let expected_channel = midi_channel_num.load(Ordering::Relaxed);
+                        if channel != expected_channel && channel != Channel::all() {
+                            // Ignore midi messages sent to a different channel,
+                            // but answer messages sent to "all" as "all"
+                            return;
+                        }
                         let res = MidiMessage::UniversalDeviceInquiryResponse {
                             channel,
                             family: config.family,
@@ -856,6 +889,8 @@ async fn main() -> Result<()> {
                             };
 
                             header_bar.set_subtitle(Some(&subtitle));
+                            // update midi channel number
+                            midi_channel_num.store(state.midi_channel_num, Ordering::Relaxed);
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based

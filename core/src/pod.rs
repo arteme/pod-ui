@@ -291,7 +291,9 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
 
     let udi = (0u8..=15).into_iter().map(|n| {
         MidiMessage::UniversalDeviceInquiry { channel: Channel::num(n) }.to_bytes()
-    });
+    }).chain(std::iter::once(
+        MidiMessage::UniversalDeviceInquiry { channel: Channel::all() }.to_bytes()
+    ));
 
     let input = stream! {
       while let Some(data) = in_port.recv().await {

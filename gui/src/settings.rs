@@ -6,6 +6,7 @@ use pod_gtk::gtk::{IconSize, ResponseType};
 use crate::util::ManualPoll;
 
 use log::*;
+use pod_core::midi::Channel;
 use pod_gtk::glib;
 
 #[derive(Clone)]
@@ -13,6 +14,7 @@ struct SettingsDialog {
     dialog: gtk::Dialog,
     midi_in_combo: gtk::ComboBoxText,
     midi_out_combo: gtk::ComboBoxText,
+    midi_channel_combo: gtk::ComboBoxText,
     autodetect_button: gtk::Button,
     test_button: gtk::Button,
     message_label: gtk::Label,
@@ -25,6 +27,7 @@ impl SettingsDialog {
             dialog: ui.object("settings_dialog").unwrap(),
             midi_in_combo: ui.object("settings_midi_in_combo").unwrap(),
             midi_out_combo: ui.object("settings_midi_out_combo").unwrap(),
+            midi_channel_combo: ui.object("settings_midi_channel_combo").unwrap(),
             autodetect_button: ui.object("settings_autodetect_button").unwrap(),
             test_button: ui.object("settings_test_button").unwrap(),
             message_label: ui.object("settings_message_label").unwrap(),
@@ -36,6 +39,7 @@ impl SettingsDialog {
         self.dialog.set_response_sensitive(ResponseType::Ok, sensitive);
         self.midi_in_combo.set_sensitive(sensitive);
         self.midi_out_combo.set_sensitive(sensitive);
+        self.midi_channel_combo.set_sensitive(sensitive);
         self.autodetect_button.set_sensitive(sensitive);
         self.test_button.set_sensitive(sensitive);
     }
@@ -49,6 +53,31 @@ impl SettingsDialog {
         self.message_image.set_from_icon_name(None, IconSize::Dialog);
         self.message_label.set_label(&"");
     }
+}
+
+static CHANNELS: &'static [&str]  = &[
+    "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "10", "11", "12", "13", "14", "15", "16", "Omni mode"
+];
+
+fn midi_channel_to_combo_index(channel: u8) -> Option<u32> {
+    match channel {
+        x if x == Channel::all() => Some(16),
+        x => Some(x as u32)
+    }
+}
+
+fn midi_channel_from_combo_index(index: Option<u32>) -> u8 {
+    match index {
+        Some(16) => Channel::all(),
+        Some(x) => x as u8,
+        None => 0
+    }
+}
+
+
+fn populate_midi_channel_combo(settings: &SettingsDialog) {
+    CHANNELS.iter().for_each(|i| settings.midi_channel_combo.append_text(i));
 }
 
 fn populate_midi_combos(settings: &SettingsDialog,
@@ -99,15 +128,17 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
         glib::idle_add_local(move || {
             let cont = match autodetect.poll() {
                 None => { true }
-                Some(Ok((in_, out_, channel_))) => {
+                Some(Ok((in_, out_, channel))) => {
                     let msg = format!("Autodetect successful!");
                     settings.set_message("dialog-ok", &msg);
                     settings.set_interactive(true);
                     spinner.stop();
 
-                    // update in/out port selection
+                    // update in/out port selection, channel
                     populate_midi_combos(&settings,
                                          &Some(in_.name), &Some(out_.name));
+                    let index = midi_channel_to_combo_index(channel);
+                    settings.midi_channel_combo.set_active(index);
                     false
                 }
                 Some(Err(e)) => {
@@ -130,6 +161,7 @@ fn wire_test_button(settings: &SettingsDialog) {
     settings.test_button.clone().connect_clicked(move |button| {
         let midi_in = settings.midi_in_combo.active_text();
         let midi_out = settings.midi_out_combo.active_text();
+        let midi_channel = settings.midi_channel_combo.active();
 
         if midi_in.is_none() || midi_out.is_none() {
             settings.set_message("dialog-warning", "Select MIDI input & output device");
@@ -138,10 +170,10 @@ fn wire_test_button(settings: &SettingsDialog) {
 
         let midi_in = midi_in.as_ref().unwrap().to_string();
         let midi_out = midi_out.as_ref().unwrap().to_string();
-        let channel = todo!();
+        let midi_channel = midi_channel_from_combo_index(midi_channel);
 
         let mut test = tokio::spawn(async move {
-            pod_core::pod::test(&midi_in, &midi_out, channel).await
+            pod_core::pod::test(&midi_in, &midi_out, midi_channel).await
         });
 
         let spinner = gtk::Spinner::new();
@@ -190,11 +222,14 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         settings.set_interactive(true);
         settings.clear_message();
 
-        // update in/out port selection
+        // update in/out port selection, channel
         {
             let state = state.lock().unwrap();
             populate_midi_combos(&settings,
                                  &state.midi_in_name, &state.midi_out_name);
+
+            let index = midi_channel_to_combo_index(state.midi_channel_num);
+            settings.midi_channel_combo.set_active(index);
         }
 
         match settings.dialog.run() {
@@ -222,7 +257,9 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                         }
                     });
 
-                set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out);
+                let midi_channel = settings.midi_channel_combo.active();
+                let midi_channel = midi_channel_from_combo_index(midi_channel);
+                set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
             }
             _ => {}
         }
@@ -230,6 +267,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         settings.dialog.hide();
     });
 
+    populate_midi_channel_combo(&settings_);
     wire_autodetect_button(&settings_);
     wire_test_button(&settings_);
 }

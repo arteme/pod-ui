@@ -7,4 +7,7 @@ pub struct Opts {
 
     #[clap(short, long)]
     pub output: Option<String>,
+
+    #[clap(short, long)]
+    pub channel: Option<u8>,
 }
