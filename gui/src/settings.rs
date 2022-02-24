@@ -99,7 +99,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
         glib::idle_add_local(move || {
             let cont = match autodetect.poll() {
                 None => { true }
-                Some(Ok((in_, out_))) => {
+                Some(Ok((in_, out_, channel_))) => {
                     let msg = format!("Autodetect successful!");
                     settings.set_message("dialog-ok", &msg);
                     settings.set_interactive(true);
@@ -138,9 +138,10 @@ fn wire_test_button(settings: &SettingsDialog) {
 
         let midi_in = midi_in.as_ref().unwrap().to_string();
         let midi_out = midi_out.as_ref().unwrap().to_string();
+        let channel = todo!();
 
         let mut test = tokio::spawn(async move {
-            pod_core::pod::test(&midi_in, &midi_out).await
+            pod_core::pod::test(&midi_in, &midi_out, channel).await
         });
 
         let spinner = gtk::Spinner::new();
@@ -154,7 +155,7 @@ fn wire_test_button(settings: &SettingsDialog) {
         glib::idle_add_local(move || {
             let cont = match test.poll() {
                 None => { true }
-                Some(Ok((in_, out_))) => {
+                Some(Ok((in_, out_, channel_))) => {
                     let msg = format!("Test successful!");
                     settings.set_message("dialog-ok", &msg);
                     settings.set_interactive(true);

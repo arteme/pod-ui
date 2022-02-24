@@ -4,6 +4,7 @@ use regex::Regex;
 use std::str::FromStr;
 use std::time::Duration;
 use async_stream::stream;
+use futures_util::StreamExt;
 use tokio::time::sleep;
 use log::*;
 use result::prelude::*;
@@ -232,8 +233,12 @@ fn list_ports<T: midir::MidiIO>(midi: T) -> Result<Vec<String>> {
 const DETECT_DELAY: Duration = Duration::from_millis(1000);
 
 async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Vec<usize>> {
+    detect_with_channel(in_ports, out_ports, Channel::all()).await
+}
 
-    let udi = MidiMessage::UniversalDeviceInquiry { channel: Channel::all() }.to_bytes();
+async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut], channel: u8) -> Result<Vec<usize>> {
+
+    let udi = MidiMessage::UniversalDeviceInquiry { channel }.to_bytes();
 
     let mut streams = IndexedStreamsUnordered::new();
     for p in in_ports.iter_mut() {
@@ -282,7 +287,58 @@ async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Ve
     Ok(replied_midi_in)
 }
 
-pub async fn autodetect() -> Result<(MidiIn, MidiOut)> {
+async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<Option<u8>> {
+
+    let udi = (0u8..=15).into_iter().map(|n| {
+        MidiMessage::UniversalDeviceInquiry { channel: Channel::num(n) }.to_bytes()
+    });
+
+    let input = stream! {
+      while let Some(data) = in_port.recv().await {
+            yield data;
+        }
+    };
+    let mut input = Box::pin(input);
+    let mut delay = Box::pin(sleep(DETECT_DELAY));
+
+    for msg in udi {
+        out_port.send(&msg)?;
+    }
+
+    let mut channel: Option<u8> = None;
+    loop {
+        tokio::select! {
+            Some(bytes) = input.next() => {
+                let event = MidiMessage::from_bytes(bytes).ok();
+                let found = match event {
+                    Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, channel, .. }) => {
+                        let pod: Option<&Config> = configs().iter().find(|config| {
+                            family == config.family && member == config.member
+                        });
+                        pod.map(|pod| {
+                            info!("Discovered: channel={}: {}", channel, pod.name);
+                            channel
+                        }).or_else(|| {
+                            info!("Discovered unknown device: channel={}: {}/{}, skipping!",
+                                channel, family, member);
+                            None
+                        })
+                    },
+                    _ => None
+                };
+
+                if found.is_some() {
+                    channel = found;
+                }
+            },
+            _ = &mut delay => { break; }
+        }
+    }
+
+    Ok(channel)
+}
+
+pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8)> {
     let in_port_names = MidiIn::ports()?;
     let mut in_ports = in_port_names.iter().enumerate()
         .map(|(i, _)| MidiIn::new(Some(i)))
@@ -344,19 +400,29 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut)> {
         }
     }
 
-    Ok((in_ports.remove(0), out_ports.remove(0)))
+    // 3. find the channel
+    let mut in_port = in_ports.remove(0);
+    let mut out_port = out_ports.remove(0);
+    let channel = detect_channel(&mut in_port, &mut out_port).await?;
+    if channel.is_none() {
+        bail!("Can't determine POD channel");
+    }
+
+    Ok((in_port, out_port, channel.unwrap()))
 }
 
-pub async fn test(in_name: &str, out_name: &str) -> Result<(MidiIn, MidiOut)> {
+pub async fn test(in_name: &str, out_name: &str, channel: u8) -> Result<(MidiIn, MidiOut, u8)> {
     let in_port = MidiIn::new_for_name(in_name)?;
     let out_port = MidiOut::new_for_name(out_name)?;
     let mut in_ports = vec![in_port];
     let mut out_ports = vec![out_port];
 
-    let rep = detect(in_ports.as_mut_slice(), out_ports.as_mut_slice()).await?;
+    let rep = detect_with_channel(
+        in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
+    ).await?;
     if rep.len() == 0 {
         bail!("Received no device response");
     }
 
-    Ok((in_ports.remove(0), out_ports.remove(0)))
+    Ok((in_ports.remove(0), out_ports.remove(0), channel))
 }

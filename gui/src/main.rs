@@ -306,7 +306,7 @@ async fn main() -> Result<()> {
     };
     let (mut midi_in, mut midi_out) = if autodetect {
         match pod_core::pod::autodetect().await {
-            Ok((midi_in, midi_out)) => {
+            Ok((midi_in, midi_out, channel)) => {
                 (Some(midi_in), Some(midi_out))
             }
             Err(err) => {
