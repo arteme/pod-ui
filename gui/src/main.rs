@@ -2,6 +2,7 @@ mod opts;
 mod util;
 mod settings;
 mod program_button;
+mod panic;
 
 use anyhow::*;
 
@@ -32,7 +33,8 @@ pub enum UIEvent {
     NewMidiConnection,
     MidiTx,
     MidiRx,
-    Modified(usize, bool)
+    Modified(usize, bool),
+    Panic
 }
 
 pub struct State {
@@ -269,6 +271,7 @@ use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
+use crate::panic::wire_panic_indicator;
 use crate::program_button::ProgramButtons;
 
 
@@ -278,6 +281,7 @@ async fn main() -> Result<()> {
         release: Some(env!("GIT_VERSION").into()),
         ..Default::default()
     }));
+    let sentry_enabled = _guard.is_enabled();
     simple_logger::init()?;
 
     let opts: Opts = Opts::parse();
@@ -331,7 +335,9 @@ async fn main() -> Result<()> {
         (midi_in, midi_out, midi_channel)
     };
 
-    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
+    // moving this to below the panic handler so that early crashed
+    // in the midi thread are shown in the UI
+    //set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
 
     // midi channel number
     let midi_channel_num = Arc::new(AtomicU8::new(0));
@@ -366,6 +372,9 @@ async fn main() -> Result<()> {
     let header_bar: gtk::HeaderBar = ui.object("header_bar").unwrap();
 
     wire_settings_dialog(state.clone(), &ui);
+    wire_panic_indicator(state.clone());
+
+    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
 
     let css = gtk::CssProvider::new();
     gtk::StyleContext::add_provider_for_screen(
@@ -895,6 +904,23 @@ async fn main() -> Result<()> {
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
                             program_buttons.set_modified(page + 1, modified);
+                        },
+                        UIEvent::Panic => {
+                            let tooltip = if sentry_enabled {
+                                Some("\
+                                Something broke in the app and one of its internal \
+                                processing threads crashed. You can check the logs to see what \
+                                exactly happened. The error has been reported to the cloud.\
+                                ")
+                            } else { None };
+                            objects.obj_by_name("panic_indicator").ok()
+                                .and_then(|obj| obj.dynamic_cast::<gtk::Widget>().ok())
+                                .map(|widget| {
+                                    widget.set_visible(true);
+                                    if tooltip.is_some() {
+                                        widget.set_tooltip_text(tooltip);
+                                    }
+                                });
                         }
                     }
 

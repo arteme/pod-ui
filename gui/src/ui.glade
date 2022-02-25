@@ -5,7 +5,7 @@
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="icon-name">preferences-system-symbolic</property>
+    <property name="icon-name">application-menu-symbolic</property>
   </object>
   <object class="GtkImage" id="image2">
     <property name="visible">True</property>
@@ -797,6 +797,19 @@
           </packing>
         </child>
         <child>
+          <object class="GtkImage" id="panic_indicator">
+            <property name="name">panic_indicator</property>
+            <property name="can-focus">False</property>
+            <property name="no-show-all">True</property>
+            <property name="tooltip-text" translatable="yes">Something broke in the app and one of its internal processing threads crashed. Please check the logs to see what happened</property>
+            <property name="icon-name">emblem-important-symbolic</property>
+          </object>
+          <packing>
+            <property name="pack-type">end</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
           <object class="GtkBox">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
@@ -829,7 +842,7 @@
           </object>
           <packing>
             <property name="pack-type">end</property>
-            <property name="position">2</property>
+            <property name="position">3</property>
           </packing>
         </child>
       </object>
