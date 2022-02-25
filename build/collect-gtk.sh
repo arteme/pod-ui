@@ -50,8 +50,11 @@ ICONS=(
  user-trash-full-symbolic user-trash-symbolic use-symbolic view-grid-symbolic
  view-list-symbolic view-refresh-symbolic window-close-symbolic
  window-maximize-symbolic window-minimize-symbolic window-restore-symbolic
+ # from theme:
+ #   grep -Roh -- '-gtk-icontheme(.*)' . | grep -oh '(.*)' | tr -d "()\"'"
+ selection-start-symbolic selection-end-symbolic process-working-symbolic
  # app ui
- preferences-system-symbolic open-menu-symbolic
+ emblem-important-symbolic application-menu-symbolic open-menu-symbolic
  dialog-ok dialog-error dialog-warning
 )
 
