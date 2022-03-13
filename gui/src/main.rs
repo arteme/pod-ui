@@ -3,6 +3,7 @@ mod util;
 mod settings;
 mod program_button;
 mod panic;
+mod registry;
 
 use anyhow::*;
 
@@ -14,7 +15,7 @@ use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
 use pod_core::model::{AbstractControl, Button, Config, Control};
-use pod_core::config::{GUI, MIDI, register_config, UNSET};
+use pod_core::config::{configs, GUI, MIDI, register_config, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -31,6 +32,7 @@ use crate::settings::*;
 
 pub enum UIEvent {
     NewMidiConnection,
+    NewEditBuffer,
     MidiTx,
     MidiRx,
     Modified(usize, bool),
@@ -48,7 +50,9 @@ pub struct State {
     pub midi_out_tx: broadcast::Sender<MidiMessage>,
     pub ui_event_tx: mpsc::UnboundedSender<UIEvent>,
 
-    pub midi_channel_num: u8
+    pub midi_channel_num: u8,
+    pub config: Option<&'static Config>,
+    pub edit_buffer: Option<EditBuffer>
 }
 
 use pod_core::model::SwitchControl;
@@ -74,11 +78,11 @@ fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectLi
 }
 
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
-                       midi_channel: u8) {
+                       midi_channel: u8, config: Option<&'static Config>) {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
-    if midi_in.is_none() || midi_out.is_none() {
+    if midi_in.is_none() || midi_out.is_none() || config.is_none() {
         warn!("Not starting MIDI because in/out is None");
         state.midi_in_name = None;
         state.midi_in_cancel = None;
@@ -86,6 +90,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.midi_out_cancel = None;
         state.ui_event_tx.send(UIEvent::NewMidiConnection);
         state.midi_channel_num = 0;
+        state.config = None;
         return;
     }
 
@@ -103,6 +108,21 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
 
     state.midi_channel_num = midi_channel;
     state.ui_event_tx.send(UIEvent::NewMidiConnection);
+
+    let config_changed = match (config, state.config) {
+        (Some(_), None) => { true }
+        (None, Some(_)) => { true }
+        (Some(a), Some(b)) => { *a != *b }
+        _ => { false }
+    };
+    if config_changed {
+        // config changed, update config & edit buffer
+        state.config = config;
+        state.edit_buffer = Some(EditBuffer::new(state.config.as_ref().unwrap()));
+        state.ui_event_tx.send(UIEvent::NewEditBuffer);
+
+    }
+
 
     // midi in
     {
@@ -273,6 +293,7 @@ use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
 use crate::panic::wire_panic_indicator;
 use crate::program_button::ProgramButtons;
+use crate::registry::{module_for_config, register_module};
 
 
 #[tokio::main]
@@ -293,8 +314,9 @@ async fn main() -> Result<()> {
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
-    let module = pod_mod_pod2::module();
-    let config = module.config();
+    register_module(pod_mod_pod2::module());
+    let config = configs().iter().next().unwrap();
+    let module = module_for_config(config).unwrap();
 
     let state = Arc::new(Mutex::new(State {
         midi_in_name: None,
@@ -304,36 +326,37 @@ async fn main() -> Result<()> {
         midi_in_tx,
         midi_out_tx,
         ui_event_tx,
-        midi_channel_num: 0
+        midi_channel_num: 0,
+        config: None,
+        edit_buffer: None
     }));
-
-    // register POD 2.0 module
-    register_config(&config);
 
     // autodetect/open midi
     let autodetect = match (&opts.input, &opts.output) {
         (None, None) => true,
         _ => false
     };
-    let (mut midi_in, mut midi_out, midi_channel) = if autodetect {
-        match pod_core::pod::autodetect().await {
-            Ok((midi_in, midi_out, channel)) => {
-                (Some(midi_in), Some(midi_out), channel)
+    let (mut midi_in, mut midi_out, midi_channel, detected_config) =
+        if autodetect {
+            match pod_core::pod::autodetect().await {
+                Ok((midi_in, midi_out, channel, config)) => {
+                    (Some(midi_in), Some(midi_out), channel, Some(config))
+                }
+                Err(err) => {
+                    error!("MIDI autodetect failed: {}", err);
+                    (None, None, 0, None)
+                }
             }
-            Err(err) => {
-                error!("MIDI autodetect failed: {}", err);
-                (None, None, 0)
-            }
-        }
-    } else {
-        let mut midi_in =
-            opts.input.map(MidiIn::new_for_address).invert()?;
-        let midi_out =
-            opts.output.map(MidiOut::new_for_address).invert()?;
-        let midi_channel = opts.channel.unwrap_or(0);
+        } else {
+            let mut midi_in =
+                opts.input.map(MidiIn::new_for_address).invert()?;
+            let midi_out =
+                opts.output.map(MidiOut::new_for_address).invert()?;
+            let midi_channel = opts.channel.unwrap_or(0);
 
-        (midi_in, midi_out, midi_channel)
-    };
+            // TODO: specify config on the command line
+            (midi_in, midi_out, midi_channel, None)
+        };
 
     // moving this to below the panic handler so that early crashed
     // in the midi thread are shown in the UI
@@ -374,7 +397,7 @@ async fn main() -> Result<()> {
     wire_settings_dialog(state.clone(), &ui);
     wire_panic_indicator(state.clone());
 
-    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
+    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, Some(&config));
 
     let css = gtk::CssProvider::new();
     gtk::StyleContext::add_provider_for_screen(
@@ -387,8 +410,8 @@ async fn main() -> Result<()> {
     let app_grid: gtk::Box = ui.object("app_grid").unwrap();
     app_grid.add(&pod_ui);
 
-    module.wire(edit_buffer.clone(), &mut callbacks)?;
-    ui_controller.lock().unwrap().set("program_num", module.config().program_num as u16, UNSET);
+    module.wire(&config, edit_buffer.clone(), &mut callbacks)?;
+    //ui_controller.lock().unwrap().set("program_num", module.config().program_num as u16, UNSET);
     let objects = ui_objects + module.objects();
 
     // ---------------------------------------------------------
@@ -901,6 +924,10 @@ async fn main() -> Result<()> {
                             // update midi channel number
                             midi_channel_num.store(state.midi_channel_num, Ordering::Relaxed);
                         }
+                        UIEvent::NewEditBuffer => {
+                            let mut edit_buffer = edit_buffer.lock();
+                            
+                        }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
                             program_buttons.set_modified(page + 1, modified);
@@ -953,7 +980,7 @@ async fn main() -> Result<()> {
     window.resize(1, 1);
 
     init_all(&config, controller.clone(), &objects);
-    module.init(edit_buffer)?;
+    module.init(&config, edit_buffer)?;
 
     debug!("starting gtk main loop");
     gtk::main();

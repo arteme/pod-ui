@@ -8,7 +8,6 @@ use pod_core::edit::EditBuffer;
 use pod_core::model::*;
 use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList, SignalHandler, SignalHandlerExt};
 use pod_gtk::gtk::prelude::*;
-use crate::config::CONFIG;
 
 pub fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let name = "vol_pedal_position".to_string();
@@ -133,8 +132,7 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
     Ok(())
 }
 
-fn effect_entry_for_value(value: u16) -> Option<(&'static EffectEntry, bool, usize)> {
-    let config = &*CONFIG;
+fn effect_entry_for_value<'a>(config: &'a Config, value: u16) -> Option<(&'a EffectEntry, bool, usize)> {
     config.effects.iter()
         .enumerate()
         .flat_map(|(idx, effect)| {
@@ -154,10 +152,10 @@ fn effect_entry_for_value(value: u16) -> Option<(&'static EffectEntry, bool, usi
 
 }
 
-fn effect_select_from_midi(controller: &mut Controller) -> Option<EffectEntry> {
+fn effect_select_from_midi(config: &Config, controller: &mut Controller) -> Option<EffectEntry> {
 
     let value = controller.get("effect_select:raw").unwrap();
-    let entry_opt = effect_entry_for_value(value);
+    let entry_opt = effect_entry_for_value(config, value);
     if entry_opt.is_none() {
         return None;
     }
@@ -170,10 +168,9 @@ fn effect_select_from_midi(controller: &mut Controller) -> Option<EffectEntry> {
     Some(entry)
 }
 
-fn effect_select_from_gui(controller: &mut Controller) -> Option<EffectEntry> {
+fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Option<EffectEntry> {
 
     let value = controller.get("effect_select").unwrap();
-    let config = &*CONFIG;
     let effect = &config.effects[value as usize];
     let delay_enable = controller.get("delay_enable").unwrap() != 0;
 
@@ -200,30 +197,30 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
     }
 }
 
-pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
-    let config = &*CONFIG;
-
+pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
     // effect_select: raw -> controller
     {
+        let config = config.clone();
         let controller = controller.clone();
         let name = "effect_select:raw".to_string();
         callbacks.insert(
             name.clone(),
             Box::new(move || {
                 let mut controller = controller.lock().unwrap();
-                effect_select_from_midi(&mut controller);
+                effect_select_from_midi(&config, &mut controller);
             })
         );
     }
     // effect_select: controller -> raw
     {
+        let config = config.clone();
         let controller = controller.clone();
         let name = "effect_select".to_string();
         callbacks.insert(
             name.clone(),
             Box::new(move || {
                 let mut controller = controller.lock().unwrap();
-                if let Some(e) = effect_select_from_gui(&mut controller) {
+                if let Some(e) = effect_select_from_gui(&config, &mut controller) {
                     /*
                     // POD sends controls after effect select
                     // Line6 Edit requests an edit buffer dump from the device
@@ -236,6 +233,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Ca
 
     // delay_enable: controller -> raw
     {
+        let config = config.clone();
         let controller = controller.clone();
         let name = "delay_enable".to_string();
         callbacks.insert(
@@ -247,7 +245,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Ca
                 if v != 0 && origin == GUI {
                     let effect_select = controller.get("effect_select:raw").unwrap();
                     let (_, delay, idx) =
-                        effect_entry_for_value(effect_select).unwrap();
+                        effect_entry_for_value(&config, effect_select).unwrap();
                     if !delay {
                         // if `delay_enable` was switched on in the UI and if coming from
                         // an effect which didn't have delay to begin with, check if it can
@@ -266,6 +264,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Ca
 
     // effect_tweak
     {
+        let config = config.clone();
         let controller = controller.clone();
         let name = "effect_tweak".to_string();
         callbacks.insert(
@@ -277,7 +276,7 @@ pub fn wire_effect_select(controller: Arc<Mutex<Controller>>, callbacks: &mut Ca
                 if origin == MIDI {
                     let effect_select = controller.get("effect_select:raw").unwrap();
                     let (entry, _, _) =
-                        effect_entry_for_value(effect_select).unwrap();
+                        effect_entry_for_value(&config, effect_select).unwrap();
                     let control_name = &entry.effect_tweak;
                     if control_name.is_empty() {
                         return;

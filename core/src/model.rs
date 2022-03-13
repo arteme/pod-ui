@@ -10,7 +10,6 @@ pub struct Config {
 
     pub program_size: usize,
     pub program_num: usize,
-    pub pod_id: u8, // used in sysex dump messages
 
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
@@ -373,4 +372,10 @@ impl Config {
             .flat_map(|(_, control)| control.get_cc())
     }
 
+}
+
+impl PartialEq for Config {
+    fn eq(&self, other: &Self) -> bool {
+        self.family == other.family && self.member == other.member
+    }
 }

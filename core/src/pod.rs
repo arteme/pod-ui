@@ -232,11 +232,11 @@ fn list_ports<T: midir::MidiIO>(midi: T) -> Result<Vec<String>> {
 
 const DETECT_DELAY: Duration = Duration::from_millis(1000);
 
-async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Vec<usize>> {
+async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Vec<(usize, &'static Config)>> {
     detect_with_channel(in_ports, out_ports, Channel::all()).await
 }
 
-async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut], channel: u8) -> Result<Vec<usize>> {
+async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut], channel: u8) -> Result<Vec<(usize, &'static Config)>> {
 
     let udi = MidiMessage::UniversalDeviceInquiry { channel }.to_bytes();
 
@@ -255,7 +255,7 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
         p.send(&udi)?;
     }
 
-    let mut replied_midi_in = Vec::<usize>::new();
+    let mut replied_midi_in = Vec::<(usize, &Config)>::new();
     loop {
         tokio::select! {
             Some((i, Some(bytes))) = streams.next() => {
@@ -267,17 +267,17 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
                         });
                         pod.map(|pod| {
                             info!("Discovered: {}: {}", i, pod.name);
-                            true
+                            pod
                         }).or_else(|| {
                             info!("Discovered unknown device: {}: {}/{}, skipping!", i, family, member);
-                            Some(false)
-                        }).unwrap()
+                            None
+                        })
                     },
-                    _ => false
+                    _ => None
                 };
 
-                if found {
-                    replied_midi_in.push(i);
+                if let Some(config) = found {
+                    replied_midi_in.push((i, config));
                 }
             },
             _ = &mut delay => { break; }
@@ -341,7 +341,7 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
     Ok(channel)
 }
 
-pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8)> {
+pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
     let in_port_names = MidiIn::ports()?;
     let mut in_ports = in_port_names.iter().enumerate()
         .map(|(i, _)| MidiIn::new(Some(i)))
@@ -351,6 +351,8 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8)> {
     let mut out_ports = out_port_names.iter().enumerate()
         .map(|(i, _)| MidiOut::new(Some(i)))
         .collect::<Result<Vec<_>>>()?;
+
+    let mut config: Option<&Config> = None;
 
     if in_ports.len() < 1 {
         bail!("No MIDI input ports found")
@@ -369,7 +371,8 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8)> {
             bail!("Received device response on multiple ({}) ports", rep.len());
         }
         in_ports = in_ports.into_iter().enumerate()
-            .filter(|(i, _)| *i == rep[0]).map(|(_,v)| v).collect();
+            .filter(|(i, _)| *i == rep[0].0).map(|(_,v)| v).collect();
+        config = Some(rep[0].1);
     }
 
     // 2. find the output
@@ -380,7 +383,11 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8)> {
         let mut good = Vec::<usize>::new();
         let mut i = 0usize;
         for chunk in chunks {
-            let rep = detect(in_ports.as_mut_slice(), chunk).await?;
+            let rep = detect(in_ports.as_mut_slice(), chunk).await?
+                .into_iter()
+                // make sure we only count the ports that have the same device as in step 1
+                .filter(|(i, c)| config.filter(|c1| *c1 == *c).is_some())
+                .collect::<Vec<_>>();
             if rep.len() > 0 {
                 for x in i .. i+chunk.len() {
                     good.push(x);
@@ -411,10 +418,10 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8)> {
         bail!("Can't determine POD channel");
     }
 
-    Ok((in_port, out_port, channel.unwrap()))
+    Ok((in_port, out_port, channel.unwrap(), config.unwrap()))
 }
 
-pub async fn test(in_name: &str, out_name: &str, channel: u8) -> Result<(MidiIn, MidiOut, u8)> {
+pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -> Result<(MidiIn, MidiOut, u8)> {
     let in_port = MidiIn::new_for_name(in_name)?;
     let out_port = MidiOut::new_for_name(out_name)?;
     let mut in_ports = vec![in_port];
@@ -425,6 +432,9 @@ pub async fn test(in_name: &str, out_name: &str, channel: u8) -> Result<(MidiIn,
     ).await?;
     if rep.len() == 0 {
         bail!("Received no device response");
+    }
+    if *rep[0].1 != *config {
+        bail!("Incorrect device type");
     }
 
     Ok((in_ports.remove(0), out_ports.remove(0), channel))

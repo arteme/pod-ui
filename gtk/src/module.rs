@@ -9,10 +9,10 @@ use crate::ObjectList;
 pub type Callbacks = MultiMap<String, Box<dyn Fn() -> ()>>;
 
 pub trait Module {
-    fn config(&self) -> Config;
+    fn config(&self) -> Box<[Config]>;
     fn widget(&self) -> gtk::Widget;
     fn objects(&self) -> ObjectList;
 
-    fn wire(&self, controller: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> Result<()>;
-    fn init(&self, controller: Arc<Mutex<EditBuffer>>) -> Result<()>;
+    fn wire(&self, config: &Config, controller: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> Result<()>;
+    fn init(&self, config: &Config, controller: Arc<Mutex<EditBuffer>>) -> Result<()>;
 }

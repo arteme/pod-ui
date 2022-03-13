@@ -6,6 +6,7 @@ use pod_gtk::gtk::{IconSize, ResponseType};
 use crate::util::ManualPoll;
 
 use log::*;
+use pod_core::config::configs;
 use pod_core::midi::Channel;
 use pod_gtk::glib;
 
@@ -15,6 +16,7 @@ struct SettingsDialog {
     midi_in_combo: gtk::ComboBoxText,
     midi_out_combo: gtk::ComboBoxText,
     midi_channel_combo: gtk::ComboBoxText,
+    model_combo: gtk::ComboBoxText,
     autodetect_button: gtk::Button,
     test_button: gtk::Button,
     message_label: gtk::Label,
@@ -28,6 +30,7 @@ impl SettingsDialog {
             midi_in_combo: ui.object("settings_midi_in_combo").unwrap(),
             midi_out_combo: ui.object("settings_midi_out_combo").unwrap(),
             midi_channel_combo: ui.object("settings_midi_channel_combo").unwrap(),
+            model_combo: ui.object("settings_model_combo").unwrap(),
             autodetect_button: ui.object("settings_autodetect_button").unwrap(),
             test_button: ui.object("settings_test_button").unwrap(),
             message_label: ui.object("settings_message_label").unwrap(),
@@ -40,6 +43,7 @@ impl SettingsDialog {
         self.midi_in_combo.set_sensitive(sensitive);
         self.midi_out_combo.set_sensitive(sensitive);
         self.midi_channel_combo.set_sensitive(sensitive);
+        self.model_combo.set_sensitive(sensitive);
         self.autodetect_button.set_sensitive(sensitive);
         self.test_button.set_sensitive(sensitive);
     }
@@ -113,6 +117,24 @@ fn populate_midi_combos(settings: &SettingsDialog,
     };
 }
 
+fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
+    settings.model_combo.remove_all();
+
+    let mut names = configs().iter().map(|c| &c.name).collect::<Vec<_>>();
+    names.sort();
+    for (i, &name) in names.iter().enumerate() {
+        settings.model_combo.append_text(name.as_str());
+    }
+
+    let selected =
+        selected.and_then(|selected| {
+            names.iter().enumerate()
+                .find(|(_, &n)| *n == *selected)
+                .map(|(i, _)| i as u32)
+        });
+    settings.model_combo.set_active(selected);
+}
+
 fn wire_autodetect_button(settings: &SettingsDialog) {
     let settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
@@ -128,17 +150,18 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
         glib::idle_add_local(move || {
             let cont = match autodetect.poll() {
                 None => { true }
-                Some(Ok((in_, out_, channel))) => {
+                Some(Ok((in_, out_, channel, config))) => {
                     let msg = format!("Autodetect successful!");
                     settings.set_message("dialog-ok", &msg);
                     settings.set_interactive(true);
                     spinner.stop();
 
-                    // update in/out port selection, channel
+                    // update in/out port selection, channel, device
                     populate_midi_combos(&settings,
                                          &Some(in_.name), &Some(out_.name));
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
+                    populate_model_combo(&settings, Some(&config.name));
                     false
                 }
                 Some(Err(e)) => {
@@ -162,9 +185,17 @@ fn wire_test_button(settings: &SettingsDialog) {
         let midi_in = settings.midi_in_combo.active_text();
         let midi_out = settings.midi_out_combo.active_text();
         let midi_channel = settings.midi_channel_combo.active();
+        let config = settings.model_combo.active_text()
+            .and_then(|name| {
+                configs().iter().find(|c| c.name == name)
+            });
 
         if midi_in.is_none() || midi_out.is_none() {
             settings.set_message("dialog-warning", "Select MIDI input & output device");
+            return;
+        }
+        if config.is_none() {
+            settings.set_message("dialog-warning", "Select device type");
             return;
         }
 
@@ -173,7 +204,7 @@ fn wire_test_button(settings: &SettingsDialog) {
         let midi_channel = midi_channel_from_combo_index(midi_channel);
 
         let mut test = tokio::spawn(async move {
-            pod_core::pod::test(&midi_in, &midi_out, midi_channel).await
+            pod_core::pod::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
         });
 
         let spinner = gtk::Spinner::new();
@@ -215,8 +246,11 @@ fn wire_test_button(settings: &SettingsDialog) {
 
 pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
     let settings = SettingsDialog::new(ui);
-    let settings_ = settings.clone();
     let settings_button: gtk::Button = ui.object("settings_button").unwrap();
+
+    let settings_ = settings.clone();
+    let state_ = state.clone();
+
     settings_button.connect_clicked(move |_| {
         // reset the dialog
         settings.set_interactive(true);
@@ -256,10 +290,14 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                             }
                         }
                     });
+                let config = settings.model_combo.active_text()
+                    .and_then(|name| {
+                        configs().iter().find(|c| c.name == name)
+                    });
 
                 let midi_channel = settings.midi_channel_combo.active();
                 let midi_channel = midi_channel_from_combo_index(midi_channel);
-                set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel);
+                set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, config);
             }
             _ => {}
         }
@@ -268,6 +306,8 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
     });
 
     populate_midi_channel_combo(&settings_);
+    populate_model_combo(&settings_,
+                         state_.lock().unwrap().config.map(|c| &c.name));
     wire_autodetect_button(&settings_);
     wire_test_button(&settings_);
 }
