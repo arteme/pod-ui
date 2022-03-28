@@ -85,6 +85,12 @@ impl ObjectList {
     }
 }
 
+impl Default for ObjectList {
+    fn default() -> Self {
+        ObjectList { objects: Vec::default() }
+    }
+}
+
 impl Clone for ObjectList {
     fn clone(&self) -> Self {
         ObjectList {

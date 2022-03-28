@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use pod_core::model::Config;
 use anyhow::Result;
@@ -6,13 +7,17 @@ use pod_core::edit::EditBuffer;
 
 use crate::ObjectList;
 
-pub type Callbacks = MultiMap<String, Box<dyn Fn() -> ()>>;
+pub type Callbacks = MultiMap<String, Rc<dyn Fn() -> ()>>;
 
 pub trait Module {
     fn config(&self) -> Box<[Config]>;
+    fn init(&self, config: &'static Config) -> Box<dyn Interface>;
+}
+
+pub trait Interface {
     fn widget(&self) -> gtk::Widget;
     fn objects(&self) -> ObjectList;
 
-    fn wire(&self, config: &Config, controller: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> Result<()>;
-    fn init(&self, config: &Config, controller: Arc<Mutex<EditBuffer>>) -> Result<()>;
+    fn wire(&self, edit_buffer: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> Result<()>;
+    fn init(&self, edit_buffer: Arc<Mutex<EditBuffer>>) -> Result<()>;
 }

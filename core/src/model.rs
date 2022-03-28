@@ -21,6 +21,7 @@ pub struct Config {
     pub program_name_length: usize
 }
 
+
 #[derive(Clone, Default, Debug)]
 pub struct Amp {
     pub name: String,
@@ -334,6 +335,23 @@ impl FormatData {
 // ---
 
 impl Config {
+    pub fn empty() -> Self {
+        Self {
+            name: String::new(),
+            family: 0,
+            member: 0,
+            program_size: 0,
+            program_num: 0,
+            amp_models: vec![],
+            cab_models: vec![],
+            effects: vec![],
+            controls: Default::default(),
+            init_controls: vec![],
+            program_name_addr: 0,
+            program_name_length: 0
+        }
+    }
+
     pub fn cc_to_control(&self, cc: u8) -> Option<(&String, &Control)> {
         self.controls.iter()
             .find(|&(_, control)| {

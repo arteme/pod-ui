@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::*;
 use anyhow::*;
@@ -58,7 +59,7 @@ pub fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &Object
         let controller = controller.clone();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let v = {
                     let controller = controller.lock().unwrap();
                     controller.get(&name).unwrap()
@@ -79,12 +80,15 @@ pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs
         let amp_models = config.amp_models.clone();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let (presence, bright_switch) = {
                     let controller = controller.lock().unwrap();
                     let v = controller.get(&name).unwrap();
-                    let amp = amp_models.get(v as usize).unwrap();
-                    (amp.presence, amp.bright_switch)
+                    if let Some(amp) = amp_models.get(v as usize) {
+                        (amp.presence, amp.bright_switch)
+                    } else {
+                        return;
+                    }
                 };
 
                 // to have these animate calls after the callback animate call we
@@ -123,7 +127,7 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
         let name = "name_change".to_string();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let name = edit.lock().unwrap().name();
                 handler.blocked(|| entry.set_text(&name));
             })
@@ -205,7 +209,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         let name = "effect_select:raw".to_string();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let mut controller = controller.lock().unwrap();
                 effect_select_from_midi(&config, &mut controller);
             })
@@ -218,7 +222,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         let name = "effect_select".to_string();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let mut controller = controller.lock().unwrap();
                 if let Some(e) = effect_select_from_gui(&config, &mut controller) {
                     /*
@@ -238,7 +242,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         let name = "delay_enable".to_string();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let mut controller = controller.lock().unwrap();
                 let (v, origin) = controller.get_origin(&name).unwrap();
 
@@ -269,7 +273,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         let name = "effect_tweak".to_string();
         callbacks.insert(
             name.clone(),
-            Box::new(move || {
+            Rc::new(move || {
                 let mut controller = controller.lock().unwrap();
                 let (_, origin) = controller.get_origin(&name).unwrap();
 

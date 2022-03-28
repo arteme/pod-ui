@@ -1,8 +1,10 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 use crate::controller::Controller;
 use crate::model::{AbstractControl, Config, Control};
-use crate::store::{Event, Signal, Store};
+use crate::store::{Event, Signal, Store, StoreSetIm};
 use log::*;
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
 use crate::str_encoder::StrEncoder;
 
@@ -160,4 +162,22 @@ fn control_value_from_buffer(controller: &mut Controller, name: &str, buffer: &[
         }
     };
     controller.set(&name, value, origin);
+}
+
+impl Store<&str, u16, String> for EditBuffer {
+    fn has(&self, name: &str) -> bool {
+        self.controller.has(name)
+    }
+
+    fn get(&self, name: &str) -> Option<u16> {
+        self.controller.get(name)
+    }
+
+    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> bool {
+        self.controller.set_full(name, value, origin, signal)
+    }
+
+    fn subscribe(&self) -> broadcast::Receiver<Event<String>> {
+        self.controller.subscribe()
+    }
 }

@@ -4,6 +4,7 @@ mod settings;
 mod program_button;
 mod panic;
 mod registry;
+mod empty;
 
 use anyhow::*;
 
@@ -15,7 +16,7 @@ use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex};
 use pod_core::model::{AbstractControl, Button, Config, Control};
-use pod_core::config::{configs, GUI, MIDI, register_config, UNSET};
+use pod_core::config::{configs, GUI, MIDI, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -23,13 +24,13 @@ use std::thread;
 use pod_core::store::{Event, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
-use std::ops::Add;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 use maplit::*;
 use crate::settings::*;
 
+#[derive(Clone)]
 pub enum UIEvent {
     NewMidiConnection,
     NewEditBuffer,
@@ -48,11 +49,13 @@ pub struct State {
 
     pub midi_in_tx: mpsc::UnboundedSender<MidiMessage>,
     pub midi_out_tx: broadcast::Sender<MidiMessage>,
-    pub ui_event_tx: mpsc::UnboundedSender<UIEvent>,
+    pub ui_event_tx: broadcast::Sender<UIEvent>,
 
     pub midi_channel_num: u8,
-    pub config: Option<&'static Config>,
-    pub edit_buffer: Option<EditBuffer>
+    pub config: &'static Config,
+    pub interface: InitializedInterface,
+    pub edit_buffer: Arc<Mutex<EditBuffer>>,
+    pub dump: Arc<Mutex<ProgramsDump>>
 }
 
 use pod_core::model::SwitchControl;
@@ -82,7 +85,22 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
-    if midi_in.is_none() || midi_out.is_none() || config.is_none() {
+    let config_changed = match (config, state.config) {
+        (Some(a), b) => { *a != *b }
+        _ => { false }
+    };
+    if config_changed {
+        // config changed, update config & edit buffer
+        state.config = config.unwrap();
+        state.interface = init_module(state.config).unwrap();
+        state.ui_event_tx.send(UIEvent::NewEditBuffer);
+
+        move_clone(&mut state.interface.edit_buffer, &state.edit_buffer, empty_edit_buffer);
+        move_clone(&mut state.interface.dump, &state.dump, empty_dump);
+        // TODO: channels!
+    }
+
+    if midi_in.is_none() || midi_out.is_none() {
         warn!("Not starting MIDI because in/out is None");
         state.midi_in_name = None;
         state.midi_in_cancel = None;
@@ -90,7 +108,6 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.midi_out_cancel = None;
         state.ui_event_tx.send(UIEvent::NewMidiConnection);
         state.midi_channel_num = 0;
-        state.config = None;
         return;
     }
 
@@ -108,21 +125,6 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
 
     state.midi_channel_num = midi_channel;
     state.ui_event_tx.send(UIEvent::NewMidiConnection);
-
-    let config_changed = match (config, state.config) {
-        (Some(_), None) => { true }
-        (None, Some(_)) => { true }
-        (Some(a), Some(b)) => { *a != *b }
-        _ => { false }
-    };
-    if config_changed {
-        // config changed, update config & edit buffer
-        state.config = config;
-        state.edit_buffer = Some(EditBuffer::new(state.config.as_ref().unwrap()));
-        state.ui_event_tx.send(UIEvent::NewEditBuffer);
-
-    }
-
 
     // midi in
     {
@@ -214,7 +216,7 @@ enum Program {
 
 fn program_dump_message(
     program: Program, dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
-    ui_controller: &Controller, ui_event_tx: &mpsc::UnboundedSender<UIEvent>
+    ui_controller: &Controller, ui_event_tx: &broadcast::Sender<UIEvent>
 ) -> Option<MidiMessage> {
     let cur_program = ui_controller.get(&"program").unwrap() as usize;
     let cur_program_valid = cur_program > 0 && cur_program < dump.program_num();
@@ -275,14 +277,15 @@ fn program_dump_message(
 }
 
 
-fn set_current_program_modified(edit: &mut EditBuffer, ui_controller: &Controller, state: &State) {
+fn set_current_program_modified(edit: &mut EditBuffer,
+                                ui_controller: &Controller,
+                                ui_event_tx: &broadcast::Sender<UIEvent>) {
     let cur_program = ui_controller.get(&"program").unwrap() as usize;
     let program_num = ui_controller.get(&"program_num").unwrap() as usize;
     let cur_program_valid = cur_program > 0 && cur_program < program_num;
     if cur_program_valid {
         let current_page = cur_program - 1;
-        state.ui_event_tx.send(UIEvent::Modified(current_page, true));
-
+        ui_event_tx.send(UIEvent::Modified(current_page, true));
     }
     edit.set_modified(true);
 }
@@ -291,10 +294,13 @@ use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
+use crate::empty::{empty_dump, empty_dump_arc, empty_edit_buffer, empty_edit_buffer_arc};
 use crate::panic::wire_panic_indicator;
 use crate::program_button::ProgramButtons;
-use crate::registry::{module_for_config, register_module};
+use crate::registry::{init_module, InitializedInterface, register_module};
+use crate::util::move_clone;
 
+static EMPTY_CONFIG: Lazy<Config> = Lazy::new(|| Config::empty());
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -309,14 +315,14 @@ async fn main() -> Result<()> {
 
     let (midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
     let (midi_out_tx, mut midi_out_rx) = broadcast::channel::<MidiMessage>(16);
-    let (ui_event_tx, mut ui_event_rx) = mpsc::unbounded_channel::<UIEvent>();
+    let (ui_event_tx, mut ui_event_rx) = broadcast::channel(128);
 
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
     register_module(pod_mod_pod2::module());
     let config = configs().iter().next().unwrap();
-    let module = module_for_config(config).unwrap();
+    let interface = init_module(config)?;
 
     let state = Arc::new(Mutex::new(State {
         midi_in_name: None,
@@ -327,9 +333,15 @@ async fn main() -> Result<()> {
         midi_out_tx,
         ui_event_tx,
         midi_channel_num: 0,
-        config: None,
-        edit_buffer: None
+        config: &EMPTY_CONFIG,
+        interface: interface,
+        edit_buffer: empty_edit_buffer_arc(),
+        dump: empty_dump_arc()
     }));
+    let (edit_buffer, dump) = {
+        let state = state.lock().unwrap();
+        (state.edit_buffer.clone(), state.dump.clone())
+    };
 
     // autodetect/open midi
     let autodetect = match (&opts.input, &opts.output) {
@@ -365,19 +377,12 @@ async fn main() -> Result<()> {
     // midi channel number
     let midi_channel_num = Arc::new(AtomicU8::new(0));
 
-    // edit buffer
-    let edit_buffer = Arc::new(Mutex::new(EditBuffer::new(&config)));
-    let controller = edit_buffer.lock().unwrap().controller();
-
-    // programs
-    let dump = Arc::new(Mutex::new(ProgramsDump::new(&config)));
-
-    let mut callbacks = Callbacks::new();
+    let mut ui_callbacks = Callbacks::new();
 
     let ui = gtk::Builder::from_string(include_str!("ui.glade"));
     let ui_objects = ObjectList::new(&ui);
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
-    pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut callbacks)?;
+    pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut ui_callbacks)?;
     let mut program_buttons = ProgramButtons::new(&ui_objects);
 
     let title = format!("POD UI {}", env!("GIT_VERSION"));
@@ -406,32 +411,22 @@ async fn main() -> Result<()> {
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION
     );
 
-    let pod_ui = module.widget();
-    let app_grid: gtk::Box = ui.object("app_grid").unwrap();
-    app_grid.add(&pod_ui);
-
-    module.wire(&config, edit_buffer.clone(), &mut callbacks)?;
-    //ui_controller.lock().unwrap().set("program_num", module.config().program_num as u16, UNSET);
-    let objects = ui_objects + module.objects();
-
-    // ---------------------------------------------------------
-    edit_buffer.lock().unwrap().start_thread();
+    let device_box: gtk::Box = ui.object("device_box").unwrap();
+    // TODO: WHAT TO DO HERE?
 
     // midi ----------------------------------------------------
 
     // controller / ui controller / midi reply -> midi out
     {
-        let state = state.clone();
-        let controller = controller.clone();
         let edit_buffer = edit_buffer.clone();
-        let ui_controller = ui_controller.clone();
         let dump = dump.clone();
-        let mut rx = controller.lock().unwrap().subscribe();
-        let mut ui_rx = ui_controller.lock().unwrap().subscribe();
+        let ui_controller = ui_controller.clone();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
+        let ui_event_tx = state.lock().unwrap().ui_event_tx.clone();
+        let mut ui_event_rx = state.lock().unwrap().ui_event_tx.subscribe();
         let midi_channel_num = midi_channel_num.clone();
         tokio::spawn(async move {
-            let make_cc = |name: &str| -> Option<MidiMessage> {
+            let make_cc = |name: &str, controller: &Controller| -> Option<MidiMessage> {
                 let control = controller.get_config(name);
                 if control.is_none() {
                     warn!("Control {:?} not found!", name);
@@ -482,17 +477,24 @@ async fn main() -> Result<()> {
                 let mut edit_buffer = edit_buffer.lock().unwrap();
                 let mut dump = dump.lock().unwrap();
                 let ui_controller = ui_controller.lock().unwrap();
-                let state = state.lock().unwrap();
                 program_dump_message(program, &mut dump, &mut edit_buffer,
-                                     &ui_controller, &state.ui_event_tx)
+                                     &ui_controller, &ui_event_tx)
             };
 
+            let mut rx = None;
+            let mut ui_rx = ui_controller.lock().unwrap().subscribe();
+
             loop {
+                if rx.is_none() {
+                    let edit_buffer = edit_buffer.lock().unwrap();
+                    rx = Some(edit_buffer.subscribe());
+                }
+
                 let mut message: Option<MidiMessage> = None;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
-                  Ok(Event { key: name, origin: o, .. }) = rx.recv() => {
-                        message = make_cc(&name);
+                  Ok(Event { key: name, origin: o, .. }) = rx.as_mut().unwrap().recv() => {
+                        message = make_cc(&name, &edit_buffer.lock().unwrap().controller_locked());
                         origin = o;
                     }
                   Ok(Event { key, origin: o, .. }) = ui_rx.recv() => {
@@ -508,8 +510,11 @@ async fn main() -> Result<()> {
                         };
                         origin = o;
                     }
+                  Ok(UIEvent::NewEditBuffer) = ui_event_rx.recv() => {
+                        rx = None;
+                    }
                 }
-                if origin == MIDI || message.is_none() {
+                if rx.is_none() || origin == MIDI || message.is_none() {
                     continue;
                 }
                 let send_buffer = match message {
@@ -518,13 +523,13 @@ async fn main() -> Result<()> {
                         set_current_program_modified(
                             &mut edit_buffer.lock().unwrap(),
                             &ui_controller.lock().unwrap(),
-                            &state.lock().unwrap()
+                            &ui_event_tx
                         );
                         false
                     }
                     Some(MidiMessage::ProgramChange { program, .. }) => {
-                        let mut dump = dump.lock().unwrap();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
                         let mut ui_controller = ui_controller.lock().unwrap();
                         program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI)
                     }
@@ -551,12 +556,11 @@ async fn main() -> Result<()> {
     // midi in -> controller / ui controller / midi out
     {
         let edit_buffer = edit_buffer.clone();
-        let controller = controller.clone();
+        let dump = dump.clone();
         let ui_controller = ui_controller.clone();
         let config = config.clone();
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
-        let dump = dump.clone();
-        let state = state.clone();
+        let ui_event_tx = state.lock().unwrap().ui_event_tx.clone();
         let midi_channel_num = midi_channel_num.clone();
         tokio::spawn(async move {
             loop {
@@ -573,7 +577,7 @@ async fn main() -> Result<()> {
                             // Ignore midi messages sent to a different channel
                             continue;
                         }
-                        let mut controller = controller.lock().unwrap();
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
 
                         let control = config.cc_to_control(cc);
                         if control.is_none() {
@@ -582,13 +586,13 @@ async fn main() -> Result<()> {
                         }
                         let (name, control) = control.unwrap();
                         let value = control.value_from_midi(value);
-                        let modified = controller.set(name, value, MIDI);
+                        let modified = edit_buffer.set(name, value, MIDI);
                         if modified {
                             // CC from MIDI -> set modified flag
                             set_current_program_modified(
-                                &mut edit_buffer.lock().unwrap(),
+                                &mut edit_buffer,
                                 &ui_controller.lock().unwrap(),
-                                &state.lock().unwrap()
+                                &ui_event_tx
                             );
                         }
                     },
@@ -598,9 +602,9 @@ async fn main() -> Result<()> {
                             // Ignore midi messages sent to a different channel
                             continue;
                         }
-                        let mut ui_controller = ui_controller.lock().unwrap();
-                        let mut dump = dump.lock().unwrap();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
+                        let mut ui_controller = ui_controller.lock().unwrap();
                         program_change(&mut dump, &mut edit_buffer,
                                        &mut ui_controller, program, MIDI);
                     }
@@ -622,10 +626,9 @@ async fn main() -> Result<()> {
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let ui_controller = ui_controller.lock().unwrap();
-                        let state = state.lock().unwrap();
                         let msg = program_dump_message(
                             Program::EditBuffer, &mut dump, &mut edit_buffer,
-                            &ui_controller, &state.ui_event_tx);
+                            &ui_controller, &ui_event_tx);
                         midi_out_tx.send(msg.unwrap());
                     },
                     MidiMessage::ProgramPatchDump { patch, ver, data } => {
@@ -638,29 +641,27 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let current = ui_controller.get("program").unwrap();
                         program::load_patch_dump(&mut dump, patch as usize, data.as_slice(), MIDI);
                         if current > 0 && patch as u16 == (current - 1) {
                             // update edit buffer as well
                             program::load_patch_dump_ctrl(
-                                &mut edit_buffer.lock().unwrap(), data.as_slice(), MIDI);
+                                &mut edit_buffer, data.as_slice(), MIDI);
                         }
-                        state.lock().unwrap()
-                            .ui_event_tx.send(UIEvent::Modified(patch as usize, false));
+                        ui_event_tx.send(UIEvent::Modified(patch as usize, false));
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let ui_controller = ui_controller.lock().unwrap();
-                        let state = state.lock().unwrap();
                         let msg = program_dump_message(
                             Program::Number(patch as usize + 1), &mut dump, &mut edit_buffer,
-                            &ui_controller, &state.ui_event_tx);
+                            &ui_controller, &ui_event_tx);
                         midi_out_tx.send(msg.unwrap());
                     },
                     MidiMessage::AllProgramsDump { ver, data } => {
-                        let mut dump = dump.lock().unwrap();
                         if ver != 0 {
                             error!("Program dump version not supported: {}", ver);
                             continue;
@@ -670,17 +671,18 @@ async fn main() -> Result<()> {
                                   (config.program_size * config.program_num), data.len());
                             continue;
                         }
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
                         program::load_all_dump(
                             &mut dump, data.as_slice(), MIDI);
-                        let state = state.lock().unwrap();
                         for i in 0 .. config.program_num {
-                            state.ui_event_tx.send(UIEvent::Modified(i, false));
+                            ui_event_tx.send(UIEvent::Modified(i, false));
                         }
                         // update edit buffer
                         let current = ui_controller.get("program").unwrap();
                         if current > 0 && current as usize <= dump.program_num() {
                             program::load_patch_dump_ctrl(
-                                &mut edit_buffer.lock().unwrap(),
+                                &mut edit_buffer,
                                 dump.data(current as usize - 1).unwrap(), MIDI);
                         }
                     },
@@ -688,10 +690,9 @@ async fn main() -> Result<()> {
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let ui_controller = ui_controller.lock().unwrap();
-                        let state = state.lock().unwrap();
                         let msg = program_dump_message(
                             Program::All, &mut dump, &mut edit_buffer,
-                            &ui_controller, &state.ui_event_tx);
+                            &ui_controller, &ui_event_tx);
                         midi_out_tx.send(msg.unwrap());
                     },
 
@@ -720,112 +721,18 @@ async fn main() -> Result<()> {
         });
     }
 
-    /*
-    // raw -----------------------------------------------------
-
-    // controller -> raw
-    {
-        let raw = raw.clone();
-        let controller = controller.clone();
-        let config = config.clone();
-        let state = state.clone();
-        let mut rx = controller.lock().unwrap().subscribe();
-        tokio::spawn(async move {
-            loop {
-                let mut name: String = String::new();
-                let mut signal: Signal = Signal::None;
-                match rx.recv().await {
-                    Ok(Event { key: n, signal: s, .. }) => {
-                        name = n;
-                        signal = s;
-                    }
-                    Err(e) => {
-                        error!("Error in 'controller -> raw' rx: {}", e)
-                    }
-                }
-
-                let controller = controller.lock().unwrap();
-                let mut raw = raw.lock().unwrap();
-                let control_config = controller.get_config(&name);
-                if control_config.is_none() {
-                    warn!("Control {:?} not found!", &name);
-                    continue;
-                }
-
-                let (value, origin) = controller.get_origin(&name).unwrap();
-                if origin != GUI {
-                    continue;
-                }
-
-                let control_config = control_config.unwrap();
-                let addr= control_config.get_addr();
-                if addr.is_none() {
-                    continue; // skip virtual controls
-                }
-                let (addr, bytes) = control_config.get_addr().unwrap();
-                let modified = match bytes {
-                    1 => {
-                        raw.set_full(addr as usize, value as u8, GUI, signal)
-                    }
-                    2 => {
-                        let bits = match control_config {
-                            Control::RangeControl(RangeControl{ config: RangeConfig::Long { bits }, .. }) => bits,
-                            _ => &[0u8, 0u8]
-                        };
-
-                        let b1 = value >> bits[1];
-                        let b2 = value & ((1 << bits[1]) - 1);
-
-                        // For "delay time" knob, Line6 Edit always sends the
-                        // "time 1 fine cc 62" first, and then "time 1 coarse
-                        // cc 30". It also expects to receive them in the same
-                        // order, so sending only cc 62 on change is like also
-                        // sending cc 30 = 0!
-                        // So, 1) set LSB first and then MSB and 2) always
-                        // force-set.
-                        // ---
-                        // NOTE: Even that is not enough, though! Line6 Edit
-                        // 3.06 actually will discard cc 62 after getting
-                        // cc 30, so, sending cc 62 is like sending cc 30 = 0
-                        // and sending cc 30 is like sending cc 62 = 0 !!! ;(
-                        // Still it's better so send cc 30 (coarse) overriding
-                        // cc 62 (fine) than the other way around.
-                        let c2 = raw.set_full((addr+1) as usize, b2 as u8, GUI, Signal::Force);
-                        let c1 = raw.set_full(addr as usize, b1 as u8, GUI, Signal::Force);
-                        c1 || c2
-                    }
-                    n => {
-                        error!("Unsupported control size in bytes: {}", n);
-                        false
-                    }
-                };
-                if modified {
-                    trace!("modified triggered by {:?}", name);
-                    state.lock().unwrap().ui_event_tx.send(UIEvent::Modified(raw.page, true));
-                }
-            }
-        });
-    }
-*/
-
     // ---------------------------------------------------------
 
     // controller -> gui
     {
         let edit_buffer = edit_buffer.clone();
-        let controller = controller.clone();
         let ui_controller = ui_controller.clone();
-        let objects = objects.clone();
 
-        let mut rx = {
-            let controller = controller.lock().unwrap();
-            controller.subscribe()
-        };
-        let mut ui_rx = {
-            let ui_controller = ui_controller.lock().unwrap();
-            ui_controller.subscribe()
-        };
-        let mut names_rx = dump.lock().unwrap().subscribe_to_name_updates();
+        let mut objects = ObjectList::default();
+        let mut callbacks = Callbacks::new();
+        let mut rx = None;
+        let mut ui_rx = ui_controller.lock().unwrap().subscribe();
+        let mut names_rx = None;
 
         let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
         let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
@@ -834,8 +741,19 @@ async fn main() -> Result<()> {
         let mut current_page = 0usize;
 
         glib::idle_add_local(move || {
+            if rx.is_none() {
+                let edit_buffer = edit_buffer.lock().unwrap();
+                rx = Some(edit_buffer.subscribe());
+
+                let dump = dump.lock().unwrap();
+                names_rx = Some(dump.subscribe_to_name_updates());
+
+                let state = state.lock().unwrap();
+                objects = state.interface.objects.clone();
+            }
+
             let mut processed = false;
-            match rx.try_recv() {
+            match rx.as_mut().unwrap().try_recv() {
                 Ok(Event { key: name, .. }) => {
                     processed = true;
                     let vec = callbacks.get_vec(&name);
@@ -845,14 +763,15 @@ async fn main() -> Result<()> {
                             cb()
                         }
                     }
-                    animate(&objects, &name, controller.get(&name).unwrap());
+                    let edit_buffer = edit_buffer.lock().unwrap();
+                    animate(&objects, &name, edit_buffer.get(&name).unwrap());
                 },
                 _ => {}
             }
             match ui_rx.try_recv() {
                 Ok(Event { key: name, .. }) => {
                     processed = true;
-                    let vec = callbacks.get_vec(&name);
+                    let vec = ui_callbacks.get_vec(&name);
                     match vec {
                         None => { warn!("No GUI callback for '{}'", &name); },
                         Some(vec) => for cb in vec {
@@ -925,8 +844,15 @@ async fn main() -> Result<()> {
                             midi_channel_num.store(state.midi_channel_num, Ordering::Relaxed);
                         }
                         UIEvent::NewEditBuffer => {
-                            let mut edit_buffer = edit_buffer.lock();
-                            
+                            let state = state.lock().unwrap();
+
+                            rx = None;
+
+                            device_box.children().iter()
+                                .for_each(|w| device_box.remove(w));
+                            device_box.add(&state.interface.widget);
+                            callbacks = state.interface.callbacks.clone();
+
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
@@ -954,7 +880,7 @@ async fn main() -> Result<()> {
                 }
                 _ => {}
             }
-            match names_rx.try_recv() {
+            match names_rx.as_mut().unwrap().try_recv() {
                 Ok(Event { key: idx, .. }) => {
                     processed = true;
                     let name = dump.lock().unwrap().name(idx).unwrap_or_default();
@@ -978,9 +904,6 @@ async fn main() -> Result<()> {
     // show the window and do init stuff...
     window.show_all();
     window.resize(1, 1);
-
-    init_all(&config, controller.clone(), &objects);
-    module.init(&config, edit_buffer)?;
 
     debug!("starting gtk main loop");
     gtk::main();

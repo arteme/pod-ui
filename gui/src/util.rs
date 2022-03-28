@@ -1,3 +1,5 @@
+use std::mem;
+use std::sync::{Arc, Mutex};
 use futures_util::FutureExt;
 use tokio::task::JoinHandle;
 
@@ -24,4 +26,20 @@ impl <T> ManualPoll for JoinHandle<anyhow::Result<T>> {
             }
         }
     }
+}
+
+//
+
+pub fn move_out<T,F: FnOnce() -> T>(arc_mutex: &Arc<Mutex<T>>, f: F) -> T {
+    let v = &mut *arc_mutex.lock().unwrap();
+    mem::replace(v, f())
+}
+pub fn move_in<T>(arc_mutex: &Arc<Mutex<T>>, value: T) {
+    let v = &mut *arc_mutex.lock().unwrap();
+    *v = value;
+}
+pub fn move_clone<T,F: FnOnce() -> T>(from: &mut Arc<Mutex<T>>, to: &Arc<Mutex<T>>, f: F) {
+    let v = move_out(from, f);
+    move_in(to, v);
+    *from = to.clone();
 }

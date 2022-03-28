@@ -10,13 +10,27 @@ use pod_gtk::gtk::{Builder, Widget};
 use crate::wiring::*;
 use crate::config;
 
-struct Pod2Module {
+pub struct Pod2Module;
+
+impl Module for Pod2Module {
+    fn config(&self) -> Box<[Config]> {
+        vec![config::POD2_CONFIG.clone(), config::PODPRO_CONFIG.clone()].into_boxed_slice()
+    }
+
+    fn init(&self, config: &'static Config) -> Box<dyn Interface> {
+        Box::new(Pod2Interface::new(config))
+    }
+}
+
+
+struct Pod2Interface {
+    config: &'static Config,
     widget: Widget,
     objects: ObjectList
 }
 
-impl Pod2Module {
-    fn new() -> Self {
+impl Pod2Interface {
+    fn new(config: &'static Config) -> Self {
         let builder = Builder::from_string(include_str!("pod.glade"));
         let objects = ObjectList::new(&builder);
 
@@ -24,14 +38,11 @@ impl Pod2Module {
         let widget = widow.child().unwrap();
         widow.remove(&widget);
 
-        Pod2Module { widget, objects }
+        Self { config, widget, objects }
     }
 }
 
-impl Module for Pod2Module {
-    fn config(&self) -> Box<[Config]> {
-        vec![config::POD2_CONFIG.clone(), config::PODPRO_CONFIG.clone()].into_boxed_slice()
-    }
+impl Interface for Pod2Interface {
 
     fn widget(&self) -> Widget {
         self.widget.clone()
@@ -41,7 +52,8 @@ impl Module for Pod2Module {
         self.objects.clone()
     }
 
-    fn wire(&self, config: &Config, edit: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
+    fn wire(&self, edit: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
+        let config = self.config;
         let controller = edit.lock().unwrap().controller();
         {
             let controller = controller.lock().unwrap();
@@ -64,7 +76,7 @@ impl Module for Pod2Module {
         Ok(())
     }
 
-    fn init(&self, _config: &Config, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
+    fn init(&self, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
         let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
@@ -73,5 +85,5 @@ impl Module for Pod2Module {
 }
 
 pub fn module() -> impl Module {
-    Pod2Module::new()
+    Pod2Module
 }

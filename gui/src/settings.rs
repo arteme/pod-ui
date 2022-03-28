@@ -307,7 +307,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
 
     populate_midi_channel_combo(&settings_);
     populate_model_combo(&settings_,
-                         state_.lock().unwrap().config.map(|c| &c.name));
+                         Some(&state_.lock().unwrap().config.name));
     wire_autodetect_button(&settings_);
     wire_test_button(&settings_);
 }

@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::*;
 use anyhow::*;
@@ -124,7 +125,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let name = name.clone();
                     callbacks.insert(
                         name.clone(),
-                        Box::new(move || {
+                        Rc::new(move || {
                             // TODO: would be easier if value is passed in the message and
                             //       into this function without the need to look it up from the controller
                             let v = {
@@ -168,7 +169,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let check = check.clone();
                     callbacks.insert(
                         name.clone(),
-                        Box::new(move || {
+                        Rc::new(move || {
                             let v = controller.get(&name).unwrap();
                             handler.blocked(|| check.set_active(v > 0));
                         })
@@ -216,7 +217,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let name = name.clone();
                     callbacks.insert(
                         name.clone(),
-                        Box::new(move || {
+                        Rc::new(move || {
                             let v = {
                                 let controller = controller.lock().unwrap();
                                 controller.get(&name).unwrap()
@@ -265,7 +266,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let combo = combo.clone();
                     callbacks.insert(
                         name.clone(),
-                        Box::new(move || {
+                        Rc::new(move || {
                             let v = controller.get(&name).unwrap() as u16;
                             handler.blocked(|| combo.set_active(Some(v as u32)));
                         })
