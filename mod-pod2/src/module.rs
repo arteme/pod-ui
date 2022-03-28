@@ -80,6 +80,9 @@ impl Interface for Pod2Interface {
         let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
+        let digiout_enable = self.config.member == 0x0400;
+        controller.set_full("digiout_show", digiout_enable as u16, MIDI, Signal::Force);
+
         Ok(())
     }
 }

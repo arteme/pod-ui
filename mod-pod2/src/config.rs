@@ -309,7 +309,8 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "trem_depth" => RangeControl { cc: 59, addr: 50, format: fmt_percent!(), ..def!() },
 
             // special used for ui wiring only
-            "name_change" => Button {}
+            "name_change" => Button {},
+            "digiout_show" => VirtualSelect {}
        )),
         init_controls: convert_args!(vec!(
            "distortion_enable",
@@ -320,7 +321,8 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "noise_gate_enable",
            "bright_switch_enable",
            "effect_select",
-           "amp_select"
+           "amp_select",
+           "digiout_show"
        )),
         program_name_addr: 55,
         program_name_length: 16
@@ -331,9 +333,9 @@ pub static PODPRO_CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = POD2_CONFIG.clone();
 
     let pro_controls: HashMap<String, Control> = convert_args!(hashmap!(
-        "out_gain" => RangeControl { cc: 9, addr: 35,
+        "digiout_gain" => RangeControl { cc: 9, addr: 35,
             config: short!(),
-            format: Format::Data(FormatData { k: 1.0/12.0, b: 0.0, format: "{val} db".into()}),
+            format: Format::Data(FormatData { k: 12.0/63.0, b: 0.0, format: "{val:1.2f} db".into()}),
             ..def!()
         }
     ));
