@@ -210,7 +210,6 @@ impl AbstractControl for RangeControl {
         match &self.config {
             RangeConfig::Short { from, to } => {
                 let scale = 127 / (to - from);
-                println!("{} {} {} {}", value, from, to, scale);
                 (value as u8 - from) * scale
             }
             RangeConfig::Long { from, to } => {

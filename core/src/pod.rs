@@ -378,7 +378,6 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
     // 2. find the output
     loop {
         let slice =  (out_ports.len() as f32 / 2.0).ceil() as usize;
-        println!("len {} slice {}", out_ports.len(), slice);
         let chunks = out_ports.chunks_mut(slice);
         let mut good = Vec::<usize>::new();
         let mut i = 0usize;
