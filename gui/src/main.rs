@@ -854,6 +854,12 @@ async fn main() -> Result<()> {
                             device_box.add(&state.interface.widget);
                             callbacks = state.interface.callbacks.clone();
 
+                            // I don't know a better place to put this for now, but after
+                            // switching the module, we need to initialize the "program_num"
+                            // value in the ui_controller.
+                            ui_controller.lock().unwrap().set("program_num",
+                                                              state.config.program_num as u16,
+                                                              UNSET);
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
