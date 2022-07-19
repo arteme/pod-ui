@@ -93,11 +93,12 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         // config changed, update config & edit buffer
         state.config = config.unwrap();
         state.interface = init_module(state.config).unwrap();
-        state.ui_event_tx.send(UIEvent::NewEditBuffer);
 
         move_clone(&mut state.interface.edit_buffer, &state.edit_buffer, empty_edit_buffer);
         move_clone(&mut state.interface.dump, &state.dump, empty_dump);
         // TODO: channels!
+
+        state.ui_event_tx.send(UIEvent::NewEditBuffer);
     }
 
     if midi_in.is_none() || midi_out.is_none() {
