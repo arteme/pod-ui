@@ -335,7 +335,7 @@
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="pack-type">end</property>
                 <property name="position">0</property>
@@ -345,7 +345,6 @@
               <object class="GtkFrame">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
-                <property name="vexpand">True</property>
                 <property name="label-xalign">0</property>
                 <property name="shadow-type">etched-out</property>
                 <child>
@@ -373,7 +372,7 @@
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">1</property>
               </packing>
