@@ -256,7 +256,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         settings.set_interactive(true);
         settings.clear_message();
 
-        // update in/out port selection, channel
+        // update in/out port selection, channel, model
         {
             let state = state.lock().unwrap();
             populate_midi_combos(&settings,
@@ -264,6 +264,9 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
 
             let index = midi_channel_to_combo_index(state.midi_channel_num);
             settings.midi_channel_combo.set_active(index);
+
+            populate_model_combo(&settings,
+                                 Some(&state.config.name));
         }
 
         match settings.dialog.run() {
@@ -306,8 +309,6 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
     });
 
     populate_midi_channel_combo(&settings_);
-    populate_model_combo(&settings_,
-                         Some(&state_.lock().unwrap().config.name));
     wire_autodetect_button(&settings_);
     wire_test_button(&settings_);
 }

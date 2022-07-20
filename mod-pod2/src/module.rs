@@ -9,6 +9,7 @@ use pod_gtk::gtk::{Builder, Widget};
 
 use crate::wiring::*;
 use crate::config;
+use crate::config::PODPRO_CONFIG;
 
 pub struct Pod2Module;
 
@@ -80,7 +81,7 @@ impl Interface for Pod2Interface {
         let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
-        let digiout_enable = self.config.member == 0x0400;
+        let digiout_enable = self.config.member == PODPRO_CONFIG.member;
         controller.set_full("digiout_show", digiout_enable as u16, MIDI, Signal::Force);
 
         Ok(())
