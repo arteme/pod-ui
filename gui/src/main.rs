@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
+use arc_swap::ArcSwap;
 use maplit::*;
 use crate::settings::*;
 
@@ -54,8 +55,8 @@ pub struct State {
     pub midi_channel_num: u8,
     pub config: &'static Config,
     pub interface: InitializedInterface,
-    pub edit_buffer: Arc<Mutex<EditBuffer>>,
-    pub dump: Arc<Mutex<ProgramsDump>>
+    pub edit_buffer: Arc<ArcSwap<Mutex<EditBuffer>>>,
+    pub dump: Arc<ArcSwap<Mutex<ProgramsDump>>>
 }
 
 use pod_core::model::SwitchControl;
@@ -94,8 +95,10 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.config = config.unwrap();
         state.interface = init_module(state.config).unwrap();
 
-        move_clone(&mut state.interface.edit_buffer, &state.edit_buffer, empty_edit_buffer);
-        move_clone(&mut state.interface.dump, &state.dump, empty_dump);
+        state.edit_buffer.store(state.interface.edit_buffer.clone());
+        state.dump.store(state.interface.dump.clone());
+
+        info!("Installing config {:?}", &state.config.name);
         // TODO: channels!
 
         state.ui_event_tx.send(UIEvent::NewEditBuffer);
@@ -336,8 +339,8 @@ async fn main() -> Result<()> {
         midi_channel_num: 0,
         config: &EMPTY_CONFIG,
         interface: interface,
-        edit_buffer: empty_edit_buffer_arc(),
-        dump: empty_dump_arc()
+        edit_buffer:  Arc::new(ArcSwap::from(empty_edit_buffer_arc())),
+        dump: Arc::new(ArcSwap::from(empty_dump_arc()))
     }));
     let (edit_buffer, dump) = {
         let state = state.lock().unwrap();
@@ -475,6 +478,8 @@ async fn main() -> Result<()> {
                 }
             };
             let make_dump = |program: Program| {
+                let edit_buffer = edit_buffer.load();
+                let dump = dump.load();
                 let mut edit_buffer = edit_buffer.lock().unwrap();
                 let mut dump = dump.lock().unwrap();
                 let ui_controller = ui_controller.lock().unwrap();
@@ -487,6 +492,7 @@ async fn main() -> Result<()> {
 
             loop {
                 if rx.is_none() {
+                    let edit_buffer = edit_buffer.load();
                     let edit_buffer = edit_buffer.lock().unwrap();
                     rx = Some(edit_buffer.subscribe());
                 }
@@ -495,7 +501,7 @@ async fn main() -> Result<()> {
                 let mut origin: u8 = UNSET;
                 tokio::select! {
                   Ok(Event { key: name, origin: o, .. }) = rx.as_mut().unwrap().recv() => {
-                        message = make_cc(&name, &edit_buffer.lock().unwrap().controller_locked());
+                        message = make_cc(&name, &edit_buffer.load().lock().unwrap().controller_locked());
                         origin = o;
                     }
                   Ok(Event { key, origin: o, .. }) = ui_rx.recv() => {
@@ -522,13 +528,15 @@ async fn main() -> Result<()> {
                     Some(MidiMessage::ControlChange { ..}) => {
                         // CC from GUI layer -> set modified flag
                         set_current_program_modified(
-                            &mut edit_buffer.lock().unwrap(),
+                            &mut edit_buffer.load().lock().unwrap(),
                             &ui_controller.lock().unwrap(),
                             &ui_event_tx
                         );
                         false
                     }
                     Some(MidiMessage::ProgramChange { program, .. }) => {
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let mut ui_controller = ui_controller.lock().unwrap();
@@ -578,6 +586,7 @@ async fn main() -> Result<()> {
                             // Ignore midi messages sent to a different channel
                             continue;
                         }
+                        let edit_buffer = edit_buffer.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
 
                         let control = config.cc_to_control(cc);
@@ -603,6 +612,8 @@ async fn main() -> Result<()> {
                             // Ignore midi messages sent to a different channel
                             continue;
                         }
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let mut ui_controller = ui_controller.lock().unwrap();
@@ -621,9 +632,11 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         program::load_patch_dump_ctrl(
-                            &mut edit_buffer.lock().unwrap(), data.as_slice(), MIDI);
+                            &mut edit_buffer.load().lock().unwrap(), data.as_slice(), MIDI);
                     },
                     MidiMessage::ProgramEditBufferDumpRequest => {
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let ui_controller = ui_controller.lock().unwrap();
@@ -642,6 +655,8 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let current = ui_controller.get("program").unwrap();
@@ -654,6 +669,8 @@ async fn main() -> Result<()> {
                         ui_event_tx.send(UIEvent::Modified(patch as usize, false));
                     },
                     MidiMessage::ProgramPatchDumpRequest { patch } => {
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let ui_controller = ui_controller.lock().unwrap();
@@ -672,6 +689,8 @@ async fn main() -> Result<()> {
                                   (config.program_size * config.program_num), data.len());
                             continue;
                         }
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         program::load_all_dump(
@@ -688,6 +707,8 @@ async fn main() -> Result<()> {
                         }
                     },
                     MidiMessage::AllProgramsDumpRequest => {
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let ui_controller = ui_controller.lock().unwrap();
@@ -743,6 +764,9 @@ async fn main() -> Result<()> {
 
         glib::idle_add_local(move || {
             if rx.is_none() {
+                let edit_buffer = edit_buffer.load();
+                let dump = dump.load();
+
                 let edit_buffer = edit_buffer.lock().unwrap();
                 rx = Some(edit_buffer.subscribe());
 
@@ -764,6 +788,7 @@ async fn main() -> Result<()> {
                             cb()
                         }
                     }
+                    let edit_buffer = edit_buffer.load();
                     let edit_buffer = edit_buffer.lock().unwrap();
                     animate(&objects, &name, edit_buffer.get(&name).unwrap());
                 },
@@ -890,7 +915,7 @@ async fn main() -> Result<()> {
             match names_rx.as_mut().unwrap().try_recv() {
                 Ok(Event { key: idx, .. }) => {
                     processed = true;
-                    let name = dump.lock().unwrap().name(idx).unwrap_or_default();
+                    let name = dump.load().lock().unwrap().name(idx).unwrap_or_default();
                     // program button index is 1-based
                     if let Some(button) = program_buttons.get(idx + 1) {
                         button.set_name_label(&name);
