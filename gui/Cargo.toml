@@ -6,7 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-clap = { version = "=3.0.6", features = ["derive"] }
+clap = { version = "=3.2.14", features = ["derive"] }
 simple_logger = "=1.6.0"
 sentry = "0.24.3"
 arc-swap = "1.5.0"
