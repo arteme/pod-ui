@@ -28,6 +28,7 @@ use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 use arc_swap::ArcSwap;
+use clap::{Args, Command, FromArgMatches};
 use maplit::*;
 use crate::settings::*;
 
@@ -304,14 +305,25 @@ use crate::registry::{init_module, InitializedInterface, register_module};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let version = env!("GIT_VERSION");
     let _guard = sentry::init((option_env!("SENTRY_DSN"), sentry::ClientOptions {
-        release: Some(env!("GIT_VERSION").into()),
+        release: Some(version.into()),
         ..Default::default()
     }));
     let sentry_enabled = _guard.is_enabled();
     simple_logger::init()?;
 
-    let opts: Opts = Opts::parse();
+    register_module(pod_mod_pod2::module());
+
+    let help_text = generate_help_text()?;
+    let cli = Command::new("Pod UI")
+        .version(version)
+        .after_help(&*help_text)
+        .after_long_help(&*help_text);
+
+    let cli = Opts::augment_args(cli);
+    let opts: Opts = Opts::from_arg_matches(&cli.get_matches())?;
+    drop(help_text);
 
     let (midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
     let (midi_out_tx, midi_out_rx) = broadcast::channel::<MidiMessage>(16);
@@ -320,7 +332,6 @@ async fn main() -> Result<()> {
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
-    register_module(pod_mod_pod2::module());
     // From the start, chose the first registered config (POD 2.0)
     // and initialize it's interface. Later auto-detection may override
     // this and initialize a different interface to replace this one...
@@ -387,7 +398,7 @@ async fn main() -> Result<()> {
     pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut ui_callbacks)?;
     let mut program_buttons = ProgramButtons::new(&ui_objects);
 
-    let title = format!("POD UI {}", env!("GIT_VERSION"));
+    let title = format!("POD UI {}", version);
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
