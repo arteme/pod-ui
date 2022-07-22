@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::sync::{Arc, Mutex};
 use pod_core::pod::*;
 use crate::{gtk, set_midi_in_out, State};
@@ -265,8 +266,9 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
             let index = midi_channel_to_combo_index(state.midi_channel_num);
             settings.midi_channel_combo.set_active(index);
 
+            let config = state.config.read().unwrap();
             populate_model_combo(&settings,
-                                 Some(&state.config.name));
+                                 Some(&config.name));
         }
 
         match settings.dialog.run() {

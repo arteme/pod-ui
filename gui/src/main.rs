@@ -11,10 +11,10 @@ use anyhow::*;
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
 use pod_core::pod::*;
-use pod_core::controller::{Controller, ControllerStoreExt};
+use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use pod_core::model::{AbstractControl, Button, Config, Control};
 use pod_core::config::{configs, GUI, MIDI, UNSET};
 use crate::opts::*;
@@ -23,15 +23,16 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
 use pod_core::store::{Event, Store};
 use core::result::Result::Ok;
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
 use std::time::Duration;
 use arc_swap::ArcSwap;
 use maplit::*;
 use crate::settings::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum UIEvent {
     NewMidiConnection,
     NewEditBuffer,
@@ -53,7 +54,7 @@ pub struct State {
     pub ui_event_tx: broadcast::Sender<UIEvent>,
 
     pub midi_channel_num: u8,
-    pub config: &'static Config,
+    pub config: Arc<RwLock<&'static Config>>,
     pub interface: InitializedInterface,
     pub edit_buffer: Arc<ArcSwap<Mutex<EditBuffer>>>,
     pub dump: Arc<ArcSwap<Mutex<ProgramsDump>>>
@@ -75,30 +76,29 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
 });
 
 
-fn init_all(config: &Config, controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> () {
-    for name in &config.init_controls {
-        animate(objs, &name, controller.get(&name).unwrap());
-    }
-}
-
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
                        midi_channel: u8, config: Option<&'static Config>) {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
-    let config_changed = match (config, state.config) {
+    let config_changed = match (config, *state.config.read().unwrap()) {
         (Some(a), b) => { *a != *b }
         _ => { false }
     };
     if config_changed {
         // config changed, update config & edit buffer
-        state.config = config.unwrap();
-        state.interface = init_module(state.config).unwrap();
+        let config = config.unwrap();
+        {
+            let mut c = state.config.write().unwrap();
+            *c = config;
+        }
+
+        state.interface = init_module(config).unwrap();
 
         state.edit_buffer.store(state.interface.edit_buffer.clone());
         state.dump.store(state.interface.dump.clone());
 
-        info!("Installing config {:?}", &state.config.name);
+        info!("Installing config {:?}", &config.name);
         // TODO: channels!
 
         state.ui_event_tx.send(UIEvent::NewEditBuffer);
@@ -298,13 +298,10 @@ use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
-use crate::empty::{empty_dump, empty_dump_arc, empty_edit_buffer, empty_edit_buffer_arc};
+use crate::empty::{EMPTY_CONFIG, empty_dump_arc, empty_edit_buffer_arc};
 use crate::panic::wire_panic_indicator;
 use crate::program_button::ProgramButtons;
 use crate::registry::{init_module, InitializedInterface, register_module};
-use crate::util::move_clone;
-
-static EMPTY_CONFIG: Lazy<Config> = Lazy::new(|| Config::empty());
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -325,8 +322,10 @@ async fn main() -> Result<()> {
         .with_context(|| "Failed to initialize GTK")?;
 
     register_module(pod_mod_pod2::module());
-    let config = configs().iter().next().unwrap();
-    let interface = init_module(config)?;
+    // From the start, chose the first registered config (POD 2.0)
+    // and initialize it's interface. Later auto-detection may override
+    // this and initialize a different interface to replace this one...
+    let interface = init_module(configs().get(0).unwrap())?;
 
     let state = Arc::new(Mutex::new(State {
         midi_in_name: None,
@@ -337,14 +336,14 @@ async fn main() -> Result<()> {
         midi_out_tx,
         ui_event_tx,
         midi_channel_num: 0,
-        config: &EMPTY_CONFIG,
-        interface: interface,
-        edit_buffer:  Arc::new(ArcSwap::from(empty_edit_buffer_arc())),
+        config: Arc::new(RwLock::new(&EMPTY_CONFIG)),
+        interface,
+        edit_buffer: Arc::new(ArcSwap::from(empty_edit_buffer_arc())),
         dump: Arc::new(ArcSwap::from(empty_dump_arc()))
     }));
-    let (edit_buffer, dump) = {
+    let (edit_buffer, dump, config) = {
         let state = state.lock().unwrap();
-        (state.edit_buffer.clone(), state.dump.clone())
+        (state.edit_buffer.clone(), state.dump.clone(), state.config.clone())
     };
 
     // autodetect/open midi
@@ -406,7 +405,10 @@ async fn main() -> Result<()> {
     wire_settings_dialog(state.clone(), &ui);
     wire_panic_indicator(state.clone());
 
-    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, Some(&config));
+    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, detected_config);
+    // No new edit buffer / interface may have been initialized above,
+    // but make sure the initial interface gets connected to the UI
+    state.lock().unwrap().ui_event_tx.send(UIEvent::NewEditBuffer)?;
 
     let css = gtk::CssProvider::new();
     gtk::StyleContext::add_provider_for_screen(
@@ -579,6 +581,7 @@ async fn main() -> Result<()> {
                 }
                 let msg = msg.unwrap();
                 trace!("<< {:?}", msg);
+                let config = *config.read().unwrap();
                 match msg {
                     MidiMessage::ControlChange { channel, control: cc, value } => {
                         let expected_channel = midi_channel_num.load(Ordering::Relaxed);
@@ -883,7 +886,7 @@ async fn main() -> Result<()> {
                             // switching the module, we need to initialize the "program_num"
                             // value in the ui_controller.
                             ui_controller.lock().unwrap().set("program_num",
-                                                              state.config.program_num as u16,
+                                                              state.config.read().unwrap().program_num as u16,
                                                               UNSET);
                         }
                         UIEvent::Modified(page, modified) => {
