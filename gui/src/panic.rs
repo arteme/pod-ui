@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use pod_gtk::ObjectList;
 use crate::{State, UIEvent};
 
 pub fn wire_panic_indicator(state: Arc<Mutex<State>>) {

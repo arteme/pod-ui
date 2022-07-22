@@ -23,10 +23,9 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
 use pod_core::store::{Event, Store};
 use core::result::Result::Ok;
-use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 use arc_swap::ArcSwap;
 use maplit::*;
@@ -315,7 +314,7 @@ async fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
 
     let (midi_in_tx, mut midi_in_rx) = mpsc::unbounded_channel::<MidiMessage>();
-    let (midi_out_tx, mut midi_out_rx) = broadcast::channel::<MidiMessage>(16);
+    let (midi_out_tx, midi_out_rx) = broadcast::channel::<MidiMessage>(16);
     let (ui_event_tx, mut ui_event_rx) = broadcast::channel(128);
 
     gtk::init()
@@ -351,7 +350,7 @@ async fn main() -> Result<()> {
         (None, None) => true,
         _ => false
     };
-    let (mut midi_in, mut midi_out, midi_channel, detected_config) =
+    let (midi_in, midi_out, midi_channel, detected_config) =
         if autodetect {
             match pod_core::pod::autodetect().await {
                 Ok((midi_in, midi_out, channel, config)) => {
@@ -363,7 +362,7 @@ async fn main() -> Result<()> {
                 }
             }
         } else {
-            let mut midi_in =
+            let midi_in =
                 opts.input.map(MidiIn::new_for_address).invert()?;
             let midi_out =
                 opts.output.map(MidiOut::new_for_address).invert()?;

@@ -76,7 +76,7 @@ impl ProgramButtons {
                     let button = obj.dynamic_cast_ref::<gtk::RadioButton>().unwrap();
                     let label = button.label();
 
-                    let mut p = ProgramButton::new();
+                    let p = ProgramButton::new();
                     p.set_id_label(label.unwrap_or(glib::GString::from("")).as_ref());
                     p.set_name_label("");
 

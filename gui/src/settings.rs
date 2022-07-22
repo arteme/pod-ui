@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::sync::{Arc, Mutex};
 use pod_core::pod::*;
 use crate::{gtk, set_midi_in_out, State};
@@ -219,13 +218,14 @@ fn wire_test_button(settings: &SettingsDialog) {
         glib::idle_add_local(move || {
             let cont = match test.poll() {
                 None => { true }
-                Some(Ok((in_, out_, channel_))) => {
+                Some(Ok((in_, out_, _))) => {
                     let msg = format!("Test successful!");
                     settings.set_message("dialog-ok", &msg);
                     settings.set_interactive(true);
                     spinner.stop();
 
                     // update in/out port selection
+                    // TODO: do we need to update the combo here at all?
                     populate_midi_combos(&settings,
                                          &Some(in_.name), &Some(out_.name));
                     false

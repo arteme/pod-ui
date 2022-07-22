@@ -51,8 +51,8 @@ pub fn init_module(config: &'static Config) -> anyhow::Result<InitializedInterfa
     let widget = interface.widget();
     let objects = interface.objects();
 
-    interface.wire(edit_buffer.clone(), &mut callbacks);
-    interface.init(edit_buffer.clone());
+    interface.wire(edit_buffer.clone(), &mut callbacks)?;
+    interface.init(edit_buffer.clone())?;
 
     // TODO: `init_controls` below only get an animate() call, while `module.init()`
     //       sets 0 to the controller. We can unify all init as setting 0 to the controller

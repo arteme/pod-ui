@@ -4,7 +4,6 @@ use crate::model::{AbstractControl, Config, Control};
 use crate::store::{Event, Signal, Store, StoreSetIm};
 use log::*;
 use tokio::sync::broadcast;
-use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
 use crate::str_encoder::StrEncoder;
 
