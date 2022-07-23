@@ -361,25 +361,34 @@ async fn main() -> Result<()> {
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
-    // From the start, chose the first registered config (POD 2.0)
-    // and initialize it's interface. Later auto-detection may override
-    // this and initialize a different interface to replace this one...
-    let interface = init_module(configs().get(0).unwrap())?;
+    let state = {
+        // From the start, chose the first registered config (POD 2.0)
+        // and initialize it's interface. Later auto-detection may override
+        // this and initialize a different interface to replace this one...
 
-    let state = Arc::new(Mutex::new(State {
-        midi_in_name: None,
-        midi_in_cancel: None,
-        midi_out_name: None,
-        midi_out_cancel: None,
-        midi_in_tx,
-        midi_out_tx,
-        ui_event_tx,
-        midi_channel_num: 0,
-        config: Arc::new(RwLock::new(&EMPTY_CONFIG)),
-        interface,
-        edit_buffer: Arc::new(ArcSwap::from(empty_edit_buffer_arc())),
-        dump: Arc::new(ArcSwap::from(empty_dump_arc()))
-    }));
+        // TODO: how can we defer the config/interface setting so that we don't need
+        //       to provide bogus (empty) configs and don't need to dissect interface
+        //       by hand?
+        let config = configs().get(0).unwrap();
+        let interface = init_module(config)?;
+        let edit_buffer = interface.edit_buffer.clone();
+        let dump = interface.dump.clone();
+
+        Arc::new(Mutex::new(State {
+            midi_in_name: None,
+            midi_in_cancel: None,
+            midi_out_name: None,
+            midi_out_cancel: None,
+            midi_in_tx,
+            midi_out_tx,
+            ui_event_tx,
+            midi_channel_num: 0,
+            config: Arc::new(RwLock::new(config)),
+            interface,
+            edit_buffer: Arc::new(ArcSwap::from(edit_buffer)),
+            dump: Arc::new(ArcSwap::from(dump))
+        }))
+    };
     let (edit_buffer, dump, config) = {
         let state = state.lock().unwrap();
         (state.edit_buffer.clone(), state.dump.clone(), state.config.clone())
