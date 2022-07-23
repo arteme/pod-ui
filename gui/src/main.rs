@@ -303,6 +303,35 @@ use crate::panic::wire_panic_indicator;
 use crate::program_button::ProgramButtons;
 use crate::registry::{init_module, InitializedInterface, register_module};
 
+
+fn config_for_str(config_str: &str) -> Result<&'static Config> {
+    use std::str::FromStr;
+    use regex::Regex;
+
+    let n_re = Regex::new(r"\d+").unwrap();
+
+    let mut found = None;
+    if n_re.is_match(&config_str) {
+        let index = usize::from_str(&config_str)
+            .with_context(|| format!("Unrecognized config index {:?}", config_str))?;
+        let config = configs().get(index)
+            .with_context(|| format!("Config with index {} not found!", index))?;
+        found = Some(config);
+    } else {
+        for c in configs().iter() {
+            if c.name.eq_ignore_ascii_case(&config_str) {
+                found = Some(c);
+                break;
+            }
+        }
+        if found.is_none() {
+            bail!("Config with name {:?} not found!", config_str);
+        }
+    }
+
+    Ok(found.unwrap())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let version = env!("GIT_VERSION");
@@ -378,9 +407,10 @@ async fn main() -> Result<()> {
             let midi_out =
                 opts.output.map(MidiOut::new_for_address).invert()?;
             let midi_channel = opts.channel.unwrap_or(0);
+            let config =
+                opts.model.map(|str| config_for_str(&str)).invert()?;
 
-            // TODO: specify config on the command line
-            (midi_in, midi_out, midi_channel, None)
+            (midi_in, midi_out, midi_channel, config)
         };
 
     // moving this to below the panic handler so that early crashed

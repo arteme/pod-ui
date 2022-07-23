@@ -17,6 +17,7 @@ once_cell = "*" # defined in mod-pod2
 maplit = "*" # -"-
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core
+regex = "*" # defined in pod-core
 anyhow = "*" # defined in pod-code
 futures = "*" # defined in pod-code
 futures-util = "*" # defined in pod-code
