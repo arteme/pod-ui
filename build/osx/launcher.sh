@@ -3,6 +3,7 @@
 dir=$(dirname "$0")
 cd "$dir"
 
+dir=$(pwd)
 base="$dir/.."
 res="$base/Resources"
 
