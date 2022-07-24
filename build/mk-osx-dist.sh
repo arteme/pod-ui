@@ -30,6 +30,7 @@ cat >$C/Info.plist <<EOF
   CFBundleSignatue = pdui;
   CFBundleExecutable = launcher.sh;
   CFBundleIconFile = pod-ui.icns;
+  NSHighResolutionCapable = Yes;
 }
 EOF
 
