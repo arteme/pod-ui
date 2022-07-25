@@ -35,7 +35,7 @@ INDEX_SAVE_AS = 'blog.html'
 
 # config for the Flex theme
 SITETITLE = 'pod-ui'
-SITESUBTITLE = 'A modern cross-platform UI for controlling Line 6 POD 2.0 modelling amp via MIDI'
+SITESUBTITLE = 'A modern cross-platform UI for controlling Line 6 POD family of modelling amp via MIDI'
 
 SITELOGO = 'https://arteme.github.io/pod-ui/images/icon-small.png'
 
