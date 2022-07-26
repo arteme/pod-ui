@@ -3,10 +3,12 @@ use maplit::*;
 use once_cell::sync::Lazy;
 use pod_core::model::*;
 
+#[macro_export]
 macro_rules! def {
     () => (::std::default::Default::default());
 }
 
+#[macro_export]
 macro_rules! amps {
     (@amp $name:tt + p + b + d2) => (Amp { name: ($name).into(), bright_switch: true, presence: true, delay2: false });
     (@amp $name:tt + p + b)      => (Amp { name: ($name).into(), bright_switch: true, presence: true, ..def!() });
@@ -57,10 +59,12 @@ macro_rules! fmt_percent {
     () => ( Format::Callback(RangeControl::fmt_percent) );
 }
 
+#[macro_export]
 macro_rules! short {
     ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to } );
     () => ( short!(0, 63) );
 }
+#[macro_export]
 macro_rules! long {
     ( $from:expr, $to:expr ) => ( RangeConfig::Long { from: $from, to: $to } )
 }

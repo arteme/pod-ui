@@ -1,0 +1,16 @@
+[package]
+name = "pod-mod-pocket"
+version = "0.5.0"
+authors = ["Artem Egorkine <arteme@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+once_cell = "*" # defined in pod-mod-pod2
+maplit = "*" # defined in pod-mod-pod2
+log = "*" # defined in pod-core
+tokio = "*" # defined in pod-core
+anyhow = "*" # defined in pod-code
+
+pod-core = { path = "../core" }
+pod-gtk = { path = "../gtk" }
+pod-mod-pod2 = { path = "../mod-pod2" }

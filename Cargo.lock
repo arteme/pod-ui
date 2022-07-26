@@ -1320,6 +1320,7 @@ dependencies = [
  "pin-project",
  "pod-core",
  "pod-gtk",
+ "pod-mod-pocket",
  "pod-mod-pod2",
  "regex",
  "result",
@@ -1327,6 +1328,20 @@ dependencies = [
  "simple_logger",
  "tokio",
  "winres",
+]
+
+[[package]]
+name = "pod-mod-pocket"
+version = "0.5.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "maplit",
+ "once_cell",
+ "pod-core",
+ "pod-gtk",
+ "pod-mod-pod2",
+ "tokio",
 ]
 
 [[package]]

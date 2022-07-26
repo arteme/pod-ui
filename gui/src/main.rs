@@ -343,6 +343,7 @@ async fn main() -> Result<()> {
     simple_logger::init()?;
 
     register_module(pod_mod_pod2::module());
+    register_module(pod_mod_pocket::module());
 
     let help_text = generate_help_text()?;
     let cli = Command::new("Pod UI")
