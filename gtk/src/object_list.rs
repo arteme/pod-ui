@@ -35,8 +35,7 @@ impl ObjectList {
     }
 
     pub fn object_name<T: ObjectType>(obj: &T) -> Option<String> {
-        obj.property("name")
-            .map(|p| p.get::<String>().unwrap())
+        obj.try_property::<String>("name")
             .ok()
             .filter(|v| !v.is_empty())
     }

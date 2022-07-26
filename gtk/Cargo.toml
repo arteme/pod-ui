@@ -5,9 +5,9 @@ authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-glib = "0.14.8"
-gdk = "0.14.3"
-gtk = { version = "0.14.3" } # gtk 3.18
+glib = "0.15.10"
+gdk = "0.15.4"
+gtk = { version = "0.15.5", features = ["v3_24"] }
 multimap = "=0.8.3"
 
 pin-project = "=0.4.29" # needed to get glib dep to comile :(
