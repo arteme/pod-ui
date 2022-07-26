@@ -36,4 +36,4 @@ $LINUXDEPLOY --appdir ../$DIR --output appimage
 popd
 
 echo "!!! $DIR"
-ls -sh "target/*.AppImage" | grep "$V"
+ls -sh target/*.AppImage | grep "$V"
