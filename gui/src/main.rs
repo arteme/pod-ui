@@ -31,6 +31,7 @@ use arc_swap::ArcSwap;
 use clap::{Args, Command, FromArgMatches};
 use maplit::*;
 use crate::settings::*;
+use crate::program_button::ProgramButtonExt;
 
 #[derive(Clone, Debug)]
 pub enum UIEvent {
@@ -984,7 +985,7 @@ async fn main() -> Result<()> {
                     let name = dump.load().lock().unwrap().name(idx).unwrap_or_default();
                     // program button index is 1-based
                     if let Some(button) = program_buttons.get(idx + 1) {
-                        button.set_name_label(&name);
+                        button.set_program_name(&name);
                     }
                 },
                 _ => {}
