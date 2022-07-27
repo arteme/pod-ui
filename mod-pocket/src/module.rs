@@ -6,6 +6,7 @@ use pod_core::store::{Signal, StoreSetIm};
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
 use pod_gtk::gtk::{Builder, Widget};
+use pod_mod_pod2::wiring::*;
 
 use crate::config;
 
@@ -17,7 +18,7 @@ impl Module for PocketPodModule {
     }
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {
-        todo!()
+        Box::new(PocketPodInterface::new(config))
     }
 }
 
@@ -49,44 +50,40 @@ impl Interface for PocketPodInterface {
         self.objects.clone()
     }
 
-    fn wire(&self, edit_buffer: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
-        //todo!()
-        Ok(())
-    }
-
-    fn init(&self, edit_buffer: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
-        //todo!()
-        Ok(())
-    }
-}
-
-/*
-impl Module for PocketPodModule {
-    fn config(&self) -> Config {
-        CONFIG.clone()
-    }
-
-    fn widget(&self) -> Widget {
-        self.widget.clone()
-    }
-
-    fn objects(&self) -> ObjectList {
-        self.objects.clone()
-    }
-
     fn wire(&self, edit: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
-        let config = &*CONFIG;
-        wire(config, &self.objects, edit, callbacks)
+        let config = self.config;
+        let controller = edit.lock().unwrap().controller();
+        {
+            let controller = controller.lock().unwrap();
+
+            init_combo(&controller, &self.objects,
+                       "cab_select", &config.cab_models, |s| s.as_str() )?;
+            init_combo(&controller, &self.objects,
+                       "amp_select", &config.amp_models, |amp| amp.name.as_str() )?;
+            init_combo(&controller, &self.objects,
+                       "effect_select", &config.effects, |eff| eff.name.as_str() )?;
+        }
+
+        wire(controller.clone(), &self.objects, callbacks)?;
+
+        wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
+        wire_amp_select(controller.clone(), config, &self.objects, callbacks)?;
+        wire_effect_select(config, controller, callbacks)?;
+        wire_name_change(edit, config, &self.objects, callbacks)?;
+        //todo!()
+        Ok(())
     }
 
     fn init(&self, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
         let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
+        // while we use POD 2.0/Pro interface disable "digiout"
+        controller.set_full("digiout_show", 0u16, MIDI, Signal::Force);
+
         Ok(())
     }
 }
-*/
 
 pub fn module() -> impl Module {
     PocketPodModule
