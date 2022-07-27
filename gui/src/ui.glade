@@ -62,7 +62,7 @@
             <child>
               <object class="GtkRadioButton">
                 <property name="label" translatable="yes">Tuner</property>
-                <property name="name">program:37</property>
+                <property name="name">program:999</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">False</property>

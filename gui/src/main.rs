@@ -15,7 +15,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex, RwLock};
-use pod_core::model::{AbstractControl, Button, Config, Control};
+use pod_core::model::{AbstractControl, Button, Config, Control, VirtualSelect};
 use pod_core::config::{configs, GUI, MIDI, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
@@ -64,9 +64,9 @@ pub struct State {
 use pod_core::model::SwitchControl;
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     convert_args!(hashmap!(
-        "program" => SwitchControl::default(),
-        "program:prev" => SwitchControl::default(),
-        "program_num" => SwitchControl::default(),
+        "program" => VirtualSelect::default(),
+        "program:prev" => VirtualSelect::default(),
+        "program_num" => VirtualSelect::default(),
         "load_button" => Button::default(),
         "load_patch_button" => Button::default(),
         "load_all_button" => Button::default(),
@@ -192,7 +192,9 @@ fn program_change(dump: &mut ProgramsDump, edit_buffer: &mut EditBuffer,
         dump.set_modified(prev_page, edit_buffer.modified());
     }
 
-    let program = program as usize;
+    // program == config.program_num is converted to 999, which is s special id for "tuner"
+    let program_num = ui_controller.get("program_num").unwrap() as u8;
+    let program = if program == (program_num + 1) { 999 } else { program as usize };
     let mut modified = false;
     if program_range.contains(&program) {
         // load program dump into the edit buffer
@@ -511,7 +513,12 @@ async fn main() -> Result<()> {
                 let channel = midi_channel_num.load(Ordering::Relaxed);
                 let channel = if channel == Channel::all() { 0 } else { channel };
                 let ui_controller = ui_controller.lock().unwrap();
-                let v = ui_controller.get(&"program").unwrap();
+                let mut v = ui_controller.get(&"program").unwrap();
+                // program = 999 is a special case for "tuner", which is "config.program_num + 1"
+                if v == 999 {
+                    let program_num = ui_controller.get(&"program_num").unwrap();
+                    v = program_num + 1;
+                }
                 Some(MidiMessage::ProgramChange { channel, program: v as u8 })
             };
             let make_dump_request = |program: Program| {

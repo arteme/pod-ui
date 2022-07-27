@@ -229,7 +229,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                     Some(())
                                 })
                                 .or_else( || {
-                                    error!("GtkRadioButton not found with name '{}'", name);
+                                    error!("GtkRadioButton not found with name '{}'", item_name);
                                     None
                                 });
                         })
