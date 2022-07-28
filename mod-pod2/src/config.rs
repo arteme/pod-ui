@@ -11,6 +11,7 @@ macro_rules! def {
 #[macro_export]
 macro_rules! amps {
     (@amp $name:tt + p + b + d2) => (Amp { name: ($name).into(), bright_switch: true, presence: true, delay2: false });
+    (@amp $name:tt + b + d2)     => (Amp { name: ($name).into(), bright_switch: true, delay2: false, ..def!() });
     (@amp $name:tt + p + b)      => (Amp { name: ($name).into(), bright_switch: true, presence: true, ..def!() });
     (@amp $name:tt + p)          => (Amp { name: ($name).into(), presence: true, ..def!() });
     (@amp $name:tt + b)          => (Amp { name: ($name).into(), bright_switch: true, ..def!() });
@@ -121,6 +122,7 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
 
         program_size: 71,
         program_num: 36,
+        manual: true,
 
         amp_models: amps!(
            "Tube Preamp" +p,

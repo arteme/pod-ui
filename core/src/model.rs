@@ -11,6 +11,9 @@ pub struct Config {
     pub program_size: usize,
     pub program_num: usize,
 
+    /// if the device supports "manual mode", PC 0
+    pub manual: bool,
+
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
     pub effects: Vec<Effect>,
@@ -341,6 +344,7 @@ impl Config {
             member: 0,
             program_size: 0,
             program_num: 0,
+            manual: true,
             amp_models: vec![],
             cab_models: vec![],
             effects: vec![],
