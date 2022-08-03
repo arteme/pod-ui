@@ -968,10 +968,9 @@ async fn main() -> Result<()> {
                             g.show_all();
 
                             // join the main program radio group
-                            let r = ui.object::<gtk::RadioButton>("program:0").unwrap();
+                            let r = ui.object::<gtk::RadioButton>("program").unwrap();
                             g.join_radio_group(Some(&r));
-
-
+                            r.emit_by_name::<()>("group-changed", &[]);
 
                             /*
                             // make a size group

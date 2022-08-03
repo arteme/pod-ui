@@ -4,15 +4,34 @@ use glib::Object;
 use gtk::{Builder, Widget};
 use std::iter::Iterator;
 use std::ops::Add;
-use std::option::IntoIter;
 
 pub struct ObjectList {
     objects: Vec<Object>
 }
 
 impl ObjectList {
+    /// Create a new object list from a Builder instance
     pub fn new(builder: &Builder) -> Self {
         ObjectList { objects: builder.objects() }
+    }
+
+    pub fn from_widget<T: IsA<Widget>>(widget: &T) -> Self {
+        let mut widgets = vec![ widget.clone().upcast::<Widget>() ];
+        let mut i = 0;
+        while i < widgets.len() {
+            if let Some(c) = &widgets[i].dynamic_cast_ref::<gtk::Container>() {
+                widgets.append(&mut c.children());
+            }
+            i += 1;
+        }
+
+        let objects = widgets.into_iter()
+            .flat_map(|w| w.dynamic_cast::<Object>().ok() )
+            .collect::<Vec<_>>();
+
+        Self {
+            objects
+        }
     }
 
     pub fn obj_by_name(&self, name: &str) -> Result<Object> {
@@ -33,6 +52,11 @@ impl ObjectList {
     pub fn named_objects(&self) -> impl Iterator<Item=(&Object, String)> {
         self.objects.iter()
             .flat_map(|obj| ObjectList::object_name(obj).map(|name| (obj, name)))
+    }
+
+    pub fn objects_by_type<T: ObjectType>(&self) -> impl Iterator<Item=&T> {
+        self.objects.iter()
+            .filter_map(|w| w.dynamic_cast_ref::<T>())
     }
 
     pub fn object_name<T: ObjectType>(obj: &T) -> Option<String> {
@@ -109,62 +133,4 @@ impl Add<ObjectList> for ObjectList {
 
         out
     }
-}
-
-pub struct ObjectList2 {
-    widget: Widget
-}
-
-pub struct WidgetIterator {
-    widgets: Vec<Widget>
-}
-
-impl WidgetIterator {
-    fn new(widget: &Widget) -> Self {
-        Self {
-            widgets: vec![ widget.clone() ]
-        }
-    }
-}
-
-impl Iterator for WidgetIterator {
-    type Item = Widget;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(w) = self.widgets.pop() {
-            if let Some(c) = w.dynamic_cast_ref::<gtk::Container>() {
-                self.widgets.append(&mut c.children());
-            }
-
-            Some(w)
-        } else {
-            None
-        }
-    }
-}
-
-impl ObjectList2 {
-    pub fn new(widget: &Widget) -> Self {
-        Self {
-            widget: widget.clone()
-        }
-    }
-
-    pub fn objects(&self) -> impl Iterator<Item=Widget> {
-        WidgetIterator::new(&self.widget)
-    }
-
-    pub fn objects_by_type<T: ObjectType>(&self) -> impl Iterator<Item=T> {
-        self.objects().filter_map(|w| w.dynamic_cast::<T>().ok())
-    }
-
-    /*
-    pub fn named_objects(&self) -> impl Iterator<Item=(&Object, String)> {
-        self.objects().into_iter()
-            .flat_map(|w| {
-                let obj = w.dynamic_cast_ref::<glib::Object>().unwrap();
-                ObjectList::object_name(obj).map(|name| (obj, name))
-            })
-    }
-     */
 }
