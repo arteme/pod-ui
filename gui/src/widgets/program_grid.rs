@@ -5,9 +5,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use log::debug;
 use once_cell::sync::{Lazy, OnceCell};
-use pod_gtk::ObjectList2;
 use crate::glib::{ParamSpec, Value};
-use crate::glib::subclass::{InitializingObject, InitializingType, Signal};
 use crate::glib::value::FromValue;
 use crate::gtk::RadioButton;
 use crate::program_button::ProgramButton;
@@ -34,7 +32,6 @@ pub struct ProgramGridPriv {
     num_buttons: Cell<usize>,
     num_pages: Cell<usize>,
     is_open: Cell<bool>,
-    col_width: Cell<i32>,
     widgets: OnceCell<Widgets>
 }
 
@@ -44,6 +41,14 @@ impl ProgramGridPriv {
     fn set_num_buttons(&self, value: &usize) {
         self.num_buttons.set(*value);
         self.num_pages.set((*value + 31) / 32);
+    }
+
+    fn num_buttons(&self) -> usize {
+        self.num_buttons.get()
+    }
+
+    fn num_pages(&self) -> usize {
+        self.num_pages.get()
     }
 
     fn set_open(&self, value: bool) {
@@ -63,22 +68,6 @@ impl ProgramGridPriv {
 
     fn open(&self) -> bool {
         self.is_open.get()
-    }
-
-    fn set_col_width(&self, value: i32) {
-        self.col_width.set(value);
-
-        let w = self.instance();
-        let w = w.dynamic_cast_ref::<gtk::Widget>().unwrap();
-        let b = ObjectList2::new(w).objects_by_type::<gtk::Button>().next().unwrap();
-        glib::timeout_add_local_once(std::time::Duration::from_millis(10),
-                                     move || {
-                                         b.set_width_request(value)
-                                     });
-    }
-
-    fn col_width(&self) -> i32 {
-        self.col_width.get()
     }
 
     fn adj_value_changed(&self, adj: &gtk::Adjustment) {
@@ -159,9 +148,8 @@ impl ObjectSubclass for ProgramGridPriv {
     fn new() -> Self {
         Self {
             num_buttons: Cell::new(NUM_BUTTONS_DEFAULT),
-            num_pages: Cell::new(NUM_BUTTONS_DEFAULT),
+            num_pages: Cell::new(NUM_PAGES_DEFAULT),
             is_open: Cell::new(false),
-            col_width: Cell::new(0),
             widgets: OnceCell::new()
         }
     }
@@ -180,22 +168,21 @@ impl ObjectImpl for ProgramGridPriv {
                     NUM_BUTTONS_DEFAULT as u32,
                     glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY
                 ),
+                glib::ParamSpecUInt::new(
+                    "num-pages",
+                    "Number of pages",
+                    "Number of pages",
+                    1,
+                    10,
+                    NUM_PAGES_DEFAULT as u32,
+                    glib::ParamFlags::READABLE
+                ),
                 glib::ParamSpecBoolean::new(
                     "open",
                     "Expanded",
                     "Expanded",
                     false,
                     glib::ParamFlags::READWRITE
-                ),
-                glib::ParamSpecInt::new(
-                    "col-width",
-                    "Col width",
-                    "Col width",
-                    0,
-                    i32::MAX,
-                    0,
-                    glib::ParamFlags::READWRITE
-
                 ),
             ]
         });
@@ -212,7 +199,6 @@ impl ObjectImpl for ProgramGridPriv {
         }
         match pspec.name() {
             "open" => self.set_open(v(value)),
-            "col-width" => self.set_col_width(v(value)),
             "num-buttons" => self.set_num_buttons(&(v::<u32>(value) as usize)),
             _ => unimplemented!(),
         }
@@ -221,13 +207,13 @@ impl ObjectImpl for ProgramGridPriv {
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "open" => self.open().to_value(),
-            "col-width" => self.col_width().to_value(),
+            "num-buttons" => (self.num_buttons() as u32).to_value(),
+            "num-pages" => (self.num_pages() as u32).to_value(),
             _ => unimplemented!()
         }
     }
 
     fn constructed(&self, obj: &Self::Type) {
-        debug!("constructed");
         self.parent_constructed(obj);
 
         let p = ProgramGridPriv::from_instance(obj);
@@ -246,35 +232,9 @@ impl ObjectImpl for ProgramGridPriv {
             p.adj_value_changed(adj);
         }));
 
-        /*
-        sw.connect_size_allocate({
-            let grid = grid.clone();
-            let expanded = p.expanded.clone();
-            let col_width = p.col_width.clone();
-            move |w, s| {
-                //println!("size-allocate! {:?}", s);
-                if !expanded.get() {
-                    // not expanded, recompute col width
-
-                    let (width,height) = grid.size_request();
-                    let (width, epsilon) = (s.width() / 2, s.width() % 2);
-                    col_width.set(width);
-
-                    let width = width * 8 + epsilon;
-                    let grid = grid.clone();
-                    glib::timeout_add_local_once(std::time::Duration::from_millis(10),
-                                                 move || {
-                                                     grid.set_size_request(width, height);
-                                                     //grid.queue_resize();
-                                                 });
-                }
-            }
-        });
-        */
-
-        grid.connect_size_allocate(move |w, s| {
+        /*grid.connect_size_allocate(move |w, s| {
             println!("grid size-allocate! {:?}", s);
-        });
+        });*/
 
         let size_group = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
         let mut buttons = vec![];
@@ -368,16 +328,11 @@ impl ProgramGrid {
 }
 
 pub trait ProgramGridExt {
-    fn set_col_width(&self, value: i32);
     fn size_group(&self) -> gtk::SizeGroup;
     fn join_radio_group(&self, group: Option<&impl IsA<RadioButton>>);
 }
 
 impl ProgramGridExt for ProgramGrid {
-    fn set_col_width(&self, value: i32) {
-        self.set_property("col-width", value)
-    }
-
     fn size_group(&self) -> gtk::SizeGroup {
         let p = ProgramGridPriv::from_instance(self);
         p.widgets.get().unwrap().size_group.clone()
@@ -386,6 +341,5 @@ impl ProgramGridExt for ProgramGrid {
     fn join_radio_group(&self, group: Option<&impl IsA<RadioButton>>) {
         let p = ProgramGridPriv::from_instance(self);
         p.join_radio_group(group);
-
     }
 }
