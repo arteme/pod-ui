@@ -5,6 +5,8 @@ mod program_button;
 mod panic;
 mod registry;
 mod empty;
+mod widgets;
+
 
 use anyhow::*;
 
@@ -305,6 +307,7 @@ use crate::empty::{EMPTY_CONFIG, empty_dump_arc, empty_edit_buffer_arc};
 use crate::panic::wire_panic_indicator;
 use crate::program_button::ProgramButtons;
 use crate::registry::{init_module, InitializedInterface, register_module};
+use crate::widgets::program_grid::{ProgramGrid, ProgramGridExt};
 
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
@@ -959,6 +962,29 @@ async fn main() -> Result<()> {
                             ui_controller.lock().unwrap().set("program_num",
                                                               state.config.read().unwrap().program_num as u16,
                                                               UNSET);
+                            let b = ui.object::<gtk::Box>("program_grid_box").unwrap();
+                            let g = ProgramGrid::new(124);
+                            b.set_child(Some(&g));
+                            g.show_all();
+
+                            // join the main program radio group
+                            let r = ui.object::<gtk::RadioButton>("program:0").unwrap();
+                            g.join_radio_group(Some(&r));
+
+
+
+                            /*
+                            // make a size group
+                            let s = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
+                            let g = ui.object::<gtk::Widget>("program_grid").unwrap();
+
+                            let o = ObjectList2::new(&g);
+                            for w in o.objects_by_type::<gtk::Button>() {
+                                println!("-- {}", w.widget_name());
+                                s.add_widget(&w)
+                            }
+                             */
+
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based

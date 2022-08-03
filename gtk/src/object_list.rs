@@ -4,6 +4,7 @@ use glib::Object;
 use gtk::{Builder, Widget};
 use std::iter::Iterator;
 use std::ops::Add;
+use std::option::IntoIter;
 
 pub struct ObjectList {
     objects: Vec<Object>
@@ -108,4 +109,62 @@ impl Add<ObjectList> for ObjectList {
 
         out
     }
+}
+
+pub struct ObjectList2 {
+    widget: Widget
+}
+
+pub struct WidgetIterator {
+    widgets: Vec<Widget>
+}
+
+impl WidgetIterator {
+    fn new(widget: &Widget) -> Self {
+        Self {
+            widgets: vec![ widget.clone() ]
+        }
+    }
+}
+
+impl Iterator for WidgetIterator {
+    type Item = Widget;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(w) = self.widgets.pop() {
+            if let Some(c) = w.dynamic_cast_ref::<gtk::Container>() {
+                self.widgets.append(&mut c.children());
+            }
+
+            Some(w)
+        } else {
+            None
+        }
+    }
+}
+
+impl ObjectList2 {
+    pub fn new(widget: &Widget) -> Self {
+        Self {
+            widget: widget.clone()
+        }
+    }
+
+    pub fn objects(&self) -> impl Iterator<Item=Widget> {
+        WidgetIterator::new(&self.widget)
+    }
+
+    pub fn objects_by_type<T: ObjectType>(&self) -> impl Iterator<Item=T> {
+        self.objects().filter_map(|w| w.dynamic_cast::<T>().ok())
+    }
+
+    /*
+    pub fn named_objects(&self) -> impl Iterator<Item=(&Object, String)> {
+        self.objects().into_iter()
+            .flat_map(|w| {
+                let obj = w.dynamic_cast_ref::<glib::Object>().unwrap();
+                ObjectList::object_name(obj).map(|name| (obj, name))
+            })
+    }
+     */
 }
