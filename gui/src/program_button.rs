@@ -44,6 +44,9 @@ impl ProgramButtonPriv {
         obj.add(&widget);
         obj.set_halign(Align::Fill);
         obj.set_valign(Align::Fill);
+
+        self.set_program_id("");
+        self.set_program_name("");
     }
 
     fn set_program_id(&self, value: &str) {
@@ -195,7 +198,7 @@ pub trait ProgramButtonExt {
     fn set_program_name(&self, value: &str);
     fn program_name(&self) -> glib::GString;
 
-    fn set_modified(&mut self, modified: bool);
+    fn set_modified(&self, modified: bool);
     fn modified(&self) -> bool;
 }
 
@@ -220,7 +223,7 @@ impl ProgramButtonExt for ProgramButton {
         p.program_name()
     }
 
-    fn set_modified(&mut self, modified: bool) {
+    fn set_modified(&self, modified: bool) {
         let p = ProgramButtonPriv::from_instance(self);
         p.set_modified(modified)
     }

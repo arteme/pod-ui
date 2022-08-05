@@ -7,10 +7,10 @@ use log::debug;
 use once_cell::sync::{Lazy, OnceCell};
 use crate::glib::{ParamSpec, Value};
 use crate::glib::value::FromValue;
-use crate::gtk::RadioButton;
 use crate::program_button::ProgramButton;
 
-const NUM_BUTTONS_DEFAULT: usize = 32;
+const NUM_BUTTONS_PER_PAGE: usize = 36;
+const NUM_BUTTONS_DEFAULT: usize = NUM_BUTTONS_PER_PAGE;
 const NUM_PAGES_DEFAULT: usize = 1;
 
 glib::wrapper! {
@@ -40,7 +40,7 @@ pub struct ProgramGridPriv {
 impl ProgramGridPriv {
     fn set_num_buttons(&self, value: &usize) {
         self.num_buttons.set(*value);
-        self.num_pages.set((*value + 31) / 32);
+        self.num_pages.set((*value + NUM_BUTTONS_PER_PAGE - 1) / NUM_BUTTONS_PER_PAGE);
     }
 
     fn num_buttons(&self) -> usize {
@@ -106,7 +106,7 @@ impl ProgramGridPriv {
     fn show_page(&self, page: i32) {
         if let Some(w) = self.widgets.get() {
             for (i, button) in w.buttons.iter().enumerate() {
-                let (a, b) = (i / 32, i % 32);
+                let (a, b) = (i / NUM_BUTTONS_PER_PAGE, i % NUM_BUTTONS_PER_PAGE);
                 let (c, d) = (b / 2, b % 2);
 
                 let mut x = (a * 2 + d) as i32;
@@ -130,12 +130,39 @@ impl ProgramGridPriv {
 
     }
 
-    fn join_radio_group(&self, group: Option<&impl IsA<RadioButton>>) {
+    fn join_radio_group(&self, group: Option<&impl IsA<gtk::RadioButton>>) {
         if let Some(w) = self.widgets.get() {
             for b in w.buttons.iter() {
                 b.join_group(group);
             }
         }
+    }
+
+    fn program_button(&self, program_idx: usize) -> Option<ProgramButton> {
+        self.widgets.get()
+            .and_then(|w| w.buttons.get(program_idx - 1))
+            .and_then(|b| b.child())
+            .and_then(|w| w.dynamic_cast::<ProgramButton>().ok())
+    }
+
+    fn set_program_modified(&self, program_idx: usize, modified: bool) {
+        self.program_button(program_idx)
+            .map(|p| p.set_modified(modified));
+    }
+
+    fn program_modified(&self, program_idx: usize) -> Option<bool> {
+        self.program_button(program_idx)
+            .map(|p| p.modified())
+    }
+
+    fn set_program_name(&self, program_idx: usize, name: &str) {
+        self.program_button(program_idx)
+            .map(|p| p.set_program_name(name));
+    }
+
+    fn program_name(&self, program_idx: usize) -> Option<glib::GString> {
+        self.program_button(program_idx)
+            .map(|p| p.program_name())
     }
 }
 
@@ -240,7 +267,7 @@ impl ObjectImpl for ProgramGridPriv {
         let mut buttons = vec![];
         let mut group = None;
 
-        for i in 0 .. (num_pages * 32) {
+        for i in 0 .. (num_pages * NUM_BUTTONS_PER_PAGE as i32) {
             let is_spacer = i >= num_buttons;
             let button = if !is_spacer {
                 // real button
@@ -281,19 +308,20 @@ impl ObjectImpl for ProgramGridPriv {
             // 1 page, no left/right buttons
             (None, None)
         } else {
+            let top = NUM_BUTTONS_PER_PAGE as i32 / 2;
             let left = gtk::Button::with_label("<");
             left.connect_clicked(glib::clone!(@weak obj => move |_| {
                 let p = ProgramGridPriv::from_instance(&obj);
                 p.left_button_clicked();
             }));
-            grid.attach(&left, 0, 16, 1, 1);
+            grid.attach(&left, 0, top, 1, 1);
 
             let right = gtk::Button::with_label(">");
             right.connect_clicked(glib::clone!(@weak obj => move |_| {
                 let p = ProgramGridPriv::from_instance(&obj);
                 p.right_button_clicked();
             }));
-            grid.attach(&right, 1, 16, 1, 1);
+            grid.attach(&right, 1, top, 1, 1);
 
             (Some(left), Some(right))
         };
@@ -329,7 +357,13 @@ impl ProgramGrid {
 
 pub trait ProgramGridExt {
     fn size_group(&self) -> gtk::SizeGroup;
-    fn join_radio_group(&self, group: Option<&impl IsA<RadioButton>>);
+    fn join_radio_group(&self, group: Option<&impl IsA<gtk::RadioButton>>);
+
+    fn set_program_modified(&self, program_idx: usize, modified: bool);
+    fn program_modified(&self, program_idx: usize) -> Option<bool>;
+
+    fn set_program_name(&self, program_idx: usize, name: &str);
+    fn program_name(&self, program_idx: usize) -> Option<glib::GString>;
 }
 
 impl ProgramGridExt for ProgramGrid {
@@ -338,8 +372,28 @@ impl ProgramGridExt for ProgramGrid {
         p.widgets.get().unwrap().size_group.clone()
     }
 
-    fn join_radio_group(&self, group: Option<&impl IsA<RadioButton>>) {
+    fn join_radio_group(&self, group: Option<&impl IsA<gtk::RadioButton>>) {
         let p = ProgramGridPriv::from_instance(self);
         p.join_radio_group(group);
+    }
+
+    fn set_program_modified(&self, program_idx: usize, modified: bool) {
+        let p = ProgramGridPriv::from_instance(self);
+        p.set_program_modified(program_idx, modified)
+    }
+
+    fn program_modified(&self, program_idx: usize) -> Option<bool> {
+        let p = ProgramGridPriv::from_instance(self);
+        p.program_modified(program_idx)
+    }
+
+    fn set_program_name(&self, program_idx: usize, name: &str) {
+        let p = ProgramGridPriv::from_instance(self);
+        p.set_program_name(program_idx, name)
+    }
+
+    fn program_name(&self, program_idx: usize) -> Option<glib::GString> {
+        let p = ProgramGridPriv::from_instance(self);
+        p.program_name(program_idx)
     }
 }

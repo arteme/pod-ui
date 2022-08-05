@@ -442,7 +442,8 @@ async fn main() -> Result<()> {
     let ui_objects = ObjectList::new(&ui);
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
     pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut ui_callbacks)?;
-    let mut program_buttons = ProgramButtons::new(&ui_objects);
+
+    let program_grid = ArcSwap::from(Arc::new(ProgramGrid::new(32)));
 
     let title = format!("POD UI {}", version);
 
@@ -951,26 +952,29 @@ async fn main() -> Result<()> {
 
                             rx = None;
 
-                            device_box.children().iter()
-                                .for_each(|w| device_box.remove(w));
+                            device_box.foreach(|w| device_box.remove(w));
                             device_box.add(&state.interface.widget);
                             callbacks = state.interface.callbacks.clone();
 
                             // I don't know a better place to put this for now, but after
                             // switching the module, we need to initialize the "program_num"
                             // value in the ui_controller.
+                            let program_num = state.config.read().unwrap().program_num;
                             ui_controller.lock().unwrap().set("program_num",
-                                                              state.config.read().unwrap().program_num as u16,
+                                                              program_num as u16,
                                                               UNSET);
-                            let b = ui.object::<gtk::Box>("program_grid_box").unwrap();
-                            let g = ProgramGrid::new(124);
-                            b.set_child(Some(&g));
+                            let grid_box = ui.object::<gtk::Box>("program_grid_box").unwrap();
+                            let g = ProgramGrid::new(program_num);
+                            grid_box.foreach(|w| grid_box.remove(w));
+                            grid_box.add(&g);
                             g.show_all();
 
                             // join the main program radio group
                             let r = ui.object::<gtk::RadioButton>("program").unwrap();
                             g.join_radio_group(Some(&r));
                             r.emit_by_name::<()>("group-changed", &[]);
+
+                            program_grid.store(Arc::new(g));
 
                             /*
                             // make a size group
@@ -987,7 +991,7 @@ async fn main() -> Result<()> {
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
-                            program_buttons.set_modified(page + 1, modified);
+                            (*program_grid.load()).set_program_modified(page + 1, modified);
                         },
                         UIEvent::Panic => {
                             let tooltip = if sentry_enabled {
@@ -1016,9 +1020,7 @@ async fn main() -> Result<()> {
                     processed = true;
                     let name = dump.load().lock().unwrap().name(idx).unwrap_or_default();
                     // program button index is 1-based
-                    if let Some(button) = program_buttons.get(idx + 1) {
-                        button.set_program_name(&name);
-                    }
+                    (*program_grid.load()).set_program_name(idx + 1, &name);
                 },
                 _ => {}
             }
