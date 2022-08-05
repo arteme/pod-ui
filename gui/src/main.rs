@@ -16,7 +16,7 @@ use pod_core::pod::*;
 use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, atomic, Mutex, RwLock};
 use pod_core::model::{AbstractControl, Button, Config, Control, VirtualSelect};
 use pod_core::config::{config_for_id, configs, GUI, MIDI, UNSET};
 use crate::opts::*;
@@ -39,6 +39,7 @@ use crate::program_button::ProgramButtonExt;
 pub enum UIEvent {
     NewMidiConnection,
     NewEditBuffer,
+    NewDevice,
     MidiTx,
     MidiRx,
     Modified(usize, bool),
@@ -182,6 +183,10 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
             }
         });
     }
+
+    // we assume that something changed -- either the config or the midi settings
+    // so signal a new device ping!
+    state.ui_event_tx.send(UIEvent::NewDevice);
 }
 
 
@@ -862,8 +867,8 @@ async fn main() -> Result<()> {
         let mut ui_rx = ui_controller.lock().unwrap().subscribe();
         let mut names_rx = None;
 
-        let transfer_up_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
-        let transfer_down_sem = Arc::new(std::sync::atomic::AtomicI32::new(0));
+        let transfer_up_sem = Arc::new(atomic::AtomicI32::new(0));
+        let transfer_down_sem = Arc::new(atomic::AtomicI32::new(0));
 
         // This is a cache of the current page number of the whole of the glib idle callback
         let mut current_page = 0usize;
@@ -1023,8 +1028,6 @@ async fn main() -> Result<()> {
 
                             program_grid.store(Arc::new(g));
 
-                            new_device_ping(&state);
-
                             /*
                             // make a size group
                             let s = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
@@ -1037,6 +1040,11 @@ async fn main() -> Result<()> {
                             }
                              */
 
+                        }
+                        UIEvent::NewDevice => {
+                            // connected to a possibly new  device, perform a new device ping
+                            let state = state.lock().unwrap();
+                            new_device_ping(&state);
                         }
                         UIEvent::Modified(page, modified) => {
                             // patch index is 1-based
