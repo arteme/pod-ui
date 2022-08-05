@@ -18,7 +18,7 @@ use pod_core::program;
 use log::*;
 use std::sync::{Arc, Mutex, RwLock};
 use pod_core::model::{AbstractControl, Button, Config, Control, VirtualSelect};
-use pod_core::config::{configs, GUI, MIDI, UNSET};
+use pod_core::config::{config_for_id, configs, GUI, MIDI, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
-use arc_swap::ArcSwap;
+use arc_swap::{ArcSwap, ArcSwapOption};
 use clap::{Args, Command, FromArgMatches};
 use maplit::*;
 use crate::settings::*;
@@ -43,6 +43,11 @@ pub enum UIEvent {
     MidiRx,
     Modified(usize, bool),
     Panic
+}
+
+pub struct DetectedDevVersion {
+    name: String,
+    ver: String
 }
 
 pub struct State {
@@ -60,7 +65,8 @@ pub struct State {
     pub config: Arc<RwLock<&'static Config>>,
     pub interface: InitializedInterface,
     pub edit_buffer: Arc<ArcSwap<Mutex<EditBuffer>>>,
-    pub dump: Arc<ArcSwap<Mutex<ProgramsDump>>>
+    pub dump: Arc<ArcSwap<Mutex<ProgramsDump>>>,
+    pub detected: Arc<ArcSwapOption<DetectedDevVersion>>
 }
 
 use pod_core::model::SwitchControl;
@@ -176,9 +182,6 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
             }
         });
     }
-
-    // Request all programs dump from the POD device
-    state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
 }
 
 
@@ -338,6 +341,15 @@ fn config_for_str(config_str: &str) -> Result<&'static Config> {
     Ok(found.unwrap())
 }
 
+/// Called when a new edit buffer & UI have been connected
+fn new_device_ping(state: &State) {
+    // Request device id from the POD device
+    state.midi_out_tx
+        .send(MidiMessage::UniversalDeviceInquiry { channel: state.midi_channel_num }).unwrap();
+    // Request all programs dump from the POD device
+    state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let version = env!("GIT_VERSION");
@@ -393,7 +405,8 @@ async fn main() -> Result<()> {
             config: Arc::new(RwLock::new(config)),
             interface,
             edit_buffer: Arc::new(ArcSwap::from(edit_buffer)),
-            dump: Arc::new(ArcSwap::from(dump))
+            dump: Arc::new(ArcSwap::from(dump)),
+            detected: Arc::new(ArcSwapOption::empty())
         }))
     };
     let (edit_buffer, dump, config) = {
@@ -648,6 +661,7 @@ async fn main() -> Result<()> {
         let midi_out_tx = state.lock().unwrap().midi_out_tx.clone();
         let ui_event_tx = state.lock().unwrap().ui_event_tx.clone();
         let midi_channel_num = midi_channel_num.clone();
+        let detected = state.lock().unwrap().detected.clone();
         tokio::spawn(async move {
             loop {
                 let msg = midi_in_rx.recv().await;
@@ -795,6 +809,20 @@ async fn main() -> Result<()> {
                             &ui_controller, &ui_event_tx);
                         midi_out_tx.send(msg.unwrap());
                     },
+                    MidiMessage::UniversalDeviceInquiryResponse { family, member, ver, .. } => {
+                        let hi = if &ver[0 .. 1] == "0" { &ver[1 ..= 1] } else { &ver[0 ..= 1] };
+                        let lo = &ver[2 ..= 3];
+                        let ver = format!("{}.{}", hi, lo);
+                        let name = config_for_id(family, member)
+                            .map(|c| c.name.clone())
+                            .unwrap_or_else(|| format!("Unknown ({:04x}:{:04x})", family, member));
+
+                        detected.store(Some(Arc::new(DetectedDevVersion {
+                            name,
+                            ver
+                        })));
+                        ui_event_tx.send(UIEvent::NewMidiConnection);
+                    }
 
                     // pretend we're a POD
                     MidiMessage::UniversalDeviceInquiry { channel } => {
@@ -931,6 +959,24 @@ async fn main() -> Result<()> {
                             let state = state.lock().unwrap();
                             let midi_in_name = state.midi_in_name.as_ref();
                             let midi_out_name = state.midi_out_name.as_ref();
+                            let name = {
+                                let config_name = &state.config.read().unwrap().name;
+                                let (detected_name, detected_ver) = state.detected.load()
+                                    .as_ref()
+                                    .map(|d| (d.name.clone(), d.ver.clone()))
+                                    .unwrap_or_else(|| (String::new(), String::new()));
+                                match (&detected_name, config_name) {
+                                    (a, b) if a.is_empty() => {
+                                        b.clone()
+                                    },
+                                    (a, b) if a == b => {
+                                        format!("{} {}", detected_name, detected_ver)
+                                    },
+                                    _ => {
+                                        format!("{} {} as {}", detected_name, detected_ver, config_name)
+                                    }
+                                }
+                            };
                             let subtitle = match (midi_in_name, midi_out_name) {
                                 (None, _) | (_, None) => {
                                     "no device connected".to_string()
@@ -942,6 +988,7 @@ async fn main() -> Result<()> {
                                     format!("i: {} / o: {}", a, b)
                                 }
                             };
+                            let subtitle = format!("{} @ {}", name, subtitle);
 
                             header_bar.set_subtitle(Some(&subtitle));
                             // update midi channel number
@@ -975,6 +1022,8 @@ async fn main() -> Result<()> {
                             r.emit_by_name::<()>("group-changed", &[]);
 
                             program_grid.store(Arc::new(g));
+
+                            new_device_ping(&state);
 
                             /*
                             // make a size group
