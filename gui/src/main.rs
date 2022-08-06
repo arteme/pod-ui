@@ -551,26 +551,39 @@ async fn main() -> Result<()> {
                 let mut message: Option<MidiMessage> = None;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
-                  Ok(Event { key: name, origin: o, .. }) = rx.as_mut().unwrap().recv() => {
-                        message = make_cc(&name, &edit_buffer.load().lock().unwrap().controller_locked());
-                        origin = o;
+                    controller_event = rx.as_mut().unwrap().recv() => {
+                          match controller_event {
+                              Ok(Event { key: name, origin: o, .. }) => {
+                                  message = make_cc(&name, &edit_buffer.load().lock().unwrap().controller_locked());
+                                  origin = o;
+                              }
+                              _ => {}
+                          }
                     }
-                  Ok(Event { key, origin: o, .. }) = ui_rx.recv() => {
-                        message = match key.as_str() {
-                            "program" => make_pc(),
-                            "load_button" => make_dump_request(Program::EditBuffer),
-                            "load_patch_button" => make_dump_request(Program::Current),
-                            "load_all_button" => make_dump_request(Program::All),
-                            "store_button" => make_dump(Program::EditBuffer),
-                            "store_patch_button" => make_dump(Program::Current),
-                            "store_all_button" => make_dump(Program::All),
-                            _ => None
-                        };
-                        origin = o;
+                    ui_controller_event = ui_rx.recv() => {
+                          match ui_controller_event {
+                              Ok(Event { key, origin: o, .. }) => {
+                                  message = match key.as_str() {
+                                      "program" => make_pc(),
+                                      "load_button" => make_dump_request(Program::EditBuffer),
+                                      "load_patch_button" => make_dump_request(Program::Current),
+                                      "load_all_button" => make_dump_request(Program::All),
+                                      "store_button" => make_dump(Program::EditBuffer),
+                                      "store_patch_button" => make_dump(Program::Current),
+                                      "store_all_button" => make_dump(Program::All),
+                                      _ => None
+                                  };
+                                  origin = o;
+                              }
+                              _ => {}
+                          }
                     }
-                  Ok(UIEvent::NewEditBuffer) = ui_event_rx.recv() => {
-                        rx = None;
-                    }
+                    ui_event = ui_event_rx.recv() => {
+                          match ui_event {
+                              Ok(UIEvent::NewEditBuffer) => rx = None,
+                              _ => {}
+                          }
+                      }
                 }
                 if rx.is_none() || origin == MIDI || message.is_none() {
                     continue;
