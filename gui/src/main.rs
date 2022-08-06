@@ -479,6 +479,34 @@ async fn main() -> Result<()> {
 
     wire_settings_dialog(state.clone(), &ui);
     wire_panic_indicator(state.clone());
+    // wire open button
+    let open_button = ui.object::<gtk::ToggleButton>("open_button").unwrap();
+    open_button.connect_clicked({
+        let window = window.clone();
+        let grid_box = ui.object::<gtk::Widget>("program_grid_box").unwrap();
+        // TODO: tried to save window size and restore it, but it never restores to the
+        //       requested height. Instead, resize to (1,1) seems to get the smallest
+        //       size possible, which is god enough...
+        //let win_size = Rc::new(RefCell::new((-1,-1)));
+        move |button| {
+            /*
+            if button.is_active() {
+                // save window size before opening the program grid
+                let a = window.allocation();
+                *win_size.borrow_mut() = (a.width(), a.height());
+            }
+             */
+            // dynamically look up the current ProgramGrid widget from the UI
+            ObjectList::from_widget(&grid_box)
+                .objects_by_type::<ProgramGrid>().next()
+                .map(|w| {
+                    w.set_open(button.is_active());
+                });
+            if !button.is_active() {
+                window.resize(1,1);
+            }
+        }
+    });
 
     set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, detected_config);
     // No new edit buffer / interface may have been initialized above,
@@ -1025,6 +1053,14 @@ async fn main() -> Result<()> {
                             let r = ui.object::<gtk::RadioButton>("program").unwrap();
                             g.join_radio_group(Some(&r));
                             r.emit_by_name::<()>("group-changed", &[]);
+
+                            // show "open" button in the titlebar?
+                            let open_button = ui.object::<gtk::Button>("open_button").unwrap();
+                            if g.num_pages() > 1 {
+                                open_button.show();
+                            } else {
+                                open_button.hide();
+                            }
 
                             program_grid.store(Arc::new(g));
 

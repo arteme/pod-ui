@@ -23,6 +23,7 @@ struct Widgets {
     size_group: gtk::SizeGroup,
     grid: gtk::Grid,
     buttons: Vec<gtk::RadioButton>,
+    pages: Vec<gtk::Grid>,
     adj: gtk::Adjustment,
     left: Option<gtk::Button>,
     right: Option<gtk::Button>,
@@ -31,6 +32,7 @@ struct Widgets {
 pub struct ProgramGridPriv {
     num_buttons: Cell<usize>,
     num_pages: Cell<usize>,
+    cur_page: Cell<usize>,
     is_open: Cell<bool>,
     widgets: OnceCell<Widgets>
 }
@@ -53,17 +55,28 @@ impl ProgramGridPriv {
 
     fn set_open(&self, value: bool) {
         self.is_open.set(value);
-        let page = if value {
-            // expanded view
-            -1
-        } else {
-            if let Some(w) = self.widgets.get() {
-                w.adj.value() as i32
+        if let Some(w) = self.widgets.get() {
+            if value {
+                // open
+                for (i, p) in w.pages.iter().enumerate() {
+                    w.grid.remove(p);
+                    w.grid.attach(p, (i * 2) as i32, 0, 2, 1);
+                    p.set_opacity(1.0);
+                }
+                w.left.as_ref().map(|b| b.hide());
+                w.right.as_ref().map(|b| b.hide());
             } else {
-                0
+                // close
+                for p in w.pages.iter() {
+                    w.grid.remove(p);
+                    w.grid.attach(p, 0, 0, 2, 1);
+                }
+                w.left.as_ref().map(|b| b.show());
+                w.right.as_ref().map(|b| b.show());
+                self.show_page(self.cur_page.get());
             }
-        };
-        self.show_page(page);
+
+        }
     }
 
     fn open(&self) -> bool {
@@ -81,7 +94,7 @@ impl ProgramGridPriv {
         if let Some(w) = self.widgets.get() {
             w.left.as_ref().map(|l| l.set_sensitive(value > 0.0) );
             w.right.as_ref().map(|r| r.set_sensitive(value < upper - page_size) );
-            self.show_page(value as i32);
+            self.show_page(value as usize);
         }
     }
 
@@ -103,31 +116,36 @@ impl ProgramGridPriv {
         }
     }
 
-    fn show_page(&self, page: i32) {
+    fn button_position(i: usize) -> (usize, i32, i32) {
+        let (a, b) = (i / NUM_BUTTONS_PER_PAGE, i % NUM_BUTTONS_PER_PAGE);
+        let (c, d) = (b / 2, b % 2);
+
+        let x = a * 2 + d;
+        let y = c;
+
+        let (p, x) = (x / 2, x % 2);
+
+        (p, x as i32, y as i32)
+    }
+
+    fn show_page(&self, page: usize) {
+        self.cur_page.set(page as usize);
         if let Some(w) = self.widgets.get() {
-            for (i, button) in w.buttons.iter().enumerate() {
-                let (a, b) = (i / NUM_BUTTONS_PER_PAGE, i % NUM_BUTTONS_PER_PAGE);
-                let (c, d) = (b / 2, b % 2);
-
-                let mut x = (a * 2 + d) as i32;
-                let y = c as i32;
-
-                w.grid.remove(button);
-
-                if page != -1 {
-                    let l = page * 2;
-                    let h = l + 1;
-                    if x < l || x > h {
-                        continue;
+            if !self.is_open.get() {
+                for (i, p) in w.pages.iter().enumerate() {
+                    if i == page {
+                        // show
+                        p.set_opacity(1.0);
+                        // move to the top to receive the input events
+                        w.grid.remove(p);
+                        w.grid.attach(p, 0, 0, 2, 1);
+                    } else {
+                        // hide
+                        p.set_opacity(0.0);
                     }
-                    x -= l;
                 }
-
-                w.grid.attach(button, x, y, 1, 1);
-                button.show_all();
             }
         }
-
     }
 
     fn join_radio_group(&self, group: Option<&impl IsA<gtk::RadioButton>>) {
@@ -176,6 +194,7 @@ impl ObjectSubclass for ProgramGridPriv {
         Self {
             num_buttons: Cell::new(NUM_BUTTONS_DEFAULT),
             num_pages: Cell::new(NUM_PAGES_DEFAULT),
+            cur_page: Cell::new(0),
             is_open: Cell::new(false),
             widgets: OnceCell::new()
         }
@@ -244,8 +263,8 @@ impl ObjectImpl for ProgramGridPriv {
         self.parent_constructed(obj);
 
         let p = ProgramGridPriv::from_instance(obj);
-        let num_buttons = p.num_buttons.get() as i32;
-        let num_pages = p.num_pages.get() as i32;
+        let num_buttons = p.num_buttons.get();
+        let num_pages = p.num_pages.get();
 
         let grid = gtk::Grid::builder()
             .build();
@@ -264,10 +283,24 @@ impl ObjectImpl for ProgramGridPriv {
         });*/
 
         let size_group = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
+        let mut pages = vec![];
         let mut buttons = vec![];
         let mut group = None;
 
-        for i in 0 .. (num_pages * NUM_BUTTONS_PER_PAGE as i32) {
+        // generate pages
+        for i in 0 .. num_pages {
+            let name = format!("page:{}", i);
+            let page = gtk::Grid::builder()
+                .column_homogeneous(true)
+                .row_homogeneous(true)
+                .name(&name)
+                .build();
+            grid.attach(&page, 0, 0, 2, 1);
+            pages.push(page);
+        }
+
+        // generate buttons
+        for i in 0 .. (num_pages * NUM_BUTTONS_PER_PAGE) {
             let is_spacer = i >= num_buttons;
             let button = if !is_spacer {
                 // real button
@@ -300,36 +333,43 @@ impl ObjectImpl for ProgramGridPriv {
 
             button.set_hexpand(true);
 
-            size_group.add_widget(&button);
+            // todo: disabled for now since if all buttons are homogeneous,
+            //       it takes too much space from the "open layout" with Pocket POD
+            //size_group.add_widget(&button);
+
+            // position the button within the pages
+            let (p, x, y) = ProgramGridPriv::button_position(i);
+            pages.get(p).map(|p| p.attach(&button, x, y, 1, 1));
+
             buttons.push(button);
         }
 
+        // generate left/right buttons
         let (left, right) = if num_pages < 2 {
             // 1 page, no left/right buttons
             (None, None)
         } else {
-            let top = NUM_BUTTONS_PER_PAGE as i32 / 2;
             let left = gtk::Button::with_label("<");
             left.connect_clicked(glib::clone!(@weak obj => move |_| {
                 let p = ProgramGridPriv::from_instance(&obj);
                 p.left_button_clicked();
             }));
-            grid.attach(&left, 0, top, 1, 1);
+            grid.attach(&left, 0, 1, 1, 1);
 
             let right = gtk::Button::with_label(">");
             right.connect_clicked(glib::clone!(@weak obj => move |_| {
                 let p = ProgramGridPriv::from_instance(&obj);
                 p.right_button_clicked();
             }));
-            grid.attach(&right, 1, top, 1, 1);
+            grid.attach(&right, 1, 1, 1, 1);
 
             (Some(left), Some(right))
         };
 
-
         self.widgets.set(Widgets {
             size_group,
             buttons,
+            pages,
             grid,
             adj: adj.clone(),
             left, right
@@ -364,6 +404,12 @@ pub trait ProgramGridExt {
 
     fn set_program_name(&self, program_idx: usize, name: &str);
     fn program_name(&self, program_idx: usize) -> Option<glib::GString>;
+
+    fn set_open(&self, is_open: bool);
+    fn open(&self) -> bool;
+
+    fn num_pages(&self) -> usize;
+    fn num_buttons(&self) -> usize;
 }
 
 impl ProgramGridExt for ProgramGrid {
@@ -395,5 +441,25 @@ impl ProgramGridExt for ProgramGrid {
     fn program_name(&self, program_idx: usize) -> Option<glib::GString> {
         let p = ProgramGridPriv::from_instance(self);
         p.program_name(program_idx)
+    }
+
+    fn set_open(&self, is_open: bool) {
+        let p = ProgramGridPriv::from_instance(self);
+        p.set_open(is_open)
+    }
+
+    fn open(&self) -> bool {
+        let p = ProgramGridPriv::from_instance(self);
+        p.open()
+    }
+
+    fn num_pages(&self) -> usize {
+        let p = ProgramGridPriv::from_instance(self);
+        p.num_pages()
+    }
+
+    fn num_buttons(&self) -> usize {
+        let p = ProgramGridPriv::from_instance(self);
+        p.num_buttons()
     }
 }

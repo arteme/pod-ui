@@ -246,11 +246,12 @@
         <property name="title" translatable="yes">POD UI</property>
         <property name="show-close-button">True</property>
         <child>
-          <object class="GtkButton">
+          <object class="GtkToggleButton" id="open_button">
+            <property name="visible">True</property>
             <property name="can-focus">True</property>
             <property name="receives-default">True</property>
-            <property name="no-show-all">True</property>
             <property name="image">image2</property>
+            <property name="always-show-image">True</property>
           </object>
         </child>
         <child>
