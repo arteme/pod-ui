@@ -1,7 +1,6 @@
 mod opts;
 mod util;
 mod settings;
-mod program_button;
 mod panic;
 mod registry;
 mod empty;
@@ -33,7 +32,6 @@ use arc_swap::{ArcSwap, ArcSwapOption};
 use clap::{Args, Command, FromArgMatches};
 use maplit::*;
 use crate::settings::*;
-use crate::program_button::ProgramButtonExt;
 
 #[derive(Clone, Debug)]
 pub enum UIEvent {
@@ -70,7 +68,6 @@ pub struct State {
     pub detected: Arc<ArcSwapOption<DetectedDevVersion>>
 }
 
-use pod_core::model::SwitchControl;
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     convert_args!(hashmap!(
         "program" => VirtualSelect::default(),
@@ -311,11 +308,9 @@ use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
-use crate::empty::{EMPTY_CONFIG, empty_dump_arc, empty_edit_buffer_arc};
 use crate::panic::wire_panic_indicator;
-use crate::program_button::ProgramButtons;
 use crate::registry::{init_module, InitializedInterface, register_module};
-use crate::widgets::program_grid::{ProgramGrid, ProgramGridExt};
+use crate::widgets::*;
 
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {

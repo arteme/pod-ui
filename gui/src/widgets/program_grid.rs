@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use crate::{glib, ProgramButtonExt};
+use crate::glib;
 use crate::gtk;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -7,7 +7,7 @@ use log::debug;
 use once_cell::sync::{Lazy, OnceCell};
 use crate::glib::{ParamSpec, Value};
 use crate::glib::value::FromValue;
-use crate::program_button::ProgramButton;
+use super::program_button::{ProgramButton, ProgramButtonExt};
 
 const NUM_BUTTONS_PER_PAGE: usize = 36;
 const NUM_BUTTONS_DEFAULT: usize = NUM_BUTTONS_PER_PAGE;
