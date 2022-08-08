@@ -142,6 +142,12 @@ impl ProgramGridPriv {
         }
     }
 
+    fn show_page_if_different(&self, page: usize) {
+        if self.cur_page.get() != page {
+            self.show_page(page);
+        }
+    }
+
     fn join_radio_group(&self, group: Option<&impl IsA<gtk::RadioButton>>) {
         if let Some(w) = self.widgets.get() {
             for b in w.buttons.iter() {
@@ -292,6 +298,7 @@ impl ObjectImpl for ProgramGridPriv {
 
         // generate buttons
         for i in 0 .. (num_pages * NUM_BUTTONS_PER_PAGE) {
+            let page = i / NUM_BUTTONS_PER_PAGE;
             let is_spacer = i >= num_buttons;
             let button = if !is_spacer {
                 // real button
@@ -302,11 +309,19 @@ impl ObjectImpl for ProgramGridPriv {
                 let program_id = format!("{}{}", a + 1, char::from_u32('A' as u32 + b as u32).unwrap());
                 pb.set_program_id(&program_id);
 
-                gtk::RadioButton::builder()
+                let b = gtk::RadioButton::builder()
                     .draw_indicator(false)
                     .name(&name)
                     .child(&pb)
-                    .build()
+                    .build();
+                b.connect_toggled(glib::clone!(@weak obj => move |button| {
+                    let p = ProgramGridPriv::from_instance(&obj);
+                    if button.is_active() {
+                        p.show_page_if_different(page);
+                    }
+                }));
+
+                b
             } else {
                 // spacer
                 gtk::RadioButton::builder()
