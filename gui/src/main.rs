@@ -1034,7 +1034,18 @@ async fn main() -> Result<()> {
                             let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
                             ObjectList::from_widget(&grid)
                                 .objects_by_type::<ProgramGrid>()
-                                .for_each(|p| grid.remove(p));
+                                .for_each(|p| {
+                                    grid.remove(p);
+                                    // This instance of ProgramGrid gets dropped, but the
+                                    // ad-hoc signalling using "group-changed" still sees
+                                    // its widgets as part of the radio group (not dropped
+                                    // immediately?) and there will be no final signal to
+                                    // reset the group/signal handlers to remove the ones
+                                    // that became invalid.
+                                    // TODO: add "on destroy" clean up to wired RadioButtons
+                                    //       as a fix? In  the meantime, this hack will do...
+                                    p.join_radio_group(Option::<&gtk::RadioButton>::None);
+                                });
 
                             let g = ProgramGrid::new(program_num);
                             grid.attach(&g, 0, 1, 2, 18);

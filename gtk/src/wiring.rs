@@ -230,6 +230,10 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                             }
                             let h = radio.connect_toggled(move |radio| {
                                 if !radio.is_active() { return; }
+                                // Removing from a radio group triggers addition to a radio
+                                // group of 1 (self?), which triggers a "toggled" and "is_active".
+                                // Protect against this nonsense.
+                                if radio.group().len() < 2 { return; }
                                 let mut controller = controller.lock().unwrap();
                                 controller.set(&name, value.unwrap(), GUI);
                             });
