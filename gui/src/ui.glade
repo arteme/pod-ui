@@ -35,180 +35,725 @@
         <property name="margin-bottom">5</property>
         <property name="spacing">5</property>
         <child>
-          <object class="GtkBox" id="program_grid">
+          <!-- n-columns=2 n-rows=23 -->
+          <object class="GtkGrid" id="program_grid">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
-            <property name="orientation">vertical</property>
+            <property name="column-homogeneous">True</property>
             <child>
-              <!-- n-columns=3 n-rows=1 -->
-              <object class="GtkGrid">
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">Manual</property>
+                <property name="name">program:0</property>
                 <property name="visible">True</property>
-                <property name="can-focus">False</property>
-                <child>
-                  <object class="GtkRadioButton" id="program:0">
-                    <property name="label" translatable="yes">Manual</property>
-                    <property name="name">program:0</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">False</property>
-                    <property name="hexpand">True</property>
-                    <property name="active">True</property>
-                    <property name="draw-indicator">False</property>
-                    <property name="group">program</property>
-                    <style>
-                      <class name="no_program_name"/>
-                    </style>
-                  </object>
-                  <packing>
-                    <property name="left-attach">0</property>
-                    <property name="top-attach">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkRadioButton">
-                    <property name="label" translatable="yes">Tuner</property>
-                    <property name="name">program:999</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">False</property>
-                    <property name="hexpand">True</property>
-                    <property name="active">True</property>
-                    <property name="draw-indicator">False</property>
-                    <property name="group">program</property>
-                    <style>
-                      <class name="no_program_name"/>
-                    </style>
-                  </object>
-                  <packing>
-                    <property name="left-attach">1</property>
-                    <property name="top-attach">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="visible">True</property>
-                    <property name="can-focus">False</property>
-                    <property name="no-show-all">True</property>
-                    <property name="hexpand">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">2</property>
-                    <property name="top-attach">0</property>
-                  </packing>
-                </child>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+                <style>
+                  <class name="no_program_name"/>
+                </style>
               </object>
               <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
+                <property name="left-attach">0</property>
+                <property name="top-attach">0</property>
               </packing>
             </child>
             <child>
-              <object class="GtkBox" id="program_grid_box">
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">Tuner</property>
+                <property name="name">program:999</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+                <style>
+                  <class name="no_program_name"/>
+                </style>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">1A</property>
+                <property name="name">program:1</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">1B</property>
+                <property name="name">program:2</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">1C</property>
+                <property name="name">program:3</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">1D</property>
+                <property name="name">program:4</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">2A</property>
+                <property name="name">program:5</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">3</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">2B</property>
+                <property name="name">program:6</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">3</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">2C</property>
+                <property name="name">program:7</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">4</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">2D</property>
+                <property name="name">program:8</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">4</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">3A</property>
+                <property name="name">program:9</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">5</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">3B</property>
+                <property name="name">program:10</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">5</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">3C</property>
+                <property name="name">program:11</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">6</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">3D</property>
+                <property name="name">program:12</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">6</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">4A</property>
+                <property name="name">program:13</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">7</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">4B</property>
+                <property name="name">program:14</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">7</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">4C</property>
+                <property name="name">program:15</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">8</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">4D</property>
+                <property name="name">program:16</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">8</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">5A</property>
+                <property name="name">program:17</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">9</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">5B</property>
+                <property name="name">program:18</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">9</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">5C</property>
+                <property name="name">program:19</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">10</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">5D</property>
+                <property name="name">program:20</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">10</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">6A</property>
+                <property name="name">program:21</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">11</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">6B</property>
+                <property name="name">program:22</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">11</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">6C</property>
+                <property name="name">program:23</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">12</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">6D</property>
+                <property name="name">program:24</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">12</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">7A</property>
+                <property name="name">program:25</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">13</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">7B</property>
+                <property name="name">program:26</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">13</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">7C</property>
+                <property name="name">program:27</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">14</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">7D</property>
+                <property name="name">program:28</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">14</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">8A</property>
+                <property name="name">program:29</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">15</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">8B</property>
+                <property name="name">program:30</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">15</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">8C</property>
+                <property name="name">program:31</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">16</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">8D</property>
+                <property name="name">program:32</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">16</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">9A</property>
+                <property name="name">program:33</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">17</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">9B</property>
+                <property name="name">program:34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">17</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">9C</property>
+                <property name="name">program:35</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">18</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton">
+                <property name="label" translatable="yes">9D</property>
+                <property name="name">program:36</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">program</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">18</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Load</property>
+                <property name="name">load_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">20</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Store</property>
+                <property name="name">store_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">20</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Load All</property>
+                <property name="name">load_all_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">22</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Store All</property>
+                <property name="name">store_all_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">22</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="hexpand">True</property>
                 <property name="vexpand">True</property>
-                <property name="orientation">vertical</property>
-                <child>
-                  <placeholder/>
-                </child>
               </object>
               <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="left-attach">0</property>
+                <property name="top-attach">19</property>
               </packing>
             </child>
             <child>
-              <!-- n-columns=2 n-rows=3 -->
-              <object class="GtkGrid">
+              <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
-                <property name="column-homogeneous">True</property>
-                <child>
-                  <object class="GtkButton" id="load_button">
-                    <property name="label" translatable="yes">Load</property>
-                    <property name="name">load_button</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">0</property>
-                    <property name="top-attach">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkButton">
-                    <property name="label" translatable="yes">Store</property>
-                    <property name="name">store_button</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">1</property>
-                    <property name="top-attach">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkButton">
-                    <property name="label" translatable="yes">Load Patch</property>
-                    <property name="name">load_patch_button</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">0</property>
-                    <property name="top-attach">1</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkButton">
-                    <property name="label" translatable="yes">Store Patch</property>
-                    <property name="name">store_patch_button</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">1</property>
-                    <property name="top-attach">1</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkButton">
-                    <property name="label" translatable="yes">Load All</property>
-                    <property name="name">load_all_button</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">0</property>
-                    <property name="top-attach">2</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkButton">
-                    <property name="label" translatable="yes">Store All</property>
-                    <property name="name">store_all_button</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">1</property>
-                    <property name="top-attach">2</property>
-                  </packing>
-                </child>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
               </object>
               <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">2</property>
+                <property name="left-attach">1</property>
+                <property name="top-attach">19</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Load Patch</property>
+                <property name="name">load_patch_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">21</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Store Patch</property>
+                <property name="name">store_patch_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">21</property>
               </packing>
             </child>
           </object>
@@ -246,12 +791,11 @@
         <property name="title" translatable="yes">POD UI</property>
         <property name="show-close-button">True</property>
         <child>
-          <object class="GtkToggleButton" id="open_button">
-            <property name="visible">True</property>
+          <object class="GtkButton">
             <property name="can-focus">True</property>
             <property name="receives-default">True</property>
+            <property name="no-show-all">True</property>
             <property name="image">image2</property>
-            <property name="always-show-image">True</property>
           </object>
         </child>
         <child>
