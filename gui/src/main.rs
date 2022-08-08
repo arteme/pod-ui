@@ -478,24 +478,17 @@ async fn main() -> Result<()> {
     let open_button = ui.object::<gtk::ToggleButton>("open_button").unwrap();
     open_button.connect_clicked({
         let window = window.clone();
-        let grid_box = ui.object::<gtk::Widget>("program_grid_box").unwrap();
-        // TODO: tried to save window size and restore it, but it never restores to the
-        //       requested height. Instead, resize to (1,1) seems to get the smallest
-        //       size possible, which is god enough...
-        //let win_size = Rc::new(RefCell::new((-1,-1)));
+        let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
         move |button| {
-            /*
-            if button.is_active() {
-                // save window size before opening the program grid
-                let a = window.allocation();
-                *win_size.borrow_mut() = (a.width(), a.height());
-            }
-             */
+            let is_active = button.is_active();
             // dynamically look up the current ProgramGrid widget from the UI
-            ObjectList::from_widget(&grid_box)
+            ObjectList::from_widget(&grid)
                 .objects_by_type::<ProgramGrid>().next()
-                .map(|w| {
-                    w.set_open(button.is_active());
+                .map(|g| {
+                    grid.remove(g);
+                    let w = if is_active { g.num_pages() * 2 } else { 2 };
+                    grid.attach(g, 0, 1, w as i32, 18);
+                    g.set_open(is_active);
                 });
             if !button.is_active() {
                 window.resize(1,1);
@@ -1038,10 +1031,13 @@ async fn main() -> Result<()> {
                             ui_controller.lock().unwrap().set("program_num",
                                                               program_num as u16,
                                                               UNSET);
-                            let grid_box = ui.object::<gtk::Box>("program_grid_box").unwrap();
+                            let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
+                            ObjectList::from_widget(&grid)
+                                .objects_by_type::<ProgramGrid>()
+                                .for_each(|p| grid.remove(p));
+
                             let g = ProgramGrid::new(program_num);
-                            grid_box.foreach(|w| grid_box.remove(w));
-                            grid_box.add(&g);
+                            grid.attach(&g, 0, 1, 2, 18);
                             g.show_all();
 
                             // join the main program radio group
@@ -1058,19 +1054,6 @@ async fn main() -> Result<()> {
                             }
 
                             program_grid.store(Arc::new(g));
-
-                            /*
-                            // make a size group
-                            let s = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
-                            let g = ui.object::<gtk::Widget>("program_grid").unwrap();
-
-                            let o = ObjectList2::new(&g);
-                            for w in o.objects_by_type::<gtk::Button>() {
-                                println!("-- {}", w.widget_name());
-                                s.add_widget(&w)
-                            }
-                             */
-
                         }
                         UIEvent::NewDevice => {
                             // connected to a possibly new  device, perform a new device ping

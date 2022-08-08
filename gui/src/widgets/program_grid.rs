@@ -3,7 +3,6 @@ use crate::glib;
 use crate::gtk;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use log::debug;
 use once_cell::sync::{Lazy, OnceCell};
 use crate::glib::{ParamSpec, Value};
 use crate::glib::value::FromValue;
@@ -84,12 +83,9 @@ impl ProgramGridPriv {
     }
 
     fn adj_value_changed(&self, adj: &gtk::Adjustment) {
-        debug!("adj_value_changed");
         let value = adj.value();
         let page_size = adj.page_size();
         let upper = adj.upper();
-
-        debug!("value={}", value);
 
         if let Some(w) = self.widgets.get() {
             w.left.as_ref().map(|l| l.set_sensitive(value > 0.0) );
@@ -99,7 +95,6 @@ impl ProgramGridPriv {
     }
 
     fn left_button_clicked(&self) {
-        debug!("left_button_clicked");
         if let Some(w) = self.widgets.get() {
             let v = w.adj.value();
             let v = f64::max(0.0, v - w.adj.page_size());
@@ -108,7 +103,6 @@ impl ProgramGridPriv {
     }
 
     fn right_button_clicked(&self) {
-        debug!("right_button_clicked");
         if let Some(w) = self.widgets.get() {
             let v = w.adj.value();
             let v = f64::min(w.adj.upper(), v + w.adj.page_size());
@@ -267,6 +261,7 @@ impl ObjectImpl for ProgramGridPriv {
         let num_pages = p.num_pages.get();
 
         let grid = gtk::Grid::builder()
+            .column_homogeneous(true)
             .build();
         obj.pack_start(&grid, false,true, 0);
         obj.set_halign(gtk::Align::Fill);
@@ -277,10 +272,6 @@ impl ObjectImpl for ProgramGridPriv {
             let p = ProgramGridPriv::from_instance(&obj);
             p.adj_value_changed(adj);
         }));
-
-        /*grid.connect_size_allocate(move |w, s| {
-            println!("grid size-allocate! {:?}", s);
-        });*/
 
         let size_group = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
         let mut pages = vec![];
@@ -332,10 +323,6 @@ impl ObjectImpl for ProgramGridPriv {
             }
 
             button.set_hexpand(true);
-
-            // todo: disabled for now since if all buttons are homogeneous,
-            //       it takes too much space from the "open layout" with Pocket POD
-            //size_group.add_widget(&button);
 
             // position the button within the pages
             let (p, x, y) = ProgramGridPriv::button_position(i);
