@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::time::Duration;
 use crate::glib;
 use crate::gtk;
 use gtk::prelude::*;
@@ -53,6 +54,14 @@ impl ProgramGridPriv {
     }
 
     fn set_open(&self, value: bool) {
+        let pb = self.instance();
+        let ctx = pb.style_context();
+        if value {
+            ctx.add_class("open")
+        } else {
+            ctx.remove_class("open")
+        }
+
         self.is_open.set(value);
         if let Some(w) = self.widgets.get() {
             if value {
@@ -189,6 +198,10 @@ impl ObjectSubclass for ProgramGridPriv {
     const NAME: &'static str = "ProgramGrid";
     type Type = ProgramGrid;
     type ParentType = gtk::Box;
+
+    fn class_init(klass: &mut Self::Class) {
+        klass.set_css_name("programgrid");
+    }
 
     fn new() -> Self {
         Self {
@@ -377,7 +390,12 @@ impl ObjectImpl for ProgramGridPriv {
             left, right
         }).expect("Setting widgets failed");
 
-        adj.emit_by_name::<()>("value-changed", &[]);
+        // need a delay before "value-change", which will rearrange the pages
+        // in the grid (stack), otherwise the wrong page ends up on top
+        glib::timeout_add_local_once(Duration::from_millis(10), move || {
+            adj.emit_by_name::<()>("value-changed", &[]);
+        });
+
     }
 }
 

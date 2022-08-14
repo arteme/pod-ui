@@ -502,6 +502,8 @@ async fn main() -> Result<()> {
     state.lock().unwrap().ui_event_tx.send(UIEvent::NewEditBuffer)?;
 
     let css = gtk::CssProvider::new();
+    css.load_from_data(include_str!("default.css").as_bytes())
+        .unwrap_or_else(|e| error!("Failed to load default CSS: {}", e.message()));
     gtk::StyleContext::add_provider_for_screen(
         &gdk::Screen::default().expect("Error initializing GTK CSS provider"),
         &css,
@@ -1122,6 +1124,12 @@ async fn main() -> Result<()> {
 
     debug!("starting gtk main loop");
     gtk::main();
+
+    ObjectList::from_widget(&window)
+        .objects_by_type::<ProgramGrid>()
+        .for_each(|p| {
+            p.join_radio_group(Option::<&gtk::RadioButton>::None);
+        });
 
     Ok(())
 }

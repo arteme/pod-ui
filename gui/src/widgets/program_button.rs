@@ -73,29 +73,12 @@ impl ProgramButtonPriv {
     }
 
     fn set_modified(&self, modified: bool) {
-        let set_label_font = |label: &gtk::Label| {
-            let pc = label.pango_context();
-            let mut fd = pc.font_description().unwrap();
-
-            if self.modified.get() == modified {
-                return;
-            }
-
-            if modified {
-                fd.set_weight(Weight::Bold);
-                fd.set_style(Style::Italic);
-            } else {
-                fd.set_weight(Weight::Normal);
-                fd.set_style(Style::Normal);
-            }
-            pc.set_font_description(&fd);
-            label.queue_draw();
-            label.queue_resize();
-        };
-
-        if let Some(w) = self.widgets.get() {
-            set_label_font(&w.program_id_label);
-            set_label_font(&w.program_name_label);
+        let pb = self.instance();
+        let ctx = pb.style_context();
+        if modified {
+            ctx.add_class("modified")
+        } else {
+            ctx.remove_class("modified")
         }
 
         self.modified.set(modified);
@@ -111,6 +94,10 @@ impl ObjectSubclass for ProgramButtonPriv {
     const NAME: &'static str = "ProgramButton";
     type Type = ProgramButton;
     type ParentType = gtk::Bin;
+
+    fn class_init(klass: &mut Self::Class) {
+        klass.set_css_name("programbutton");
+    }
 
     fn new() -> Self {
         Self {
