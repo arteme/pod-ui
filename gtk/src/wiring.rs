@@ -91,6 +91,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     match controller.get_config(&name) {
                         Some(Control::RangeControl(c)) => {
                             let (from, to) = c.bounds();
+                            info!("Rage: {} .. {}", from, to);
                             adj.set_lower(from);
                             adj.set_upper(to);
 

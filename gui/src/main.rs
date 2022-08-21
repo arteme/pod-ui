@@ -517,6 +517,7 @@ async fn main() -> Result<()> {
 
     // controller / ui controller / midi reply -> midi out
     {
+        let config = config.clone();
         let edit_buffer = edit_buffer.clone();
         let dump = dump.clone();
         let ui_controller = ui_controller.clone();
@@ -525,7 +526,7 @@ async fn main() -> Result<()> {
         let mut ui_event_rx = state.lock().unwrap().ui_event_tx.subscribe();
         let midi_channel_num = midi_channel_num.clone();
         tokio::spawn(async move {
-            let make_cc = |name: &str, controller: &Controller| -> Option<MidiMessage> {
+            let make_cc = |name: &str, controller: &Controller| -> Option<Vec<MidiMessage>> {
                 let control = controller.get_config(name);
                 if control.is_none() {
                     warn!("Control {:?} not found!", name);
@@ -544,10 +545,30 @@ async fn main() -> Result<()> {
                     return None; // skip virtual controls
                 }
 
+                // Map the control address to a list of controls to make CC messages for.
+                // Typically this will be a single-element list with the same control
+                // that was resolved by name. For multibyte controls this will be a list
+                // of [tail control, head control], sorted this way specifically because
+                // we want to sent the lower bytes first.
+                let controls: Vec<&Control> = control.get_addr().map(|(addr, size)| {
+                    let config = config.read().unwrap();
+                    let mut controls =
+                        config.addr_to_control_iter((addr + size - 1) as usize)
+                            .collect::<Vec<_>>();
+                    controls.sort_by_key(|(_, c)| c.get_addr().map(|(a, _)| a).unwrap_or_default());
+                    // Reverse the controls list because we want to self lower bytes first
+                    controls.into_iter().map(|(_, c)| c).rev().collect()
+                }).unwrap_or_default();
+
                 let channel = midi_channel_num.load(Ordering::Relaxed);
                 let channel = if channel == Channel::all() { 0 } else { channel };
-                let value = control.value_to_midi(value);
-                Some(MidiMessage::ControlChange { channel, control: cc.unwrap(), value })
+
+                let messages = controls.into_iter().map(|control| {
+                    let value = control.value_to_midi(value);
+                    let cc = control.get_cc();
+                    MidiMessage::ControlChange { channel, control: cc.unwrap(), value }
+                }).collect();
+                Some(messages)
             };
             let make_pc = || {
                 let channel = midi_channel_num.load(Ordering::Relaxed);
@@ -597,13 +618,15 @@ async fn main() -> Result<()> {
                     rx = Some(edit_buffer.subscribe());
                 }
 
+                // TODO: combine this all into a Vec<Message>
                 let mut message: Option<MidiMessage> = None;
+                let mut messages: Option<Vec<MidiMessage>> = None;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
                     controller_event = rx.as_mut().unwrap().recv() => {
                           match controller_event {
                               Ok(Event { key: name, origin: o, .. }) => {
-                                  message = make_cc(&name, &edit_buffer.load().lock().unwrap().controller_locked());
+                                  messages = make_cc(&name, &edit_buffer.load().lock().unwrap().controller_locked());
                                   origin = o;
                               }
                               _ => {}
@@ -634,42 +657,45 @@ async fn main() -> Result<()> {
                           }
                       }
                 }
-                if rx.is_none() || origin == MIDI || message.is_none() {
+                if rx.is_none() || origin == MIDI || (message.is_none() && messages.is_none()) {
                     continue;
                 }
-                let send_buffer = match message {
-                    Some(MidiMessage::ControlChange { ..}) => {
-                        // CC from GUI layer -> set modified flag
-                        set_current_program_modified(
-                            &mut edit_buffer.load().lock().unwrap(),
-                            &ui_controller.lock().unwrap(),
-                            &ui_event_tx
-                        );
-                        false
-                    }
-                    Some(MidiMessage::ProgramChange { program, .. }) => {
-                        let edit_buffer = edit_buffer.load();
-                        let dump = dump.load();
-                        let mut edit_buffer = edit_buffer.lock().unwrap();
-                        let mut dump = dump.lock().unwrap();
-                        let mut ui_controller = ui_controller.lock().unwrap();
-                        program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI)
-                    }
-                    _ => { false }
-                };
+                let messages = messages.unwrap_or_default().into_iter().chain(message.into_iter());
+                for mut message in messages {
+                    let send_buffer = match message {
+                        MidiMessage::ControlChange { ..} => {
+                            // CC from GUI layer -> set modified flag
+                            set_current_program_modified(
+                                &mut edit_buffer.load().lock().unwrap(),
+                                &ui_controller.lock().unwrap(),
+                                &ui_event_tx
+                            );
+                            false
+                        }
+                        MidiMessage::ProgramChange { program, .. } => {
+                            let edit_buffer = edit_buffer.load();
+                            let dump = dump.load();
+                            let mut edit_buffer = edit_buffer.lock().unwrap();
+                            let mut dump = dump.lock().unwrap();
+                            let mut ui_controller = ui_controller.lock().unwrap();
+                            program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI)
+                        }
+                        _ => { false }
+                    };
 
-                // If the selected program was modified, Line6 Edit doesn't send a
-                // PC followed by an edit buffer dump, which would be logical, but sends an
-                // edit buffer dump only. Indeed, if we send PC first and then the edit buffer
-                // dump, Pod 2.0 gets all confused and switches to a completely different
-                // program altogether. So, following Line6 Edit we only sent the edit buffer dump!
-                if send_buffer {
-                    message = make_dump(Program::EditBuffer);
-                }
+                    // If the selected program was modified, Line6 Edit doesn't send a
+                    // PC followed by an edit buffer dump, which would be logical, but sends an
+                    // edit buffer dump only. Indeed, if we send PC first and then the edit buffer
+                    // dump, Pod 2.0 gets all confused and switches to a completely different
+                    // program altogether. So, following Line6 Edit we only sent the edit buffer dump!
+                    if send_buffer {
+                        message = make_dump(Program::EditBuffer).unwrap();
+                    }
 
-                match midi_out_tx.send(message.unwrap()) {
-                    Ok(_) => {}
-                    Err(err) => { error!("MIDI OUT error: {}", err); }
+                    match midi_out_tx.send(message) {
+                        Ok(_) => {}
+                        Err(err) => { error!("MIDI OUT error: {}", err); }
+                    }
                 }
             }
         });
@@ -704,13 +730,32 @@ async fn main() -> Result<()> {
                         let edit_buffer = edit_buffer.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
 
-                        let control = config.cc_to_control(cc);
-                        if control.is_none() {
+                        let addr = config.cc_to_addr(cc);
+                        let control = config.cc_to_control(cc).map(|(_, c)| c);
+                        if addr.is_none() || control.is_none() {
                             warn!("Control for CC={} not defined!", cc);
                             continue;
                         }
-                        let (name, control) = control.unwrap();
-                        let value = control.value_from_midi(value);
+                        // Map the control address to the first matching control
+                        // for the value lookup. For most controls this will the
+                        // same control as the once resolved by CC, for multibyte
+                        // controls this will be the head control.
+                        let value_control = addr.and_then(|addr| {
+                            let mut controls =
+                                config.addr_to_control_iter(addr)
+                                    .collect::<Vec<_>>();
+                            controls.sort_by_key(|(_, c)| c.get_addr().map(|(a, _)| a).unwrap_or_default());
+                            controls.into_iter()
+                                .next()
+                        });
+                        if value_control.is_none() {
+                            warn!("Control for CC={} not resolved by address!", cc);
+                            continue;
+                        }
+                        let control = control.unwrap();
+                        let (name, value_control) = value_control.unwrap();
+                        let control_value = edit_buffer.get(name).unwrap();
+                        let value = control.value_from_midi(value, control_value);
                         let modified = edit_buffer.set(name, value, MIDI);
                         if modified {
                             // CC from MIDI -> set modified flag
