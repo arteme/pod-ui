@@ -1,10 +1,12 @@
 use std::sync::{Arc, Mutex};
+use anyhow::*;
 use pod_core::config::register_config;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
-use pod_core::store::Store;
+use pod_core::store::{Signal, Store};
 use pod_gtk::{animate, Callbacks, gtk, Module, ObjectList};
+use crate::glib;
 
 static mut MODULES: Vec<Box<dyn Module>> = vec![];
 
@@ -40,7 +42,7 @@ pub struct InitializedInterface {
     pub objects: ObjectList
 }
 
-pub fn init_module(config: &'static Config) -> anyhow::Result<InitializedInterface> {
+pub fn init_module(config: &'static Config) -> Result<InitializedInterface> {
     let module = module_for_config(config).unwrap();
     let interface = module.init(config);
 
@@ -76,4 +78,16 @@ pub fn init_module(config: &'static Config) -> anyhow::Result<InitializedInterfa
         widget,
         objects
     })
+}
+
+pub fn init_module_controls(config: &Config, edit_buffer: &EditBuffer) -> Result<()> {
+    let mut controller = edit_buffer.controller_locked();
+
+    for name in &config.init_controls {
+        let value = controller.get(name)
+            .with_context(|| format!("Initializing control '{}' value not found!", &name))?;
+        controller.set_full(name, value, pod_core::config::MIDI, Signal::Force);
+    }
+
+    Ok(())
 }

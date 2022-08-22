@@ -309,7 +309,7 @@ use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
 use crate::panic::wire_panic_indicator;
-use crate::registry::{init_module, InitializedInterface, register_module};
+use crate::registry::{init_module, init_module_controls, InitializedInterface, register_module};
 use crate::widgets::*;
 
 
@@ -1070,6 +1070,24 @@ async fn main() -> Result<()> {
                             device_box.foreach(|w| device_box.remove(w));
                             device_box.add(&state.interface.widget);
                             callbacks = state.interface.callbacks.clone();
+
+                            {
+                                // Another ugly hack: to initialize the UI, it is not enough
+                                // to animate() the init_controls, since the controls do
+                                // emit other (synthetic or otherwise) animate() calls in their
+                                // wiring. So, we both animate() as part of init_module()
+                                // (needed to hide most controls that hide before first show)
+                                // and defer an init_module_controls() call that needs to happen
+                                // after the rx is subscribed to again!
+                                let config = state.config.clone();
+                                let edit_buffer = edit_buffer.load().clone();
+                                glib::idle_add_local_once(move || {
+                                    let config = config.read().unwrap();
+                                    let edit_buffer = edit_buffer.lock().unwrap();
+                                    init_module_controls(&config, &edit_buffer)
+                                        .unwrap_or_else(|err| error!("{}", err));
+                                });
+                            }
 
                             // I don't know a better place to put this for now, but after
                             // switching the module, we need to initialize the "program_num"

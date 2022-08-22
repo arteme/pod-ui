@@ -335,7 +335,8 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "bright_switch_enable",
            "effect_select",
            "amp_select",
-           "digiout_show"
+           "digiout_show",
+           "reverb_type"
        )),
         program_name_addr: 55,
         program_name_length: 16
