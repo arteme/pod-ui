@@ -64,7 +64,9 @@ pub fn init_module(config: &'static Config) -> Result<InitializedInterface> {
     let edit_buffer_guard = edit_buffer.lock().unwrap();
     let controller = edit_buffer_guard.controller_locked();
     for name in &config.init_controls {
-        animate(&objects, &name, controller.get(name).unwrap());
+        let value = controller.get(name)
+            .with_context(|| format!("Initializing control {:?} value not found!", &name))?;
+        animate(&objects, &name, value);
     }
     drop(controller);
     drop(edit_buffer_guard);
@@ -85,7 +87,7 @@ pub fn init_module_controls(config: &Config, edit_buffer: &EditBuffer) -> Result
 
     for name in &config.init_controls {
         let value = controller.get(name)
-            .with_context(|| format!("Initializing control '{}' value not found!", &name))?;
+            .with_context(|| format!("Initializing control {:?} value not found!", &name))?;
         controller.set_full(name, value, pod_core::config::MIDI, Signal::Force);
     }
 

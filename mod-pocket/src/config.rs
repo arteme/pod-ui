@@ -7,16 +7,23 @@ use pod_mod_pod2::{amps, short, def};
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
+    let exclude = vec!["digiout_show"];
 
-    let pro_controls: HashMap<String, Control> = convert_args!(hashmap!(
-        "out_gain" => RangeControl { cc: 9, addr: 35,
-            config: short!(),
-            format: Format::Data(FormatData { k: 1.0/12.0, b: 0.0, format: "{val} db".into()}),
-            ..def!()
-        }
+    let pocket_pod_controls: HashMap<String, Control> = convert_args!(hashmap!(
+        // wah_enable is a MIDI-only control and is not present in the program data
+        "wah_enable" => MidiSwitchControl { cc: 43 },
     ));
     let controls = pod2_config.controls.into_iter()
-        .chain(pro_controls)
+        .filter(|(k, v)| !exclude.contains(&k.as_str()))
+        .chain(pocket_pod_controls)
+        .collect();
+
+    let pocket_pod_init_controls = convert_args!(vec!(
+        "wah_enable"
+    ));
+    let init_controls = pod2_config.init_controls.into_iter()
+        .filter(|v| !exclude.contains(&v.as_str()))
+        .chain(pocket_pod_init_controls)
         .collect();
 
     Config {
@@ -28,6 +35,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         manual: false,
 
        controls,
+       init_controls,
 
        ..pod2_config
     }

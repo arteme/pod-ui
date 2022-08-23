@@ -550,17 +550,16 @@ async fn main() -> Result<()> {
                 // that was resolved by name. For multibyte controls this will be a list
                 // of [tail control, head control], sorted this way specifically because
                 // we want to sent the lower bytes first.
-                let controls: Vec<&Control> = control.get_addr().map(|(addr, size)| {
-                    if size < 2 {
-                        // single control
-                        vec![control]
-                    } else {
+                let controls: Vec<&Control> = control.get_addr()
+                    .filter(|(_, size)| *size > 1)
+                    .map(|(addr, size)| {
                         // multibyte control
                         let config = config.read().unwrap();
                         config.addr_to_control_vec((addr + size -1) as usize, true)
                             .into_iter().map(|(_, c)| c).collect()
-                    }
-                }).unwrap_or_default();
+                    })
+                    // single byte control, or control without address
+                    .unwrap_or_else(|| vec![control]);
 
                 let channel = midi_channel_num.load(Ordering::Relaxed);
                 let channel = if channel == Channel::all() { 0 } else { channel };
@@ -738,27 +737,21 @@ async fn main() -> Result<()> {
                             continue;
                         }
                         let (name, control) = control.unwrap();
-                        let (addr, _) = control.get_addr().unwrap();
                         // Map the control address to a control for the value lookup.
                         // For most controls this will the same control as the one
                         // resolved by CC, for multibyte controls this will be the
                         // head control.
-                        let (name, value_control) = {
-                            let lookup_control = config.addr_to_control_vec(addr as usize, false)
-                                .into_iter().next();
-                            if lookup_control.is_none() {
-                                warn!("Control for CC={} not resolved by address!", cc);
-                                continue;
-                            }
-                            let (lookup_name, lookup_control) = lookup_control.unwrap();
-                            let (_, size) = lookup_control.get_addr().unwrap();
+                        let (name, value_control) = control.get_addr()
+                            .and_then(|(addr, _)| {
+                                config.addr_to_control_vec(addr as usize, false).into_iter().next()
+                            })
+                            .filter(|(name, control)| {
+                                let (_, size) = control.get_addr().unwrap();
+                                size > 1
+                            })
+                            // single byte control, or control without address
+                            .unwrap_or_else(|| (name, control));
 
-                            if size < 2 {
-                                (name, control)
-                            } else {
-                                (lookup_name, lookup_control)
-                            }
-                        };
                         let control_value = edit_buffer.get(name).unwrap();
                         let value = control.value_from_midi(value, control_value);
                         let modified = edit_buffer.set(name, value, MIDI);

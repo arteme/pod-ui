@@ -30,7 +30,7 @@ struct PocketPodInterface {
 
 impl PocketPodInterface {
     fn new(config: &'static Config) -> Self {
-        let builder = Builder::from_string(include_str!("pod.glade"));
+        let builder = Builder::from_string(include_str!("pocket-pod.glade"));
         let objects = ObjectList::new(&builder);
 
         let widow: gtk::Window = builder.object("app_win").unwrap();
@@ -77,9 +77,6 @@ impl Interface for PocketPodInterface {
     fn init(&self, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
         let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
-
-        // while we use POD 2.0/Pro interface disable "digiout"
-        controller.set_full("digiout_show", 0u16, MIDI, Signal::Force);
 
         Ok(())
     }

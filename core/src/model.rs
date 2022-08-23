@@ -50,6 +50,7 @@ pub struct EffectEntry {
 #[derive(Clone, Debug)]
 pub enum Control {
     SwitchControl(SwitchControl),
+    MidiSwitchControl(MidiSwitchControl),
     RangeControl(RangeControl),
     Select(Select),
     VirtualSelect(VirtualSelect),
@@ -92,6 +93,8 @@ impl Default for FormatData {
 #[derive(Clone, Debug)]
 pub struct SwitchControl { pub cc: u8, pub addr: u8 }
 #[derive(Clone, Debug)]
+pub struct MidiSwitchControl { pub cc: u8 }
+#[derive(Clone, Debug)]
 pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<Self> }
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
@@ -121,6 +124,18 @@ impl Default for SwitchControl {
 impl From<SwitchControl> for Control {
     fn from(c: SwitchControl) -> Self {
         Control::SwitchControl(c)
+    }
+}
+
+impl Default for MidiSwitchControl {
+    fn default() -> Self {
+        MidiSwitchControl { cc: 0 }
+    }
+}
+
+impl From<MidiSwitchControl> for Control {
+    fn from(c: MidiSwitchControl) -> Self {
+        Control::MidiSwitchControl(c)
     }
 }
 
@@ -255,6 +270,18 @@ impl AbstractControl for SwitchControl {
     }
 }
 
+impl AbstractControl for MidiSwitchControl {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+
+    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
+        value as u16 / 64
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        if value > 0 { 127 } else { 0 }
+    }
+}
+
 impl AbstractControl for Select {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
@@ -268,6 +295,7 @@ impl Control {
     fn abstract_control(&self) -> &dyn AbstractControl {
         match self {
             Control::SwitchControl(c) => c,
+            Control::MidiSwitchControl(c) => c,
             Control::RangeControl(c) => c,
             Control::Select(c) => c,
             Control::VirtualSelect(c) => c,
