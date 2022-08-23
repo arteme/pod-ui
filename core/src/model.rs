@@ -408,6 +408,13 @@ impl Config {
             .flat_map(|(_, control)| control.get_cc())
     }
 
+    pub fn addr_to_control_vec(&self, addr: usize, reverse: bool) -> Vec<(&String, &Control)>  {
+        let mut controls = self.addr_to_control_iter(addr).collect::<Vec<_>>();
+        controls.sort_by_key(|(_, c)| c.get_addr().map(|(a, _)| a).unwrap_or_default());
+        if reverse { controls.reverse(); }
+        controls
+    }
+
 }
 
 impl PartialEq for Config {
