@@ -7,7 +7,7 @@ use pod_mod_pod2::{amps, short, def};
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
-    let exclude = vec!["digiout_show"];
+    let exclude = vec!["digiout_show", "vol_pedal_position"];
 
     let pocket_pod_controls: HashMap<String, Control> = convert_args!(hashmap!(
         // wah_enable is a MIDI-only control and is not present in the program data

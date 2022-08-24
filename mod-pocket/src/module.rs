@@ -66,7 +66,6 @@ impl Interface for PocketPodInterface {
 
         wire(controller.clone(), &self.objects, callbacks)?;
 
-        wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
         wire_amp_select(controller.clone(), config, &self.objects, callbacks)?;
         wire_effect_select(config, controller, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
