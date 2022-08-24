@@ -32,11 +32,11 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         member: 0x0600,
 
         program_num: 124,
-        manual: false,
+        flags: DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER,
 
-       controls,
-       init_controls,
+        controls,
+        init_controls,
 
-       ..pod2_config
+        ..pod2_config
     }
 });

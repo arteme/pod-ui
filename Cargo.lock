@@ -1254,6 +1254,7 @@ dependencies = [
  "anyhow",
  "arrayref",
  "async-stream",
+ "bitflags",
  "futures",
  "futures-util",
  "log",

@@ -1,6 +1,23 @@
 use std::collections::HashMap;
 use std::fmt;
+use bitflags::bitflags;
 use log::warn;
+
+bitflags! {
+    pub struct DeviceFlags: u16 {
+        const NONE                               = 0x0000;
+        const MANUAL_MODE                        = 0x0001;
+        /// When selecting a program that is marked as modified, Line6 Edit
+        /// doesn't send a PC followed by an edit buffer dump. It sends an
+        /// edit buffer dump only. Indeed, a PC followed by an edit buffer dump
+        /// confuses POD 2.0, which switches to a completely different program
+        /// altogether.
+        /// When doing virtual editing in Vyzex, it will send a PC followed by
+        /// edit buffer dump to Pocket POD, which processes them correctly.
+        /// Set this flag to send PC + edit buffer dump.
+        const MODIFIED_BUFFER_PC_AND_EDIT_BUFFER = 0x0002;
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -11,9 +28,6 @@ pub struct Config {
     pub program_size: usize,
     pub program_num: usize,
 
-    /// if the device supports "manual mode", PC 0
-    pub manual: bool,
-
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
     pub effects: Vec<Effect>,
@@ -21,7 +35,8 @@ pub struct Config {
     pub init_controls: Vec<String>,
 
     pub program_name_addr: usize,
-    pub program_name_length: usize
+    pub program_name_length: usize,
+    pub flags: DeviceFlags
 }
 
 
@@ -387,14 +402,14 @@ impl Config {
             member: 0,
             program_size: 0,
             program_num: 0,
-            manual: true,
             amp_models: vec![],
             cab_models: vec![],
             effects: vec![],
             controls: Default::default(),
             init_controls: vec![],
             program_name_addr: 0,
-            program_name_length: 0
+            program_name_length: 0,
+            flags: DeviceFlags::NONE
         }
     }
 

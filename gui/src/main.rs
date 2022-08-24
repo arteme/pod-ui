@@ -16,7 +16,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, atomic, Mutex, RwLock};
-use pod_core::model::{AbstractControl, Button, Config, Control, VirtualSelect};
+use pod_core::model::{AbstractControl, Button, Config, Control, DeviceFlags, VirtualSelect};
 use pod_core::config::{config_for_id, configs, GUI, MIDI, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
@@ -684,12 +684,16 @@ async fn main() -> Result<()> {
                         _ => { false }
                     };
 
-                    // If the selected program was modified, Line6 Edit doesn't send a
-                    // PC followed by an edit buffer dump, which would be logical, but sends an
-                    // edit buffer dump only. Indeed, if we send PC first and then the edit buffer
-                    // dump, Pod 2.0 gets all confused and switches to a completely different
-                    // program altogether. So, following Line6 Edit we only sent the edit buffer dump!
+                    let flags = config.read().unwrap().flags;
                     if send_buffer {
+                        if flags.contains(DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER) {
+                            // we assume that the current message is PC, send it
+                            match midi_out_tx.send(message) {
+                                Ok(_) => {}
+                                Err(err) => { error!("MIDI OUT error: {}", err); }
+                            }
+                        }
+
                         message = make_dump(Program::EditBuffer).unwrap();
                     }
 

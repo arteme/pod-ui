@@ -122,7 +122,6 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
 
         program_size: 71,
         program_num: 36,
-        manual: true,
 
         amp_models: amps!(
            "Tube Preamp" +p,
@@ -339,7 +338,9 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "reverb_type"
        )),
         program_name_addr: 55,
-        program_name_length: 16
+        program_name_length: 16,
+
+        flags: DeviceFlags::MANUAL_MODE
     }
 });
 
