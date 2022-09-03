@@ -123,11 +123,11 @@ impl Clone for ObjectList {
     }
 }
 
-impl Add<ObjectList> for ObjectList {
+impl Add<&ObjectList> for &ObjectList {
     type Output = ObjectList;
 
-    fn add(self, rhs: ObjectList) -> Self::Output {
-        let mut out = self.clone();
+    fn add(self, rhs: &ObjectList) -> Self::Output {
+        let mut out = (*self).clone();
         let mut rhs = rhs.objects.clone();
         out.objects.append(&mut rhs);
 

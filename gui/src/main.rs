@@ -1006,7 +1006,7 @@ async fn main() -> Result<()> {
                 names_rx = Some(dump.subscribe_to_name_updates());
 
                 let state = state.lock().unwrap();
-                objects = state.interface.objects.clone();
+                objects = &state.interface.objects + &ui_objects;
             }
 
             let mut processed = false;
