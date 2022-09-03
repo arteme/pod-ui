@@ -22,7 +22,7 @@ use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
-use pod_core::store::{Event, Store};
+use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::option::IntoIter;
@@ -84,6 +84,9 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
         "store_button" => Button::default(),
         "store_patch_button" => Button::default(),
         "store_all_button" => Button::default(),
+
+        /// Set if device config contains DeviceFlags::MANUAL_MODE
+        "manual_mode_present" => VirtualSelect::default(),
     ))
 });
 
@@ -377,6 +380,20 @@ fn new_device_ping(state: &State) {
         .send(MidiMessage::UniversalDeviceInquiry { channel: state.midi_channel_num }).unwrap();
     // Request all programs dump from the POD device
     state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
+}
+
+fn update_ui_from_state(state: &State, ui_controller: &mut Controller) {
+    let config = state.config.read().unwrap();
+
+    // Update "program_num" value in the ui_controller
+    ui_controller.set_full("program_num",
+                           config.program_num as u16,
+                           UNSET, Signal::Force);
+
+    // Update the "manual" flag in the ui_controller
+    ui_controller.set_full("manual_mode_present",
+                           config.flags.contains(DeviceFlags::MANUAL_MODE) as u16,
+                           UNSET, Signal::Force);
 }
 
 #[tokio::main]
@@ -1130,13 +1147,9 @@ async fn main() -> Result<()> {
                                 });
                             }
 
-                            // I don't know a better place to put this for now, but after
-                            // switching the module, we need to initialize the "program_num"
-                            // value in the ui_controller.
-                            let program_num = state.config.read().unwrap().program_num;
-                            ui_controller.lock().unwrap().set("program_num",
-                                                              program_num as u16,
-                                                              UNSET);
+                            // Update UI from state after device change
+                            update_ui_from_state(&state, &mut ui_controller.lock().unwrap());
+
                             let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
                             ObjectList::from_widget(&grid)
                                 .objects_by_type::<ProgramGrid>()
@@ -1153,6 +1166,7 @@ async fn main() -> Result<()> {
                                     p.join_radio_group(Option::<&gtk::RadioButton>::None);
                                 });
 
+                            let program_num = state.config.read().unwrap().program_num;
                             let g = ProgramGrid::new(program_num);
                             grid.attach(&g, 0, 1, 2, 18);
                             g.show_all();

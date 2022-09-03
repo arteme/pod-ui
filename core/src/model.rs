@@ -5,6 +5,10 @@ use log::warn;
 
 bitflags! {
     pub struct DeviceFlags: u16 {
+        /// POD 2.0 supports a manual mode (PC 0) which doesn't have a
+        /// program dump, but operated on edit buffer alone. Pocket POD
+        /// does not, PC 0 does nothing.
+        /// Set if the device supports a manual mode.
         const MANUAL_MODE                        = 0x0001;
         /// When selecting a program that is marked as modified, Line6 Edit
         /// doesn't send a PC followed by an edit buffer dump. It sends an

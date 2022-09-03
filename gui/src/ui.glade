@@ -52,6 +52,8 @@
                 <property name="group">program</property>
                 <style>
                   <class name="no_program_name"/>
+                  <class name="manual_mode_present=1:show"/>
+                  <class name="manual_mode_present=0:hide"/>
                 </style>
               </object>
               <packing>
