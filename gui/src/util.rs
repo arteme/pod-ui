@@ -25,3 +25,18 @@ impl <T> ManualPoll for JoinHandle<anyhow::Result<T>> {
         }
     }
 }
+
+///
+
+pub trait ToSome {
+    type Inner;
+    fn some(self) -> Option<Self::Inner>;
+}
+
+impl <T> ToSome for T {
+    type Inner = T;
+
+    fn some(self) -> Option<Self::Inner> {
+        Some(self)
+    }
+}

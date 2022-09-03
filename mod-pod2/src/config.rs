@@ -340,7 +340,7 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
         program_name_addr: 55,
         program_name_length: 16,
 
-        flags: DeviceFlags::MANUAL_MODE
+        flags: DeviceFlags::MANUAL_MODE | DeviceFlags::ALL_PROGRAMS_DUMP
     }
 });
 

@@ -323,6 +323,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dyn-iter"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "131726693bce13b09331bee70734fe266666332b6ddfef23e9dca5b8bf6dea66"
+
+[[package]]
 name = "encoding_rs"
 version = "0.8.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1289,6 +1295,7 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "clap",
+ "dyn-iter",
  "futures",
  "futures-util",
  "git-version",

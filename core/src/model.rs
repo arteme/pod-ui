@@ -5,7 +5,6 @@ use log::warn;
 
 bitflags! {
     pub struct DeviceFlags: u16 {
-        const NONE                               = 0x0000;
         const MANUAL_MODE                        = 0x0001;
         /// When selecting a program that is marked as modified, Line6 Edit
         /// doesn't send a PC followed by an edit buffer dump. It sends an
@@ -16,6 +15,11 @@ bitflags! {
         /// edit buffer dump to Pocket POD, which processes them correctly.
         /// Set this flag to send PC + edit buffer dump.
         const MODIFIED_BUFFER_PC_AND_EDIT_BUFFER = 0x0002;
+        /// When receiving an "all programs dump request" message, a POD 2.0
+        /// will send an "all programs dump" message. A Pocket POD will send
+        /// a set of "program patch dump" messages for each individual program.
+        /// Set this flag for POD 2.0 behavior.
+        const ALL_PROGRAMS_DUMP                  = 0x0004;
     }
 }
 
@@ -409,7 +413,7 @@ impl Config {
             init_controls: vec![],
             program_name_addr: 0,
             program_name_length: 0,
-            flags: DeviceFlags::NONE
+            flags: DeviceFlags::empty()
         }
     }
 
