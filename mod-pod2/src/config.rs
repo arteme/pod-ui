@@ -320,6 +320,14 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "digiout_show",
            "reverb_type"
        )),
+
+        // request edit buffer dump after setting `amp select` CC 12 and
+        // `effect select` CC 19
+        out_cc_edit_buffer_dump_req: vec![ 12, 19 ],
+
+        // request edit buffer dump after receiving `tap tempo` CC 64
+        in_cc_edit_buffer_dump_req: vec![ 64 ],
+
         program_name_addr: 55,
         program_name_length: 16,
 

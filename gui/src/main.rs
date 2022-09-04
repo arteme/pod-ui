@@ -668,7 +668,6 @@ async fn main() -> Result<()> {
                     rx = Some(edit_buffer.subscribe());
                 }
 
-                // TODO: combine this all into a Vec<Message>
                 let mut messages: Option<Vec<MidiMessage>> = None;
                 let mut origin: u8 = UNSET;
                 tokio::select! {
@@ -709,6 +708,7 @@ async fn main() -> Result<()> {
                 if rx.is_none() || origin == MIDI || messages.is_none() {
                     continue;
                 }
+                let config = (&*config.read().unwrap()).clone();
                 let mut messages: DynIter<MidiMessage> = DynIter::new(messages.unwrap_or_default().into_iter());
                 while let Some(message) = messages.next() {
                     let send_buffer = match message {
@@ -732,7 +732,6 @@ async fn main() -> Result<()> {
                         _ => { false }
                     };
 
-                    let flags = config.read().unwrap().flags;
                     if send_buffer {
                         // chain up an "edit buffer dump" message
                         messages = DynIter::new(
@@ -740,11 +739,24 @@ async fn main() -> Result<()> {
                                 .chain(messages)
                         );
 
-                        if !flags.contains(DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER) {
+                        if !config.flags.contains(DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER) {
                             // skip sending PC here
                             continue;
                         }
+                    }
 
+                    // check if we need to chain up an "edit buffer dump request
+                    match message {
+                        MidiMessage::ControlChange { control, .. } => {
+                            if config.out_cc_edit_buffer_dump_req.contains(&control) {
+                                // chain up an "edit buffer dump request" message
+                                messages = DynIter::new(
+                                    make_dump_request(Program::EditBuffer).unwrap().into_iter()
+                                        .chain(messages)
+                                );
+                            }
+                        }
+                        _ => {}
                     }
 
                     match midi_out_tx.send(message) {
@@ -782,6 +794,12 @@ async fn main() -> Result<()> {
                             // Ignore midi messages sent to a different channel
                             continue;
                         }
+
+                        if config.in_cc_edit_buffer_dump_req.contains(&cc) {
+                            // send an "edit buffer dump request"
+                            midi_out_tx.send(MidiMessage::ProgramEditBufferDumpRequest);
+                        }
+
                         let edit_buffer = edit_buffer.load();
                         let mut edit_buffer = edit_buffer.lock().unwrap();
 

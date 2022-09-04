@@ -42,6 +42,9 @@ pub struct Config {
     pub controls: HashMap<String, Control>,
     pub init_controls: Vec<String>,
 
+    pub out_cc_edit_buffer_dump_req: Vec<u8>,
+    pub in_cc_edit_buffer_dump_req: Vec<u8>,
+
     pub program_name_addr: usize,
     pub program_name_length: usize,
     pub flags: DeviceFlags
@@ -416,6 +419,8 @@ impl Config {
             effects: vec![],
             controls: Default::default(),
             init_controls: vec![],
+            out_cc_edit_buffer_dump_req: vec![],
+            in_cc_edit_buffer_dump_req: vec![],
             program_name_addr: 0,
             program_name_length: 0,
             flags: DeviceFlags::empty()
