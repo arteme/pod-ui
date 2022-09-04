@@ -712,7 +712,7 @@ async fn main() -> Result<()> {
                 let mut messages: DynIter<MidiMessage> = DynIter::new(messages.unwrap_or_default().into_iter());
                 while let Some(message) = messages.next() {
                     let send_buffer = match message {
-                        MidiMessage::ControlChange { ..} => {
+                        MidiMessage::ControlChange { .. } => {
                             // CC from GUI layer -> set modified flag
                             set_current_program_modified(
                                 &mut edit_buffer.load().lock().unwrap(),

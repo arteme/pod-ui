@@ -51,9 +51,10 @@ pub struct Config {
 #[derive(Clone, Default, Debug)]
 pub struct Amp {
     pub name: String,
+    pub reverb: u16,
     pub bright_switch: bool,
     pub presence: bool,
-    pub delay2: bool,
+    pub drive2: bool,
 }
 
 #[derive(Clone, Default, Debug)]

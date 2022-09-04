@@ -1,29 +1,12 @@
 use std::collections::HashMap;
 use maplit::*;
 use once_cell::sync::Lazy;
+use pod_core::builders::shorthand::*;
 use pod_core::model::*;
 
 #[macro_export]
 macro_rules! def {
     () => (::std::default::Default::default());
-}
-
-#[macro_export]
-macro_rules! amps {
-    (@amp $name:tt + p + b + d2) => (Amp { name: ($name).into(), bright_switch: true, presence: true, delay2: false });
-    (@amp $name:tt + b + d2)     => (Amp { name: ($name).into(), bright_switch: true, delay2: false, ..def!() });
-    (@amp $name:tt + p + b)      => (Amp { name: ($name).into(), bright_switch: true, presence: true, ..def!() });
-    (@amp $name:tt + p)          => (Amp { name: ($name).into(), presence: true, ..def!() });
-    (@amp $name:tt + b)          => (Amp { name: ($name).into(), bright_switch: true, ..def!() });
-    (@amp $name:tt)              => (Amp { name: ($name).into(), ..def!() });
-
-    ( $($a:tt $(+ $b:tt)* ),+ $(,)* ) => {
-       vec![
-         $(
-           amps!(@amp $a $(+ $b)*),
-         )+
-       ]
-    }
 }
 
 macro_rules! fx {
@@ -123,40 +106,40 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
         program_size: 71,
         program_num: 36,
 
-        amp_models: amps!(
-           "Tube Preamp" +p,
-           "Line 6 Clean" +p +b,
-           "Line 6 Crunch" +p +b,
-           "Line 6 Drive" +p +b,
-           "Line 6 Layer" +p +b +d2,
-           "Small Tweed",
-           "Tweed Blues" +p,
-           "Black Panel",
-           "Modern Class A" +p,
-           "Brit Class A",
-           "Brit Blues" +p +b,
-           "Brit Classic" +p,
-           "Brit Hi Gain" +p,
-           "Treadplate" +p,
-           "Modern Hi Gain",
-           "Fuzz Box" +p,
-           "Jazz Clean" +p +b,
-           "Boutique #1" +p,
-           "Boutique #2",
-           "Brit Class A #2",
-           "Brit Class A #3",
-           "Small Tweed #2",
-           "Black Panel #2" +b,
-           "Boutique #3" +p,
-           "California Crunch #1" +p +b,
-           "California Crunch #2" +p,
-           "Treadplate #2" +p,
-           "Modern Hi Gain #2" +p,
-           "Line 6 Twang",
-           "Line 6 Crunch #2",
-           "Line 6 Blues",
-           "Line 6 Insane",
-        ),
+        amp_models: convert_args!(vec!(
+            amp("Tube Preamp").room().presence(),
+            amp("Line 6 Clean").room().presence().bright(),
+            amp("Line 6 Crunch").spring().presence().bright(),
+            amp("Line 6 Drive").room().presence().bright(),
+            amp("Line 6 Layer").room().presence().bright().delay2(),
+            amp("Small Tweed").room(),
+            amp("Tweed Blues").spring().presence(),
+            amp("Black Panel").spring(),
+            amp("Modern Class A").spring().presence(),
+            amp("Brit Class A").room(),
+            amp("Brit Blues").room().presence().bright(),
+            amp("Brit Classic").room().presence(),
+            amp("Brit Hi Gain").room().presence(),
+            amp("Treadplate").room().presence(), // Rectified?
+            amp("Modern Hi Gain").room(),
+            amp("Fuzz Box").room().presence(),
+            amp("Jazz Clean").spring().presence().bright(),
+            amp("Boutique #1").room().presence(),
+            amp("Boutique #2").room(),
+            amp("Brit Class A #2").room(),
+            amp("Brit Class A #3").room(),
+            amp("Small Tweed #2").room(),
+            amp("Black Panel #2").spring().presence(),
+            amp("Boutique #3").room().presence(),
+            amp("California Crunch #1").spring().presence().bright(),
+            amp("California Crunch #2").spring().presence(),
+            amp("Treadplate #2").room().presence(), // Rectified #2
+            amp("Modern Hi Gain #2").room().presence(),
+            amp("Line 6 Twang").spring(),
+            amp("Line 6 Crunch #2").room(),
+            amp("Line 6 Blues").room(),
+            amp("Line 6 Insane").room(),
+        )),
         cab_models: convert_args!(vec!(
            "1x8  '60 Fender Tweed Champ",
            "1x12 ’52 Fender Tweed Deluxe",

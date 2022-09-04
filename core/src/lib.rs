@@ -11,6 +11,7 @@ mod util;
 
 pub mod store;
 pub mod model;
+pub mod builders;
 pub mod pod;
 pub mod config;
 pub mod controller;
