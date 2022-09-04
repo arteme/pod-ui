@@ -97,6 +97,14 @@ fn gate_threshold_to_midi(value: u16) -> u8 {
     (127.0 - (value as f64 * 256.0/194.0)) as u8
 }
 
+fn delay_time_from_buffer(value: u32) -> u16 {
+    (value / 6).min(0xffff) as u16
+}
+
+fn delay_time_to_buffer(value: u16) -> u32 {
+    (value as u32) * 6
+}
+
 pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
     Config {
         name: "POD 2.0".to_string(),
@@ -239,7 +247,10 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
            // delay
            "delay_time" => RangeControl { cc: 30, addr: 26,
-               config: RangeConfig::MultibyteHead { from: 0, to: 16383 /* 2^14-1 */, bitmask: 0x7f, shift: 7 },
+               config: RangeConfig::MultibyteHead {
+                    from: 0, to: 16383 /* 2^14-1 */, bitmask: 0x7f, shift: 7,
+                    size: 4, from_buffer: delay_time_from_buffer, to_buffer: delay_time_to_buffer
+                },
                format: Format::Data(FormatData { k: 6.0 * 0.03205, b: 0.0, format: "{val:1.0f} ms".into() }),
                 ..def!() }, // 0 .. 3150 ms / 128 steps (16384 steps as full 14-bit value)
            "delay_time:fine" => RangeControl { cc: 62, addr: 27,

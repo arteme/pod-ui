@@ -109,6 +109,7 @@ fn control_value_to_buffer(controller: &Controller, name: &str, buffer: &mut [u8
     }
     let control = control.unwrap();
     let value = controller.get(name).unwrap();
+    let value = control.value_to_buffer(value);
 
     let addr = control.get_addr();
     if addr.is_none() {
@@ -119,14 +120,23 @@ fn control_value_to_buffer(controller: &Controller, name: &str, buffer: &mut [u8
     let addr = addr as usize;
     match len {
         1 => {
-            if value > u8::MAX as u16 {
+            if value > u8::MAX as u32 {
                 warn!("Control {:?} value {} out of bounds!", name, value);
             }
             buffer[addr] = value as u8;
         }
         2 => {
+            if value > u16::MAX as u32 {
+                warn!("Control {:?} value {} out of bounds!", name, value);
+            }
             buffer[addr] = ((value >> 8) & 0xff) as u8;
             buffer[addr + 1] = (value & 0xff) as u8;
+        }
+        4 => {
+            buffer[addr] = ((value >> 24) & 0xff) as u8;
+            buffer[addr + 1] = ((value >> 16) & 0xff) as u8;
+            buffer[addr + 2] = ((value >> 8) & 0xff) as u8;
+            buffer[addr + 3] = (value & 0xff) as u8;
         }
         n => {
             error!("Control width {} not supported!", n)
@@ -148,18 +158,27 @@ fn control_value_from_buffer(controller: &mut Controller, name: &str, buffer: &[
     let addr = addr as usize;
     let value = match len {
         1 => {
-            buffer[addr] as u16
+            buffer[addr] as u32
         }
         2 => {
-            let a = buffer[addr] as u16;
-            let b = buffer[addr + 1] as u16;
+            let a = buffer[addr] as u32;
+            let b = buffer[addr + 1] as u32;
             (a << 8) | b
+        }
+        4 => {
+            let a = buffer[addr] as u32;
+            let b = buffer[addr + 1] as u32;
+            let c = buffer[addr + 2] as u32;
+            let d = buffer[addr + 3] as u32;
+            (a << 24) | (b << 16) | (c << 8)  | d
         }
         n => {
             error!("Control width {} not supported!", n);
-            0u16
+            0u32
+
         }
     };
+    let value = control.value_from_buffer(value);
     controller.set(&name, value, origin);
 }
 

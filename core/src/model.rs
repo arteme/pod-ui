@@ -129,7 +129,8 @@ pub enum RangeConfig {
     Short { from: u8, to: u8 },
     Long { from: u16, to: u16 },
     Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 },
-    MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8 },
+    MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
+        size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
     MultibyteTail { bitmask: u16, shift: u8 }
 }
 
@@ -222,6 +223,9 @@ pub trait AbstractControl {
     fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 { value as u16 }
     fn value_to_midi(&self, value: u16) -> u8 { value as u8 }
 
+    fn value_from_buffer(&self, value: u32) -> u16 { value as u16 }
+    fn value_to_buffer(&self, value: u16) -> u32 { value as u32 }
+
 }
 
 impl AbstractControl for RangeControl {
@@ -229,7 +233,7 @@ impl AbstractControl for RangeControl {
     fn get_addr(&self) -> Option<(u8, u8)> {
         let bytes = match self.config {
             RangeConfig::Long { .. } => 2,
-            RangeConfig::MultibyteHead { .. } => 2,
+            RangeConfig::MultibyteHead { size, .. } => size,
             _ => 1
         };
         Some((self.addr, bytes))
@@ -281,6 +285,29 @@ impl AbstractControl for RangeControl {
             }
             _ => value as u8
         }
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        match &self.config {
+            RangeConfig::MultibyteHead { from_buffer, .. } => {
+                from_buffer(value)
+            }
+            _ => {
+                value as u16
+            }
+        }
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        match &self.config {
+            RangeConfig::MultibyteHead { to_buffer, .. } => {
+                to_buffer(value)
+            }
+            _ => {
+                value as u32
+            }
+        }
+
     }
 }
 
@@ -347,6 +374,14 @@ impl AbstractControl for Control {
 
     fn value_to_midi(&self, value: u16) -> u8 {
         self.abstract_control().value_to_midi(value)
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        self.abstract_control().value_from_buffer(value)
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        self.abstract_control().value_to_buffer(value)
     }
 }
 
