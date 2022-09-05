@@ -661,6 +661,7 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Load the edit buffer from the device (send an edit buffer dump request)</property>
               </object>
               <packing>
                 <property name="left-attach">0</property>
@@ -674,6 +675,7 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Send the edit buffer to the device without storing it to a patch on the device (send an edit buffer dump)</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
@@ -687,6 +689,7 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Load all patches from the device (send an all programs dump request)</property>
               </object>
               <packing>
                 <property name="left-attach">0</property>
@@ -700,6 +703,7 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Store all patches to the device (send an all programs dump)</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
@@ -737,6 +741,7 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Load the currently-selected patch from the device (send a program dump request)</property>
               </object>
               <packing>
                 <property name="left-attach">0</property>
@@ -750,6 +755,7 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Store the currently-selected patch to the device (send a program dump)</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
