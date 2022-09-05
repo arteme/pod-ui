@@ -8,11 +8,9 @@ build = "build.rs"
 [dependencies]
 clap = { version = "=3.2.14", features = ["derive", "wrap_help"] }
 simple_logger = "=1.6.0"
-sentry = "0.24.3"
+sentry = "0.27.0"
 arc-swap = "1.5.0"
 dyn-iter = "0.2.0"
-
-pin-project = "=0.4.29" # needed to get glib dep to comile :(
 
 once_cell = "*" # defined in mod-pod2
 maplit = "*" # -"-
