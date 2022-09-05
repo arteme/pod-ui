@@ -1,26 +1,12 @@
 use std::collections::HashMap;
 use maplit::*;
 use once_cell::sync::Lazy;
+use pod_core::builders::shorthand::*;
 use pod_core::model::*;
 
+#[macro_export]
 macro_rules! def {
     () => (::std::default::Default::default());
-}
-
-macro_rules! amps {
-    (@amp $name:tt + p + b + d2) => (Amp { name: ($name).into(), bright_switch: true, presence: true, delay2: false });
-    (@amp $name:tt + p + b)      => (Amp { name: ($name).into(), bright_switch: true, presence: true, ..def!() });
-    (@amp $name:tt + p)          => (Amp { name: ($name).into(), presence: true, ..def!() });
-    (@amp $name:tt + b)          => (Amp { name: ($name).into(), bright_switch: true, ..def!() });
-    (@amp $name:tt)              => (Amp { name: ($name).into(), ..def!() });
-
-    ( $($a:tt $(+ $b:tt)* ),+ $(,)* ) => {
-       vec![
-         $(
-           amps!(@amp $a $(+ $b)*),
-         )+
-       ]
-    }
 }
 
 macro_rules! fx {
@@ -57,10 +43,12 @@ macro_rules! fmt_percent {
     () => ( Format::Callback(RangeControl::fmt_percent) );
 }
 
+#[macro_export]
 macro_rules! short {
     ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to } );
     () => ( short!(0, 63) );
 }
+#[macro_export]
 macro_rules! long {
     ( $from:expr, $to:expr ) => ( RangeConfig::Long { from: $from, to: $to } )
 }
@@ -109,6 +97,14 @@ fn gate_threshold_to_midi(value: u16) -> u8 {
     (127.0 - (value as f64 * 256.0/194.0)) as u8
 }
 
+fn delay_time_from_buffer(value: u32) -> u16 {
+    (value / 6).min(0xffff) as u16
+}
+
+fn delay_time_to_buffer(value: u16) -> u32 {
+    (value as u32) * 6
+}
+
 pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
     Config {
         name: "POD 2.0".to_string(),
@@ -118,40 +114,40 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
         program_size: 71,
         program_num: 36,
 
-        amp_models: amps!(
-           "Tube Preamp" +p,
-           "Line 6 Clean" +p +b,
-           "Line 6 Crunch" +p +b,
-           "Line 6 Drive" +p +b,
-           "Line 6 Layer" +p +b +d2,
-           "Small Tweed",
-           "Tweed Blues" +p,
-           "Black Panel",
-           "Modern Class A" +p,
-           "Brit Class A",
-           "Brit Blues" +p +b,
-           "Brit Classic" +p,
-           "Brit Hi Gain" +p,
-           "Treadplate" +p,
-           "Modern Hi Gain",
-           "Fuzz Box" +p,
-           "Jazz Clean" +p +b,
-           "Boutique #1" +p,
-           "Boutique #2",
-           "Brit Class A #2",
-           "Brit Class A #3",
-           "Small Tweed #2",
-           "Black Panel #2" +b,
-           "Boutique #3" +p,
-           "California Crunch #1" +p +b,
-           "California Crunch #2" +p,
-           "Treadplate #2" +p,
-           "Modern Hi Gain #2" +p,
-           "Line 6 Twang",
-           "Line 6 Crunch #2",
-           "Line 6 Blues",
-           "Line 6 Insane",
-        ),
+        amp_models: convert_args!(vec!(
+            amp("Tube Preamp").room().presence(),
+            amp("Line 6 Clean").room().presence().bright(),
+            amp("Line 6 Crunch").spring().presence().bright(),
+            amp("Line 6 Drive").room().presence().bright(),
+            amp("Line 6 Layer").room().presence().bright().delay2(),
+            amp("Small Tweed").room(),
+            amp("Tweed Blues").spring().presence(),
+            amp("Black Panel").spring(),
+            amp("Modern Class A").spring().presence(),
+            amp("Brit Class A").room(),
+            amp("Brit Blues").room().presence().bright(),
+            amp("Brit Classic").room().presence(),
+            amp("Brit Hi Gain").room().presence(),
+            amp("Treadplate").room().presence(), // Rectified?
+            amp("Modern Hi Gain").room(),
+            amp("Fuzz Box").room().presence(),
+            amp("Jazz Clean").spring().presence().bright(),
+            amp("Boutique #1").room().presence(),
+            amp("Boutique #2").room(),
+            amp("Brit Class A #2").room(),
+            amp("Brit Class A #3").room(),
+            amp("Small Tweed #2").room(),
+            amp("Black Panel #2").spring().presence(),
+            amp("Boutique #3").room().presence(),
+            amp("California Crunch #1").spring().presence().bright(),
+            amp("California Crunch #2").spring().presence(),
+            amp("Treadplate #2").room().presence(), // Rectified #2
+            amp("Modern Hi Gain #2").room().presence(),
+            amp("Line 6 Twang").spring(),
+            amp("Line 6 Crunch #2").room(),
+            amp("Line 6 Blues").room(),
+            amp("Line 6 Insane").room(),
+        )),
         cab_models: convert_args!(vec!(
            "1x8  '60 Fender Tweed Champ",
            "1x12 ’52 Fender Tweed Deluxe",
@@ -250,10 +246,16 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "vol_minimum" => RangeControl { cc: 46, addr: 23, format: fmt_percent!(), ..def!() },
            "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
            // delay
-           "delay_time" => RangeControl { cc: 30, addr: 26, /*config: long!(7,7),*/
-               format: Format::Data(FormatData { k: 6.0 * 0.03205, b: 0.0, format: "{val:1.2f} ms".into() }),
-                ..def!() }, // 0 .. 3150 ms / 128 steps
-           "delay_time:fine" => RangeControl { cc: 62, addr: 27, ..def!() }, // todo: what to do with this?
+           "delay_time" => RangeControl { cc: 30, addr: 26,
+               config: RangeConfig::MultibyteHead {
+                    from: 0, to: 16383 /* 2^14-1 */, bitmask: 0x7f, shift: 7,
+                    size: 4, from_buffer: delay_time_from_buffer, to_buffer: delay_time_to_buffer
+                },
+               format: Format::Data(FormatData { k: 6.0 * 0.03205, b: 0.0, format: "{val:1.0f} ms".into() }),
+                ..def!() }, // 0 .. 3150 ms / 128 steps (16384 steps as full 14-bit value)
+           "delay_time:fine" => RangeControl { cc: 62, addr: 27,
+               config: RangeConfig::MultibyteTail { bitmask: 0x7f, shift: 0 },
+                ..def!() },
            "delay_feedback" => RangeControl { cc: 32, addr: 34, config: short!(),
                 format: fmt_percent!(), ..def!() },
            "delay_level" => RangeControl { cc: 34, addr: 36, config: short!(),
@@ -326,10 +328,21 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "bright_switch_enable",
            "effect_select",
            "amp_select",
-           "digiout_show"
+           "digiout_show",
+           "reverb_type"
        )),
+
+        // request edit buffer dump after setting `amp select` CC 12 and
+        // `effect select` CC 19
+        out_cc_edit_buffer_dump_req: vec![ 12, 19 ],
+
+        // request edit buffer dump after receiving `tap tempo` CC 64
+        in_cc_edit_buffer_dump_req: vec![ 64 ],
+
         program_name_addr: 55,
-        program_name_length: 16
+        program_name_length: 16,
+
+        flags: DeviceFlags::MANUAL_MODE | DeviceFlags::ALL_PROGRAMS_DUMP
     }
 });
 

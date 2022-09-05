@@ -10,6 +10,7 @@ clap = { version = "=3.2.14", features = ["derive", "wrap_help"] }
 simple_logger = "=1.6.0"
 sentry = "0.24.3"
 arc-swap = "1.5.0"
+dyn-iter = "0.2.0"
 
 pin-project = "=0.4.29" # needed to get glib dep to comile :(
 
@@ -26,6 +27,7 @@ result = "*" # defined in pod-core
 pod-core = { path = "../core" }
 pod-gtk = { path = "../gtk" }
 pod-mod-pod2 = { path = "../mod-pod2" }
+pod-mod-pocket = { path = "../mod-pocket" }
 
 [build-dependencies]
 git-version = "0.3.5"

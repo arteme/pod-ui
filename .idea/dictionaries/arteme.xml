@@ -2,9 +2,13 @@
   <dictionary name="arteme">
     <words>
       <w>addr</w>
+      <w>basketweave</w>
+      <w>bassman</w>
       <w>flanger</w>
+      <w>flextone</w>
       <w>midir</w>
       <w>objs</w>
+      <w>priv</w>
       <w>recv</w>
       <w>reverb</w>
       <w>serde</w>

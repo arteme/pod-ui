@@ -1,6 +1,31 @@
 use std::collections::HashMap;
 use std::fmt;
+use bitflags::bitflags;
 use log::warn;
+
+bitflags! {
+    pub struct DeviceFlags: u16 {
+        /// POD 2.0 supports a manual mode (PC 0) which doesn't have a
+        /// program dump, but operated on edit buffer alone. Pocket POD
+        /// does not, PC 0 does nothing.
+        /// Set if the device supports a manual mode.
+        const MANUAL_MODE                        = 0x0001;
+        /// When selecting a program that is marked as modified, Line6 Edit
+        /// doesn't send a PC followed by an edit buffer dump. It sends an
+        /// edit buffer dump only. Indeed, a PC followed by an edit buffer dump
+        /// confuses POD 2.0, which switches to a completely different program
+        /// altogether.
+        /// When doing virtual editing in Vyzex, it will send a PC followed by
+        /// edit buffer dump to Pocket POD, which processes them correctly.
+        /// Set this flag to send PC + edit buffer dump.
+        const MODIFIED_BUFFER_PC_AND_EDIT_BUFFER = 0x0002;
+        /// When receiving an "all programs dump request" message, a POD 2.0
+        /// will send an "all programs dump" message. A Pocket POD will send
+        /// a set of "program patch dump" messages for each individual program.
+        /// Set this flag for POD 2.0 behavior.
+        const ALL_PROGRAMS_DUMP                  = 0x0004;
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -17,17 +42,22 @@ pub struct Config {
     pub controls: HashMap<String, Control>,
     pub init_controls: Vec<String>,
 
+    pub out_cc_edit_buffer_dump_req: Vec<u8>,
+    pub in_cc_edit_buffer_dump_req: Vec<u8>,
+
     pub program_name_addr: usize,
-    pub program_name_length: usize
+    pub program_name_length: usize,
+    pub flags: DeviceFlags
 }
 
 
 #[derive(Clone, Default, Debug)]
 pub struct Amp {
     pub name: String,
+    pub reverb: u16,
     pub bright_switch: bool,
     pub presence: bool,
-    pub delay2: bool,
+    pub drive2: bool,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -47,6 +77,7 @@ pub struct EffectEntry {
 #[derive(Clone, Debug)]
 pub enum Control {
     SwitchControl(SwitchControl),
+    MidiSwitchControl(MidiSwitchControl),
     RangeControl(RangeControl),
     Select(Select),
     VirtualSelect(VirtualSelect),
@@ -89,13 +120,18 @@ impl Default for FormatData {
 #[derive(Clone, Debug)]
 pub struct SwitchControl { pub cc: u8, pub addr: u8 }
 #[derive(Clone, Debug)]
+pub struct MidiSwitchControl { pub cc: u8 }
+#[derive(Clone, Debug)]
 pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<Self> }
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
     Normal,
     Short { from: u8, to: u8 },
     Long { from: u16, to: u16 },
-    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 }
+    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 },
+    MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
+        size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
+    MultibyteTail { bitmask: u16, shift: u8 }
 }
 
 #[derive(Clone, Debug)]
@@ -116,6 +152,18 @@ impl Default for SwitchControl {
 impl From<SwitchControl> for Control {
     fn from(c: SwitchControl) -> Self {
         Control::SwitchControl(c)
+    }
+}
+
+impl Default for MidiSwitchControl {
+    fn default() -> Self {
+        MidiSwitchControl { cc: 0 }
+    }
+}
+
+impl From<MidiSwitchControl> for Control {
+    fn from(c: MidiSwitchControl) -> Self {
+        Control::MidiSwitchControl(c)
     }
 }
 
@@ -172,8 +220,11 @@ pub trait AbstractControl {
     fn get_cc(&self) -> Option<u8> { None }
     fn get_addr(&self) -> Option<(u8, u8)> { None }
 
-    fn value_from_midi(&self, value: u8) -> u16 { value as u16 }
+    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 { value as u16 }
     fn value_to_midi(&self, value: u16) -> u8 { value as u8 }
+
+    fn value_from_buffer(&self, value: u32) -> u16 { value as u16 }
+    fn value_to_buffer(&self, value: u16) -> u32 { value as u32 }
 
 }
 
@@ -182,12 +233,13 @@ impl AbstractControl for RangeControl {
     fn get_addr(&self) -> Option<(u8, u8)> {
         let bytes = match self.config {
             RangeConfig::Long { .. } => 2,
+            RangeConfig::MultibyteHead { size, .. } => size,
             _ => 1
         };
         Some((self.addr, bytes))
     }
 
-    fn value_from_midi(&self, value: u8) -> u16 {
+    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
         match &self.config {
             RangeConfig::Short { from, to } => {
                 let scale = 127 / (to - from);
@@ -199,6 +251,11 @@ impl AbstractControl for RangeControl {
                 let v = value as f64 * scale + from;
                 v.min(to).max(from) as u16
             }
+            RangeConfig::MultibyteHead { bitmask, shift, .. } |
+            RangeConfig::MultibyteTail { bitmask, shift, .. } => {
+                let mask = bitmask << shift;
+                (control_value & !mask) | ((value as u16 & bitmask) << shift)
+            },
             RangeConfig::Function { from_midi, .. } => {
                 from_midi(value)
             }
@@ -218,11 +275,39 @@ impl AbstractControl for RangeControl {
                 let v = (value as f64 - from) / scale;
                 v.min(127.0).max(0.0) as u8
             }
+            RangeConfig::MultibyteHead { bitmask, shift, .. } |
+            RangeConfig::MultibyteTail { bitmask, shift } => {
+                let v = (value >> shift) & bitmask;
+                v.min(127).max(0) as u8
+            }
             RangeConfig::Function { to_midi, .. } => {
                 to_midi(value)
             }
             _ => value as u8
         }
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        match &self.config {
+            RangeConfig::MultibyteHead { from_buffer, .. } => {
+                from_buffer(value)
+            }
+            _ => {
+                value as u16
+            }
+        }
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        match &self.config {
+            RangeConfig::MultibyteHead { to_buffer, .. } => {
+                to_buffer(value)
+            }
+            _ => {
+                value as u32
+            }
+        }
+
     }
 }
 
@@ -230,7 +315,19 @@ impl AbstractControl for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 
-    fn value_from_midi(&self, value: u8) -> u16 {
+    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
+        value as u16 / 64
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        if value > 0 { 127 } else { 0 }
+    }
+}
+
+impl AbstractControl for MidiSwitchControl {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+
+    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
         value as u16 / 64
     }
 
@@ -252,6 +349,7 @@ impl Control {
     fn abstract_control(&self) -> &dyn AbstractControl {
         match self {
             Control::SwitchControl(c) => c,
+            Control::MidiSwitchControl(c) => c,
             Control::RangeControl(c) => c,
             Control::Select(c) => c,
             Control::VirtualSelect(c) => c,
@@ -270,12 +368,20 @@ impl AbstractControl for Control {
         self.abstract_control().get_addr()
     }
 
-    fn value_from_midi(&self, value: u8) -> u16 {
-        self.abstract_control().value_from_midi(value)
+    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
+        self.abstract_control().value_from_midi(value, control_value)
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
         self.abstract_control().value_to_midi(value)
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        self.abstract_control().value_from_buffer(value)
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        self.abstract_control().value_to_buffer(value)
     }
 }
 
@@ -291,7 +397,9 @@ impl RangeControl {
                 let b = from_midi(127) as f64;
                 (a.min(b), a.max(b))
             }
-            RangeConfig::Long { from, to } => (from as f64, to as f64)
+            RangeConfig::Long { from, to } |
+            RangeConfig::MultibyteHead { from, to, .. } => (from as f64, to as f64),
+            RangeConfig::MultibyteTail { .. } => (0.0, 0.0)
         }
     }
 
@@ -346,8 +454,11 @@ impl Config {
             effects: vec![],
             controls: Default::default(),
             init_controls: vec![],
+            out_cc_edit_buffer_dump_req: vec![],
+            in_cc_edit_buffer_dump_req: vec![],
             program_name_addr: 0,
-            program_name_length: 0
+            program_name_length: 0,
+            flags: DeviceFlags::empty()
         }
     }
 
@@ -387,6 +498,13 @@ impl Config {
                 }
             })
             .flat_map(|(_, control)| control.get_cc())
+    }
+
+    pub fn addr_to_control_vec(&self, addr: usize, reverse: bool) -> Vec<(&String, &Control)>  {
+        let mut controls = self.addr_to_control_iter(addr).collect::<Vec<_>>();
+        controls.sort_by_key(|(_, c)| c.get_addr().map(|(a, _)| a).unwrap_or_default());
+        if reverse { controls.reverse(); }
+        controls
     }
 
 }

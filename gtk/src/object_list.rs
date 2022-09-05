@@ -10,8 +10,28 @@ pub struct ObjectList {
 }
 
 impl ObjectList {
+    /// Create a new object list from a Builder instance
     pub fn new(builder: &Builder) -> Self {
         ObjectList { objects: builder.objects() }
+    }
+
+    pub fn from_widget<T: IsA<Widget>>(widget: &T) -> Self {
+        let mut widgets = vec![ widget.clone().upcast::<Widget>() ];
+        let mut i = 0;
+        while i < widgets.len() {
+            if let Some(c) = &widgets[i].dynamic_cast_ref::<gtk::Container>() {
+                widgets.append(&mut c.children());
+            }
+            i += 1;
+        }
+
+        let objects = widgets.into_iter()
+            .flat_map(|w| w.dynamic_cast::<Object>().ok() )
+            .collect::<Vec<_>>();
+
+        Self {
+            objects
+        }
     }
 
     pub fn obj_by_name(&self, name: &str) -> Result<Object> {
@@ -34,9 +54,13 @@ impl ObjectList {
             .flat_map(|obj| ObjectList::object_name(obj).map(|name| (obj, name)))
     }
 
+    pub fn objects_by_type<T: ObjectType>(&self) -> impl Iterator<Item=&T> {
+        self.objects.iter()
+            .filter_map(|w| w.dynamic_cast_ref::<T>())
+    }
+
     pub fn object_name<T: ObjectType>(obj: &T) -> Option<String> {
-        obj.property("name")
-            .map(|p| p.get::<String>().unwrap())
+        obj.try_property::<String>("name")
             .ok()
             .filter(|v| !v.is_empty())
     }
@@ -99,11 +123,11 @@ impl Clone for ObjectList {
     }
 }
 
-impl Add<ObjectList> for ObjectList {
+impl Add<&ObjectList> for &ObjectList {
     type Output = ObjectList;
 
-    fn add(self, rhs: ObjectList) -> Self::Output {
-        let mut out = self.clone();
+    fn add(self, rhs: &ObjectList) -> Self::Output {
+        let mut out = (*self).clone();
         let mut rhs = rhs.objects.clone();
         out.objects.append(&mut rhs);
 

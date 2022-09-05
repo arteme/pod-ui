@@ -2,6 +2,9 @@
 <!-- Generated with glade 3.38.2 -->
 <interface>
   <requires lib="gtk+" version="3.22"/>
+  <object class="GtkSizeGroup">
+    <property name="mode">vertical</property>
+  </object>
   <object class="GtkAdjustment" id="adjustment1">
     <property name="upper">100</property>
     <property name="step-increment">1</property>
@@ -205,7 +208,7 @@
             <property name="can-focus">False</property>
             <property name="spacing">10</property>
             <child>
-              <!-- n-columns=6 n-rows=2 -->
+              <!-- n-columns=7 n-rows=2 -->
               <object class="GtkGrid">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
@@ -307,31 +310,30 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkButton" id="vol_pedal_position">
-                    <property name="label" translatable="yes">&gt;</property>
-                    <property name="name">vol_pedal_position</property>
+                  <object class="GtkCheckButton" id="wah_enable">
+                    <property name="label" translatable="yes">Wah</property>
+                    <property name="name">wah_enable</property>
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                    <property name="valign">start</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">1</property>
-                    <property name="top-attach">0</property>
-                    <property name="width">2</property>
+                    <property name="left-attach">6</property>
+                    <property name="top-attach">1</property>
                   </packing>
                 </child>
                 <child>
-                  <placeholder/>
-                </child>
-                <child>
-                  <placeholder/>
-                </child>
-                <child>
-                  <placeholder/>
-                </child>
-                <child>
-                  <placeholder/>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="margin-bottom">8</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">0</property>
+                    <property name="top-attach">0</property>
+                    <property name="width">7</property>
+                  </packing>
                 </child>
               </object>
               <packing>
@@ -351,6 +353,7 @@
                   <object class="GtkAlignment">
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
+                    <property name="bottom-padding">4</property>
                     <property name="left-padding">12</property>
                     <property name="right-padding">12</property>
                     <child>
@@ -815,7 +818,7 @@
                             </child>
                             <child>
                               <object class="GtkRadioButton" id="radiobutton2">
-                                <property name="label" translatable="yes">Hall</property>
+                                <property name="label" translatable="yes">Room</property>
                                 <property name="name">reverb_type:1</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -1093,79 +1096,6 @@
                     <property name="expand">False</property>
                     <property name="fill">True</property>
                     <property name="position">3</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkFrame">
-                    <property name="name">d</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">False</property>
-                    <property name="label-xalign">0</property>
-                    <property name="shadow-type">etched-out</property>
-                    <child>
-                      <object class="GtkAlignment">
-                        <property name="visible">True</property>
-                        <property name="can-focus">False</property>
-                        <property name="left-padding">12</property>
-                        <property name="right-padding">12</property>
-                        <child>
-                          <!-- n-columns=3 n-rows=1 -->
-                          <object class="GtkGrid">
-                            <property name="visible">True</property>
-                            <property name="can-focus">False</property>
-                            <property name="column-spacing">10</property>
-                            <property name="row-homogeneous">True</property>
-                            <property name="column-homogeneous">True</property>
-                            <child>
-                              <object class="GtkLabel" id="label40">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Gain</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale36">
-                                <property name="name">digiout_gain</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="hexpand">True</property>
-                                <property name="adjustment">adjustment36</property>
-                                <property name="round-digits">0</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">0</property>
-                                <property name="width">2</property>
-                              </packing>
-                            </child>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                    <child type="label">
-                      <object class="GtkLabel">
-                        <property name="visible">True</property>
-                        <property name="can-focus">False</property>
-                        <property name="label" translatable="yes">Digital Out</property>
-                      </object>
-                    </child>
-                    <style>
-                      <class name="digiout_show=1:show"/>
-                      <class name="digiout_show=0:hide"/>
-                    </style>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">4</property>
                   </packing>
                 </child>
               </object>
@@ -2197,6 +2127,10 @@
                         <property name="label" translatable="yes">Wah Pedal</property>
                       </object>
                     </child>
+                    <style>
+                      <class name="wah_enable=1:enable"/>
+                      <class name="wah_enable=0:disable"/>
+                    </style>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -2223,101 +2157,5 @@
         </child>
       </object>
     </child>
-  </object>
-  <object class="GtkSizeGroup">
-    <property name="mode">vertical</property>
-    <widgets>
-      <widget name="noise_gate_enable"/>
-      <widget name="amp_enable"/>
-      <widget name="volume_enable"/>
-      <widget name="effect_enable"/>
-      <widget name="delay_enable"/>
-      <widget name="reverb_enable"/>
-      <widget name="vol_pedal_position"/>
-      <widget name="comboboxtext1"/>
-      <widget name="label1"/>
-      <widget name="label2"/>
-      <widget name="label3"/>
-      <widget name="label4"/>
-      <widget name="label5"/>
-      <widget name="label6"/>
-      <widget name="label7"/>
-      <widget name="scale1"/>
-      <widget name="scale2"/>
-      <widget name="scale3"/>
-      <widget name="scale4"/>
-      <widget name="scale5"/>
-      <widget name="scale6"/>
-      <widget name="scale7"/>
-      <widget name="label8"/>
-      <widget name="label9"/>
-      <widget name="scale8"/>
-      <widget name="scale9"/>
-      <widget name="radiobutton1"/>
-      <widget name="radiobutton2"/>
-      <widget name="label10"/>
-      <widget name="label11"/>
-      <widget name="label12"/>
-      <widget name="label13"/>
-      <widget name="label14"/>
-      <widget name="scale10"/>
-      <widget name="scale11"/>
-      <widget name="scale12"/>
-      <widget name="scale13"/>
-      <widget name="scale14"/>
-      <widget name="label38"/>
-      <widget name="label39"/>
-      <widget name="scale34"/>
-      <widget name="scale35"/>
-      <widget name="scale36"/>
-      <widget name="comboboxtext2"/>
-      <widget name="label15"/>
-      <widget name="scale15"/>
-      <widget name="label16"/>
-      <widget name="label17"/>
-      <widget name="label18"/>
-      <widget name="scale16"/>
-      <widget name="scale17"/>
-      <widget name="scale18"/>
-      <widget name="comboboxtext3"/>
-      <widget name="scale19"/>
-      <widget name="label19"/>
-      <widget name="label20"/>
-      <widget name="scale20"/>
-      <widget name="label21"/>
-      <widget name="scale21"/>
-      <widget name="label22"/>
-      <widget name="label23"/>
-      <widget name="label24"/>
-      <widget name="scale22"/>
-      <widget name="scale23"/>
-      <widget name="scale24"/>
-      <widget name="label25"/>
-      <widget name="label26"/>
-      <widget name="label27"/>
-      <widget name="label28"/>
-      <widget name="label29"/>
-      <widget name="label30"/>
-      <widget name="scale25"/>
-      <widget name="scale26"/>
-      <widget name="scale27"/>
-      <widget name="scale28"/>
-      <widget name="scale29"/>
-      <widget name="scale30"/>
-      <widget name="label31"/>
-      <widget name="label32"/>
-      <widget name="label33"/>
-      <widget name="checkbutton1"/>
-      <widget name="checkbutton2"/>
-      <widget name="checkbutton3"/>
-      <widget name="label34"/>
-      <widget name="checkbutton4"/>
-      <widget name="label35"/>
-      <widget name="label36"/>
-      <widget name="scale31"/>
-      <widget name="scale32"/>
-      <widget name="label37"/>
-      <widget name="scale33"/>
-    </widgets>
   </object>
 </interface>

@@ -17,7 +17,8 @@ pub fn init_combo<T, F>(controller: &Controller, objs: &ObjectList,
         select.append_text(name);
     }
 
-    let v = controller.get(name).unwrap();
+    let v = controller.get(name)
+        .with_context(|| format!("Init combo control {:?} not found!", name))?;
     select.set_active(Some(v as u32));
 
     Ok(())

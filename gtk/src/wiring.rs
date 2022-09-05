@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::*;
@@ -47,6 +48,15 @@ impl SignalHandler {
     }
 }
 
+impl Drop for SignalHandler {
+    fn drop(&mut self) {
+        let handler_id = unsafe {
+            ptr::read(&self.handler_id)
+        };
+        glib::signal_handler_disconnect(&self.object, handler_id);
+    }
+}
+
 impl SignalHandlerExt for SignalHandler {
     fn blocked<F: Fn() -> R, R>(&self, f: F) -> R {
         SignalHandler::blocked(&[self], f)
@@ -81,6 +91,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     match controller.get_config(&name) {
                         Some(Control::RangeControl(c)) => {
                             let (from, to) = c.bounds();
+                            info!("Rage: {} .. {}", from, to);
                             adj.set_lower(from);
                             adj.set_upper(to);
 
@@ -188,33 +199,58 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                         }
                     }
                 }
-                let mut handlers = Vec::<SignalHandler>::new();
+                let handlers = Arc::new(Mutex::new(Vec::<SignalHandler>::new()));
 
-                // this is a group, look up the children
-                let group = radio.group();
-
-                // wire gui -> controller
-                for radio in group.clone() {
+                // for the radio button group, we add a "group-changed" event
+                // handler so that buttons added to the group later are also
+                // wired correctly
+                {
                     let controller = controller.clone();
                     let name = name.clone();
-                    let radio_name = ObjectList::object_name(&radio).unwrap();
-                    let value = radio_name.find(':')
-                        .map(|pos| &radio_name[pos+1..]).map(|str| str.parse::<u16>().unwrap());
-                    if value.is_none() {
-                        // value not of "name:N" pattern, skip
-                        continue;
-                    }
-                    let h = radio.connect_toggled(move |radio| {
-                        if !radio.is_active() { return; }
-                        let mut controller = controller.lock().unwrap();
-                        controller.set(&name, value.unwrap(), GUI);
+                    let handlers = handlers.clone();
+
+                    radio.connect_group_changed(move |radio| {
+                        let mut handlers = handlers.lock().unwrap();
+                        handlers.clear();
+
+                        // wire gui -> controller
+                        for radio in radio.group() {
+                            let controller = controller.clone();
+                            let name = name.clone();
+                            let radio_name = ObjectList::object_name(&radio);
+                            if radio_name.is_none() {
+                                // skip buttons without names
+                                continue;
+                            }
+                            let radio_name = radio_name.unwrap();
+                            let value = radio_name.find(':')
+                                .map(|pos| &radio_name[pos+1..]).map(|str| str.parse::<u16>().unwrap());
+                            if value.is_none() {
+                                // value not of "name:N" pattern, skip
+                                continue;
+                            }
+                            let h = radio.connect_toggled(move |radio| {
+                                if !radio.is_active() { return; }
+                                // Removing from a radio group triggers addition to a radio
+                                // group of 1 (self?), which triggers a "toggled" and "is_active".
+                                // Protect against this nonsense.
+                                if radio.group().len() < 2 { return; }
+                                let mut controller = controller.lock().unwrap();
+                                controller.set(&name, value.unwrap(), GUI);
+                            });
+                            handlers.push(SignalHandler::new(&radio, h));
+                        }
                     });
-                    handlers.push(SignalHandler::new(&radio, h));
                 }
+
+                // wire gui -> controller
+                radio.emit_by_name::<()>("group-changed", &[]);
+
                 // wire controller -> gui
                 {
                     let controller = controller.clone();
                     let name = name.clone();
+                    let radio = radio.clone();
                     callbacks.insert(
                         name.clone(),
                         Rc::new(move || {
@@ -223,13 +259,15 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                 controller.get(&name).unwrap()
                             };
                             let item_name = format!("{}:{}", name, v);
-                            group.iter().find(|radio| ObjectList::object_name(*radio).unwrap_or_default() == item_name)
+                            radio.group().iter()
+                                .find(|radio| ObjectList::object_name(*radio).unwrap_or_default() == item_name)
                                 .and_then(|item| {
+                                    let handlers = handlers.lock().unwrap();
                                     handlers.blocked(|| item.set_active(true));
                                     Some(())
                                 })
                                 .or_else( || {
-                                    error!("GtkRadioButton not found with name '{}'", name);
+                                    error!("GtkRadioButton not found with name '{}'", item_name);
                                     None
                                 });
                         })

@@ -288,11 +288,11 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
 
                     // HACK: as if everything's coming straight from MIDI
                     let config = controller.get_config(&name).unwrap();
-                    let val = controller.get(&name).unwrap();
-                    let val = config.value_to_midi(val);
+                    let control_val = controller.get(&name).unwrap();
+                    let val = config.value_to_midi(control_val);
 
                     let config = controller.get_config(&control_name).unwrap();
-                    let val = config.value_from_midi(val);
+                    let val = config.value_from_midi(val, control_val);
                     controller.set(&control_name, val, MIDI);
                 }
             })

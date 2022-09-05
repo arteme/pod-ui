@@ -15,6 +15,12 @@ pub fn configs() -> &'static Vec<Config> {
     }
 }
 
+pub fn config_for_id(family: u16, member: u16) -> Option<&'static Config> {
+    configs().iter().find(|config| {
+        family == config.family && member == config.member
+    })
+}
+
 // Connection
 pub const UNSET: u8 = 0;
 pub const MIDI: u8 = 1;

@@ -10,7 +10,7 @@ use log::*;
 use result::prelude::*;
 
 use crate::midi::*;
-use crate::config::configs;
+use crate::config::config_for_id;
 use crate::model::Config;
 use tokio::sync::mpsc;
 use unicycle::IndexedStreamsUnordered;
@@ -262,9 +262,7 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
                 let event = MidiMessage::from_bytes(bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, .. }) => {
-                        let pod: Option<&Config> = configs().iter().find(|config| {
-                            family == config.family && member == config.member
-                        });
+                        let pod = config_for_id(family, member);
                         pod.map(|pod| {
                             info!("Discovered: {}: {}", i, pod.name);
                             pod
@@ -314,9 +312,7 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
                 let event = MidiMessage::from_bytes(bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, channel, .. }) => {
-                        let pod: Option<&Config> = configs().iter().find(|config| {
-                            family == config.family && member == config.member
-                        });
+                        let pod = config_for_id(family, member);
                         pod.map(|pod| {
                             info!("Discovered: channel={}: {}", channel, pod.name);
                             channel

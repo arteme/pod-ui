@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "gtk", "gui", "mod-pod2"]
+members = ["core", "gtk", "gui", "mod-pod2", "mod-pocket"]
