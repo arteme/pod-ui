@@ -381,7 +381,7 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
             let rep = detect(in_ports.as_mut_slice(), chunk).await?
                 .into_iter()
                 // make sure we only count the ports that have the same device as in step 1
-                .filter(|(i, c)| config.filter(|c1| *c1 == *c).is_some())
+                .filter(|(_, c)| config.filter(|c1| *c1 == *c).is_some())
                 .collect::<Vec<_>>();
             if rep.len() > 0 {
                 for x in i .. i+chunk.len() {

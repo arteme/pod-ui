@@ -3,7 +3,6 @@ use maplit::*;
 use once_cell::sync::Lazy;
 use pod_core::model::*;
 use pod_gtk::*;
-use pod_mod_pod2::{short, def};
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
@@ -14,7 +13,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         "wah_enable" => MidiSwitchControl { cc: 43 },
     ));
     let controls = pod2_config.controls.into_iter()
-        .filter(|(k, v)| !exclude.contains(&k.as_str()))
+        .filter(|(k, _)| !exclude.contains(&k.as_str()))
         .chain(pocket_pod_controls)
         .collect();
 
