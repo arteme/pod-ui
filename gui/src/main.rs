@@ -92,7 +92,7 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
 
 
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
-                       midi_channel: u8, config: Option<&'static Config>) {
+                       midi_channel: u8, config: Option<&'static Config>) -> bool {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
@@ -114,7 +114,6 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.dump.store(state.interface.dump.clone());
 
         info!("Installing config {:?}", &config.name);
-        // TODO: channels!
 
         state.ui_event_tx.send(UIEvent::NewEditBuffer);
     }
@@ -127,7 +126,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.midi_out_cancel = None;
         state.ui_event_tx.send(UIEvent::NewMidiConnection);
         state.midi_channel_num = 0;
-        return;
+        return config_changed;
     }
 
     let mut midi_in = midi_in.unwrap();
@@ -199,6 +198,8 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     // we assume that something changed -- either the config or the midi settings
     // so signal a new device ping!
     state.ui_event_tx.send(UIEvent::NewDevice);
+
+    config_changed
 }
 
 
@@ -542,10 +543,15 @@ async fn main() -> Result<()> {
         }
     });
 
-    set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, detected_config);
-    // No new edit buffer / interface may have been initialized above,
-    // but make sure the initial interface gets connected to the UI
-    state.lock().unwrap().ui_event_tx.send(UIEvent::NewEditBuffer)?;
+    let config_changed =
+        set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, detected_config);
+    if !config_changed {
+        // No new edit buffer / interface was initialized above,
+        // but make sure the initial interface gets connected to the UI
+        let state = state.lock().unwrap();
+        state.ui_event_tx.send(UIEvent::NewEditBuffer)?;
+        state.ui_event_tx.send(UIEvent::NewDevice)?;
+    }
 
     let css = gtk::CssProvider::new();
     css.load_from_data(include_str!("default.css").as_bytes())
