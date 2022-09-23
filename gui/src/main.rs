@@ -46,7 +46,8 @@ pub enum UIEvent {
     MidiTx,
     MidiRx,
     Modified(usize, bool),
-    Panic
+    Panic,
+    Quit
 }
 
 pub struct DetectedDevVersion {
@@ -447,7 +448,7 @@ async fn main() -> Result<()> {
             midi_out_cancel: None,
             midi_in_tx,
             midi_out_tx,
-            ui_event_tx,
+            ui_event_tx: ui_event_tx.clone(),
             midi_channel_num: 0,
             config: Arc::new(RwLock::new(config)),
             interface,
@@ -501,7 +502,7 @@ async fn main() -> Result<()> {
     let ui = gtk::Builder::from_string(include_str!("ui.glade"));
     let ui_objects = ObjectList::new(&ui);
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
-    pod_gtk::wire(ui_controller.clone(), &ui_objects, &mut ui_callbacks)?;
+    wire(ui_controller.clone(), &ui_objects, &mut ui_callbacks)?;
 
     let program_grid = ArcSwap::from(Arc::new(ProgramGrid::new(32)));
 
@@ -509,9 +510,10 @@ async fn main() -> Result<()> {
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
-    window.connect_delete_event(|_, _| {
-        gtk::main_quit();
-        Inhibit(false)
+    window.connect_delete_event(move |_, _| {
+        info!("Quitting");
+        ui_event_tx.send(UIEvent::Quit);
+        Inhibit(true)
     });
     let transfer_icon_up: gtk::Label = ui.object("transfer_icon_up").unwrap();
     let transfer_icon_down: gtk::Label = ui.object("transfer_icon_down").unwrap();
@@ -1235,6 +1237,23 @@ async fn main() -> Result<()> {
                                         widget.set_tooltip_text(tooltip);
                                     }
                                 });
+                        },
+                        UIEvent::Quit => {
+                            // application is being closed, perform clean-up
+                            // that needs to happen inside the GTK thread...
+
+                            let window: gtk::Window = ui.object("ui_win").unwrap();
+
+                            // detach the program buttons so that there are no
+                            // "GTK signal handler not found" errors when SignalHandler
+                            // objects are dropped...
+                            let r = ui.object::<gtk::RadioButton>("program").unwrap();
+                            let g = program_grid.load_full();
+                            g.join_radio_group(Option::<&gtk::RadioButton>::None);
+                            r.emit_by_name::<()>("group-changed", &[]);
+
+                            // quit
+                            gtk::main_quit();
                         }
                     }
 
@@ -1266,12 +1285,6 @@ async fn main() -> Result<()> {
 
     debug!("starting gtk main loop");
     gtk::main();
-
-    ObjectList::from_widget(&window)
-        .objects_by_type::<ProgramGrid>()
-        .for_each(|p| {
-            p.join_radio_group(Option::<&gtk::RadioButton>::None);
-        });
 
     Ok(())
 }
