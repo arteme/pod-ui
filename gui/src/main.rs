@@ -6,7 +6,6 @@ mod registry;
 mod empty;
 mod widgets;
 
-
 use anyhow::*;
 
 use pod_gtk::*;
@@ -34,6 +33,15 @@ use clap::{Args, Command, FromArgMatches};
 use dyn_iter::DynIter;
 use maplit::*;
 use crate::settings::*;
+use result::prelude::*;
+use pod_core::dump::ProgramsDump;
+use pod_core::edit::EditBuffer;
+use pod_gtk::gtk::gdk;
+use crate::panic::wire_panic_indicator;
+use crate::registry::{init_module, init_module_controls, InitializedInterface, register_module};
+use crate::util::ToSome;
+use crate::widgets::*;
+
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const UI_EVENT_CHANNEL_CAPACITY: usize = 128;
@@ -336,16 +344,6 @@ fn set_current_program_modified(edit: &mut EditBuffer,
     }
     edit.set_modified(true);
 }
-
-use result::prelude::*;
-use pod_core::dump::ProgramsDump;
-use pod_core::edit::EditBuffer;
-use pod_gtk::gtk::gdk;
-use crate::panic::wire_panic_indicator;
-use crate::registry::{init_module, init_module_controls, InitializedInterface, register_module};
-use crate::util::ToSome;
-use crate::widgets::*;
-
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
     use std::str::FromStr;
