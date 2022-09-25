@@ -363,7 +363,7 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
         if rep.len() == 0 {
             bail!("Received no device response");
         }
-        if rep.len() == in_ports.len() {
+        if rep.len() > 1 {
             bail!("Received device response on multiple ({}) ports", rep.len());
         }
         in_ports = in_ports.into_iter().enumerate()
@@ -395,7 +395,7 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
         if good.len() == 0 {
             bail!("Received no device response (output search)");
         }
-        if good.len() == out_ports.len() {
+        if good.len() == out_ports.len() && good.len() > 1 {
             bail!("Can't determine output port -- stuck at {}", good.len());
         }
         out_ports = out_ports.into_iter().enumerate()
