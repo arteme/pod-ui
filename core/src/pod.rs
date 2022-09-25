@@ -36,13 +36,17 @@ impl MidiIn {
 
     pub fn _new_for_port(midi_in: MidiInput, port: MidiInputPort) -> Result<Self> {
         let name = midi_in.port_name(&port)
-            .map_err(|e| anyhow!("Failed to get MIDI intput port name: {}", e))?;
+            .map_err(|e| anyhow!("Failed to get MIDI input port name: {}", e))?;
 
         let (tx, rx) = mpsc::unbounded_channel();
 
+        let n = name.clone();
         let conn = midi_in.connect(&port, "pod midi in conn", move |ts, data, _| {
             trace!("<< {:02x?} len={} ts={}", data, data.len(), ts);
-            tx.send(Vec::from(data)).unwrap();
+            tx.send(Vec::from(data))
+                .unwrap_or_else(|e| {
+                    error!("midi input ({}): failed to send data to the application", n);
+                });
 
         }, ())
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
