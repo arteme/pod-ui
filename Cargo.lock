@@ -1301,6 +1301,7 @@ dependencies = [
  "git-version",
  "log",
  "maplit",
+ "midir",
  "once_cell",
  "pod-core",
  "pod-gtk",

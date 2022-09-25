@@ -396,11 +396,23 @@ fn update_ui_from_state(state: &State, ui_controller: &mut Controller) {
                            UNSET, Signal::Force);
 }
 
+static VERSION: Lazy<String> = Lazy::new(|| {
+    let version = env!("GIT_VERSION");
+    let mut features: Vec<&str> = vec![
+        if cfg!(feature = "winrt") { Some("winrt") } else { None }
+    ].into_iter().flatten().collect();
+
+    if features.is_empty() {
+        version.to_string()
+    } else {
+        format!("{} ({})", version, features.join(","))
+    }
+});
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let version = env!("GIT_VERSION");
     let _guard = sentry::init((option_env!("SENTRY_DSN"), sentry::ClientOptions {
-        release: Some(version.into()),
+        release: Some(VERSION.as_str().into()),
         ..Default::default()
     }));
     let sentry_enabled = _guard.is_enabled();
@@ -411,7 +423,7 @@ async fn main() -> Result<()> {
 
     let help_text = generate_help_text()?;
     let cli = Command::new("Pod UI")
-        .version(version)
+        .version(VERSION.as_str())
         .after_help(&*help_text)
         .after_long_help(&*help_text);
 
@@ -504,7 +516,7 @@ async fn main() -> Result<()> {
 
     let program_grid = ArcSwap::from(Arc::new(ProgramGrid::new(32)));
 
-    let title = format!("POD UI {}", version);
+    let title = format!("POD UI {}", &*VERSION);
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);

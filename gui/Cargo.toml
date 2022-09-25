@@ -21,6 +21,7 @@ anyhow = "*" # defined in pod-code
 futures = "*" # defined in pod-code
 futures-util = "*" # defined in pod-code
 result = "*" # defined in pod-core
+midir = "*" # defined in pod-core
 
 pod-core = { path = "../core" }
 pod-gtk = { path = "../gtk" }
@@ -29,6 +30,9 @@ pod-mod-pocket = { path = "../mod-pocket" }
 
 [build-dependencies]
 git-version = "0.3.5"
+
+[features]
+"winrt" = [ "midir/winrt" ]
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
