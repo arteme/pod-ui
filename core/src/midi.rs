@@ -1,5 +1,5 @@
-
 use anyhow::{Result, Context};
+use log::warn;
 use crate::util::*;
 
 pub struct Channel {}
@@ -70,14 +70,44 @@ impl MidiMessage {
         }
     }
 
+    fn sysex_length(bytes: &Vec<u8>) -> (bool, usize) {
+        let mut canceled = true;
+        let mut len = bytes.len();
+        if len == 0 || bytes[0] != 0xf0 {
+            return (canceled, len);
+        }
+
+        let old_len = len;
+        for (i, b) in bytes.iter().enumerate().skip(1) {
+            if (*b & 0x80) != 0x80 { continue; }
+
+            // a byte with MSB set that is not a sysex terminator = cancel
+            len = i + 1;
+            canceled = *b != 0xf7;
+            break;
+        }
+
+        if len != old_len {
+            warn!("Correcting sysex message length {} -> {}", old_len, len);
+        }
+
+        return (canceled, len);
+    }
+
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
-        let len = bytes.len();
+        let mut len = bytes.len();
         if len < 1 {
             return Err(anyhow!("Zero-size MIDI message"))
         }
+
         if bytes[0] == 0xf0 {
             // sysex message
-            if bytes[1] == 0x7e && bytes.len() == 17 {
+            let (canceled, len) = Self::sysex_length(&bytes);
+            if canceled {
+                return Err(anyhow!("Sysex message ({} bytes) cancelled", len));
+            }
+
+            if bytes[1] == 0x7e && len == 17 {
                 // universal device inquiry response
 
                 let id = array_ref!(bytes, 5, 3);
@@ -93,7 +123,7 @@ impl MidiMessage {
                         .context("Error converting bytes to UTF-8 string")?
                 })
             }
-            if bytes[1] == 0x7e && bytes.len() == 6 && array_ref!(bytes, 3, 2) == &[0x06, 0x01] {
+            if bytes[1] == 0x7e && len == 6 && array_ref!(bytes, 3, 2) == &[0x06, 0x01] {
                 // universal device inquiry
                 return Ok(MidiMessage::UniversalDeviceInquiry {
                     channel: bytes[2],
