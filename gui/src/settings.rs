@@ -158,7 +158,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
 
                     // update in/out port selection, channel, device
                     populate_midi_combos(&settings,
-                                         &Some(in_.name), &Some(out_.name));
+                                         &Some(in_.name.clone()), &Some(out_.name.clone()));
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
                     populate_model_combo(&settings, Some(&config.name));
@@ -227,7 +227,7 @@ fn wire_test_button(settings: &SettingsDialog) {
                     // update in/out port selection
                     // TODO: do we need to update the combo here at all?
                     populate_midi_combos(&settings,
-                                         &Some(in_.name), &Some(out_.name));
+                                         &Some(in_.name.clone()), &Some(out_.name.clone()));
                     false
                 }
                 Some(Err(e)) => {

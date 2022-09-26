@@ -17,8 +17,7 @@ use unicycle::IndexedStreamsUnordered;
 
 pub struct MidiIn {
     pub name: String,
-    port: MidiInputPort,
-    conn: MidiInputConnection<()>,
+    conn: Option<MidiInputConnection<()>>,
     rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
@@ -51,7 +50,7 @@ impl MidiIn {
         }, ())
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
 
-        Ok(MidiIn { name, port, conn, rx })
+        Ok(MidiIn { name, conn: Some(conn), rx })
     }
 
     pub async fn recv(&mut self) -> Option<Vec<u8>>
@@ -60,11 +59,17 @@ impl MidiIn {
     }
 }
 
+impl Drop for MidiIn {
+    fn drop(&mut self) {
+        self.conn.take().map(|conn| conn.close());
+        self.rx.close();
+    }
+}
+
 
 pub struct MidiOut {
     pub name: String,
-    port: MidiOutputPort,
-    conn: MidiOutputConnection,
+    conn: Option<MidiOutputConnection>,
 }
 
 impl MidiOut {
@@ -84,15 +89,26 @@ impl MidiOut {
         let conn = midi_out.connect(&port, "pod midi out conn")
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
 
-        Ok(MidiOut { name, port, conn })
+        Ok(MidiOut { name, conn: Some(conn) })
     }
 
     pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
         trace!(">> {:02x?} len={}", bytes, bytes.len());
-        self.conn.send(bytes)
-            .map_err(|e| anyhow!("Midi send error: {:?}", e))
+        if let Some(conn) = self.conn.as_mut() {
+            conn.send(bytes)
+                .map_err(|e| anyhow!("Midi send error: {:?}", e))
+        } else {
+            Err(anyhow!("Send error: connection already closed"))
+        }
     }
 }
+
+impl Drop for MidiOut {
+    fn drop(&mut self) {
+        self.conn.take().map(|conn| conn.close());
+    }
+}
+
 
 pub trait  MidiOpen {
     type Class: MidiIO<Port = Self::Port>;

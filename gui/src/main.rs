@@ -188,7 +188,8 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
                         match msg {
                             Ok(msg) => {
                                 let bytes = msg.to_bytes();
-                                midi_out.send(&bytes);
+                                midi_out.send(&bytes)
+                                .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
                                 ui_event_tx.send(UIEvent::MidiTx);
                             }
                             Err(err) => {
