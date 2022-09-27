@@ -45,9 +45,12 @@ STATIC_PATHS = [ 'images', 'static' ]
 CUSTOM_CSS = 'static/extra.css'
 
 MARKDOWN = {
-    'extensions': [
-        'markdown_checklist.extension'
-    ]
+        'extensions': {
+            'markdown_checklist.extension': {},
+            'markdown.extensions.extra': {},
+            'markdown.extensions.meta': {},
+            'markdown.extensions.toc:' : { 'title': 'Table of Contents' },
+        }
 }
 
 from datetime import datetime

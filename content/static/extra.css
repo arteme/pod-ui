@@ -6,3 +6,35 @@ aside div img {
 ul.checklist {
 	list-style: none;
 }
+
+article p {
+	text-align: justify;
+}
+
+article p.img-l-100px {
+	margin-left: 100px;
+}
+article p.img-l-100px img {
+	float: left;
+	margin-left: -100px;
+}
+article p.img-l-300px {
+	margin-left: 300px;
+}
+article p.img-l-300px img {
+	float: left;
+	margin-left: -300px;
+}
+
+
+article p.flex-space {
+	display: flex;
+	justify-content: space-around;
+	align-items: center;
+}
+
+.clearfix::after {
+	display: block;
+	content: "";
+	clear: both;
+}
