@@ -1,6 +1,6 @@
 [package]
 name = "pod-mod-pocket"
-version = "0.5.0"
+version = "0.0.0"
 authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 
