@@ -27,6 +27,7 @@ pod-core = { path = "../core" }
 pod-gtk = { path = "../gtk" }
 pod-mod-pod2 = { path = "../mod-pod2" }
 pod-mod-pocket = { path = "../mod-pocket" }
+pod-mod-xt = { path = "../mod-xt" }
 
 [build-dependencies]
 git-version = "0.3.5"

@@ -1307,6 +1307,7 @@ dependencies = [
  "pod-gtk",
  "pod-mod-pocket",
  "pod-mod-pod2",
+ "pod-mod-xt",
  "regex",
  "result",
  "sentry",
@@ -1339,6 +1340,20 @@ dependencies = [
  "once_cell",
  "pod-core",
  "pod-gtk",
+ "tokio",
+]
+
+[[package]]
+name = "pod-mod-xt"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "maplit",
+ "once_cell",
+ "pod-core",
+ "pod-gtk",
+ "pod-mod-pod2",
  "tokio",
 ]
 
