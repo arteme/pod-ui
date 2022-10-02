@@ -30,7 +30,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         family: 0x0003,
         member: 0x0002,
 
-        program_num: 124,
+        program_num: 128,
         flags: DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER,
 
         controls,

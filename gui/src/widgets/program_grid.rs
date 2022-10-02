@@ -223,7 +223,7 @@ impl ObjectImpl for ProgramGridPriv {
                     "Number of buttons",
                     "Number of buttons",
                     32,
-                    124,
+                    128,
                     NUM_BUTTONS_DEFAULT as u32,
                     glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY
                 ),
