@@ -2,7 +2,7 @@ use clap::Parser;
 use anyhow::Result;
 use std::fmt::Write;
 use pod_core::config::configs;
-use pod_core::pod::{MidiIn, MidiOut, MidiPorts};
+use pod_core::midi_io::{MidiIn, MidiOut, MidiPorts};
 
 #[derive(Parser)]
 pub struct Opts {

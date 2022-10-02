@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use pod_core::pod::*;
+use pod_core::midi_io::*;
 use crate::{gtk, set_midi_in_out, State};
 use pod_gtk::gtk::prelude::*;
 use pod_gtk::gtk::{IconSize, ResponseType};
@@ -138,7 +138,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
 fn wire_autodetect_button(settings: &SettingsDialog) {
     let settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
-        let mut autodetect = tokio::spawn(pod_core::pod::autodetect());
+        let mut autodetect = tokio::spawn(pod_core::midi_io::autodetect());
 
         let spinner = gtk::Spinner::new();
         (*button).set_image(Some(&spinner));
@@ -204,7 +204,7 @@ fn wire_test_button(settings: &SettingsDialog) {
         let midi_channel = midi_channel_from_combo_index(midi_channel);
 
         let mut test = tokio::spawn(async move {
-            pod_core::pod::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
+            pod_core::midi_io::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
         });
 
         let spinner = gtk::Spinner::new();

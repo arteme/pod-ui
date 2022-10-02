@@ -12,8 +12,8 @@ sentry = "0.27.0"
 arc-swap = "1.5.0"
 dyn-iter = "0.2.0"
 
-once_cell = "*" # defined in mod-pod2
-maplit = "*" # -"-
+once_cell = "*" # defined in pod-core
+maplit = "*" # defined in mod-pod2
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core
 regex = "*" # defined in pod-core

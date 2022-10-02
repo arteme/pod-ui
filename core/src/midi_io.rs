@@ -242,7 +242,7 @@ impl MidiPorts for MidiOut {
     }
 }
 
-fn list_ports<T: midir::MidiIO>(midi: T) -> Result<Vec<String>> {
+fn list_ports<T: MidiIO>(midi: T) -> Result<Vec<String>> {
     let port_names: Result<Vec<_>, _> =
         midi.ports().iter()
             .map(|port| midi.port_name(port))

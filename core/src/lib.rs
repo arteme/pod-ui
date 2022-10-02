@@ -12,7 +12,7 @@ mod util;
 pub mod store;
 pub mod model;
 pub mod builders;
-pub mod pod;
+pub mod midi_io;
 pub mod config;
 pub mod controller;
 pub mod program;

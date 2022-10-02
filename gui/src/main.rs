@@ -10,7 +10,7 @@ use anyhow::*;
 
 use pod_gtk::*;
 use pod_gtk::gtk::prelude::*;
-use pod_core::pod::*;
+use pod_core::midi_io::*;
 use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
@@ -481,7 +481,7 @@ async fn main() -> Result<()> {
     };
     let (midi_in, midi_out, midi_channel, detected_config) =
         if autodetect {
-            match pod_core::pod::autodetect().await {
+            match pod_core::midi_io::autodetect().await {
                 Ok((midi_in, midi_out, channel, config)) => {
                     (Some(midi_in), Some(midi_out), channel, Some(config))
                 }

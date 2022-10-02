@@ -5,7 +5,7 @@ authors = ["Artem Egorkine <arteme@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-once_cell = "*" # defined in pod-mod-pod2
+once_cell = "*" # defined in pod-core
 maplit = "*" # defined in pod-mod-pod2
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core
