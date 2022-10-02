@@ -986,6 +986,10 @@ async fn main() -> Result<()> {
                             ver
                         })));
                         ui_event_tx.send(UIEvent::NewMidiConnection);
+                    },
+                    MidiMessage::XtInstalledPacksRequest => {
+                        let res = MidiMessage::XtInstalledPacks { packs: 0 };
+                        midi_out_tx.send(res);
                     }
 
                     // pretend we're a POD
@@ -1000,7 +1004,7 @@ async fn main() -> Result<()> {
                             channel,
                             family: config.family,
                             member: config.member,
-                            ver: String::from("0223")
+                            ver: String::from("0303")
                         };
                         midi_out_tx.send(res);
                     }

@@ -20,6 +20,9 @@ pub enum MidiMessage {
     AllProgramsDumpRequest,
     AllProgramsDump { ver: u8, data: Vec<u8> },
 
+    XtInstalledPacksRequest,
+    XtInstalledPacks { packs: u8 },
+
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
 }
@@ -62,6 +65,11 @@ impl MidiMessage {
                 msg.extend_from_slice(&[0xf7]);
                 msg
             },
+
+            MidiMessage::XtInstalledPacksRequest =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, 0xf7].to_vec(),
+            MidiMessage::XtInstalledPacks { packs } =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, *packs, 0xf7].to_vec(),
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
@@ -130,28 +138,31 @@ impl MidiMessage {
                 })
             }
 
-            let id = array_ref!(bytes, 1, 4);
-            if id == &[0x00, 0x01, 0x0c, 0x01] {
+            let id = array_ref!(bytes, 1, 3);
+            if id == &[0x00, 0x01, 0x0c] {
                 // program dump response
-                match array_ref!(bytes, 5, 2) {
-                    &[0x00, 0x00] => return Ok(MidiMessage::ProgramPatchDumpRequest {
+                match array_ref!(bytes, 4, 3) {
+                    &[0x01, 0x00, 0x00] => return Ok(MidiMessage::ProgramPatchDumpRequest {
                        patch: bytes[7]
                     }),
-                    &[0x00, 0x01] => return Ok(MidiMessage::ProgramEditBufferDumpRequest {}),
-                    &[0x00, 0x02] => return Ok(MidiMessage::AllProgramsDumpRequest {}),
-                    &[0x01, 0x00] => return Ok(MidiMessage::ProgramPatchDump {
+                    &[0x01, 0x00, 0x01] => return Ok(MidiMessage::ProgramEditBufferDumpRequest {}),
+                    &[0x01, 0x00, 0x02] => return Ok(MidiMessage::AllProgramsDumpRequest {}),
+                    &[0x01, 0x01, 0x00] => return Ok(MidiMessage::ProgramPatchDump {
                         patch: bytes[7],
                         ver: bytes[8],
                         data: nibbles_to_u8_vec(&bytes[9 .. len-1])
                     }),
-                    &[0x01, 0x01] => return Ok(MidiMessage::ProgramEditBufferDump {
+                    &[0x01, 0x01, 0x01] => return Ok(MidiMessage::ProgramEditBufferDump {
                         ver: bytes[7],
                         data: nibbles_to_u8_vec(&bytes[8 .. len-1])
                     }),
-                    &[0x01, 0x02] => return Ok(MidiMessage::AllProgramsDump {
+                    &[0x01, 0x01, 0x02] => return Ok(MidiMessage::AllProgramsDump {
                         ver: bytes[7],
                         data: nibbles_to_u8_vec(&bytes[8 .. len-1])
                     }),
+                    &[0x03, 0x0e, 0x00] => return Ok(MidiMessage::XtInstalledPacksRequest),
+                    // TODO: XtInstalledPacks
+
                     _ => return Err(anyhow!("Unknown program dump message"))
                 }
             }
