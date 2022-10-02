@@ -10,67 +10,6 @@ use pod_core::model::*;
 use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList, SignalHandler, SignalHandlerExt};
 use pod_gtk::gtk::prelude::*;
 
-pub fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let name = "vol_pedal_position".to_string();
-    let vol_pedal_position = objs.ref_by_name::<gtk::Button>(&name)?;
-    let amp_enable = objs.ref_by_name::<gtk::Widget>("amp_enable")?;
-    let volume_enable = objs.ref_by_name::<gtk::Widget>("volume_enable")?;
-
-    let set_in_order = {
-        let vol_pedal_position = vol_pedal_position.clone();
-
-        move |volume_post_amp: bool| {
-            let ancestor = amp_enable.ancestor(gtk::Grid::static_type()).unwrap();
-            let grid = ancestor.dynamic_cast_ref::<gtk::Grid>().unwrap();
-            grid.remove(&amp_enable);
-            grid.remove(&volume_enable);
-
-            let (volume_left, amp_left) = match volume_post_amp {
-                false => {
-                    vol_pedal_position.set_label(">");
-                    (1, 2)
-                },
-                true => {
-                    vol_pedal_position.set_label("<");
-                    (2, 1)
-                }
-            };
-            grid.attach(&amp_enable, amp_left, 1, 1, 1);
-            grid.attach(&volume_enable, volume_left, 1, 1, 1);
-        }
-    };
-
-    set_in_order(false);
-
-    // gui -> controller
-    {
-        let controller = controller.clone();
-        let name = name.clone();
-        vol_pedal_position.connect_clicked(move |_| {
-            let mut controller = controller.lock().unwrap();
-            let v = controller.get(&name).unwrap() > 0;
-            let v = !v; // toggling
-            controller.set(&name, v as u16, GUI);
-        });
-    }
-
-    // controller -> gui
-    {
-        let controller = controller.clone();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let v = {
-                    let controller = controller.lock().unwrap();
-                    controller.get(&name).unwrap()
-                };
-                set_in_order(v > 0);
-            })
-        )
-    };
-    Ok(())
-}
-
 pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     // controller -> gui
     {

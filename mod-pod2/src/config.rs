@@ -318,6 +318,14 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
             "name_change" => Button {},
             "digiout_show" => VirtualSelect {}
        )),
+        toggles: convert_args!(vec!(
+            toggle("noise_gate_enable").non_moving(0),
+            toggle("volume_enable").moving("vol_pedal_position", 3, 1),
+            toggle("amp_enable").non_moving(2),
+            toggle("effect_enable").non_moving(4),
+            toggle("delay_enable").non_moving(5),
+            toggle("reverb_enable").non_moving(6),
+        )),
         init_controls: convert_args!(vec!(
            "distortion_enable",
            "drive_enable",

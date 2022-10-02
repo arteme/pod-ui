@@ -36,6 +36,7 @@ pub struct Config {
     pub program_size: usize,
     pub program_num: usize,
 
+    pub toggles: Vec<Toggle>,
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
     pub effects: Vec<Effect>,
@@ -72,6 +73,14 @@ pub struct EffectEntry {
     pub id: u8,
     pub effect_tweak: String,
     pub controls: Vec<String>
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct Toggle {
+    pub name: String,
+    pub position_control: String,
+    pub on_position: usize,
+    pub off_position: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -449,6 +458,7 @@ impl Config {
             member: 0,
             program_size: 0,
             program_num: 0,
+            toggles: vec![],
             amp_models: vec![],
             cab_models: vec![],
             effects: vec![],
