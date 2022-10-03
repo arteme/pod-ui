@@ -7,9 +7,16 @@ use pod_gtk::*;
 
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
-    let exclude = vec!["digiout_show", "eq_enable", "effect_enable"];
+    let exclude = vec!["drive2", "digiout_show", "eq_enable", "effect_enable"];
 
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
+        // drive => cc: 13
+        // bass => cc: 14
+        // mid => cc: 15
+        // treble => cc: 16
+        // presence => cc: 21
+        // chan volume => cc: 17
+
         // noise_gate_enable => cc: 22
         "wah_enable" => MidiSwitchControl { cc: 43 },
         "stomp_enable" => MidiSwitchControl { cc: 25 },
