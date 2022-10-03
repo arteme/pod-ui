@@ -9,6 +9,7 @@ use pod_gtk::gtk::{Builder, Widget};
 use pod_mod_pod2::wiring::*;
 
 use crate::config;
+use crate::config::PODXT_PRO_CONFIG;
 
 pub struct PodXtModule;
 
@@ -82,6 +83,9 @@ impl Interface for PodXtInterface {
     fn init(&self, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
         let controller = edit.lock().unwrap().controller();
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
+
+        let show_loop_enable = self.config.member == PODXT_PRO_CONFIG.member;
+        controller.set_full("loop_enable:show", show_loop_enable as u16, MIDI, Signal::Force);
 
         Ok(())
     }

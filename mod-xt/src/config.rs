@@ -9,7 +9,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
     let exclude = vec!["digiout_show", "eq_enable", "effect_enable"];
 
-    let pod_xt_controls: HashMap<String, Control> = convert_args!(hashmap!(
+    let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
         // noise_gate_enable => cc: 22
         "wah_enable" => MidiSwitchControl { cc: 43 },
         "stomp_enable" => MidiSwitchControl { cc: 25 },
@@ -24,14 +24,16 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "compressor_enable" => MidiSwitchControl { cc: 26 },
         "eq_enable" => MidiSwitchControl { cc: 63 },
 
+        "loop_enable:show" => VirtualSelect {}
     ));
     let controls = pod2_config.controls.into_iter()
         .filter(|(k, _)| !exclude.contains(&k.as_str()))
-        .chain(pod_xt_controls)
+        .chain(podxt_controls)
         .collect();
 
     let pocket_pod_init_controls = convert_args!(vec!(
-        "wah_enable"
+        "wah_enable",
+        "loop_enable:show"
     ));
     let init_controls = pod2_config.init_controls.into_iter()
         .filter(|v| !exclude.contains(&v.as_str()))
@@ -70,9 +72,26 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
 pub static PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_config = PODXT_CONFIG.clone();
 
+    let podxt_pro_controls: HashMap<String, Control> = convert_args!(hashmap!(
+        "loop_enable" => MidiSwitchControl { cc: 107 },
+    ));
+    let controls = podxt_config.controls.into_iter()
+        .chain(podxt_pro_controls)
+        .collect();
+
+    let podxt_pro_toggles = convert_args!(vec!(
+        toggle("loop_enable").non_moving(14)
+    ));
+    let toggles = podxt_config.toggles.into_iter()
+        .chain(podxt_pro_toggles)
+        .collect();
+
     Config {
         name: "PODxt Pro".to_string(),
         member: 0x0005,
+
+        toggles,
+        controls,
 
         ..podxt_config
     }

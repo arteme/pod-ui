@@ -208,7 +208,7 @@
             <property name="can-focus">False</property>
             <property name="spacing">10</property>
             <child>
-              <!-- n-columns=10 n-rows=2 -->
+              <!-- n-columns=11 n-rows=2 -->
               <object class="GtkGrid" id="toggles">
                 <property name="name">toggles</property>
                 <property name="visible">True</property>
@@ -356,6 +356,28 @@
                     <property name="left-attach">7</property>
                     <property name="top-attach">1</property>
                   </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="loop_enable">
+                    <property name="label" translatable="yes">FX Loop</property>
+                    <property name="name">loop_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="no-show-all">True</property>
+                    <property name="draw-indicator">True</property>
+                    <style>
+                      <class name="loop_enable:show=0:hide"/>
+                      <class name="loop_enable:show=1:show"/>
+                    </style>
+                  </object>
+                  <packing>
+                    <property name="left-attach">10</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
                 <child>
                   <placeholder/>
