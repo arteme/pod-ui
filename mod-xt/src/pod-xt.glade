@@ -208,8 +208,9 @@
             <property name="can-focus">False</property>
             <property name="spacing">10</property>
             <child>
-              <!-- n-columns=7 n-rows=2 -->
-              <object class="GtkGrid">
+              <!-- n-columns=10 n-rows=2 -->
+              <object class="GtkGrid" id="toggles">
+                <property name="name">toggles</property>
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="column-homogeneous">True</property>
@@ -232,15 +233,12 @@
                     <property name="label" translatable="yes">Amp</property>
                     <property name="name">amp_enable</property>
                     <property name="visible">True</property>
-                    <property name="sensitive">False</property>
-                    <property name="can-focus">False</property>
-                    <property name="has-default">True</property>
+                    <property name="can-focus">True</property>
                     <property name="receives-default">False</property>
-                    <property name="active">True</property>
                     <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">1</property>
+                    <property name="left-attach">3</property>
                     <property name="top-attach">1</property>
                   </packing>
                 </child>
@@ -257,27 +255,21 @@
                     <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">2</property>
+                    <property name="left-attach">6</property>
                     <property name="top-attach">1</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkCheckButton" id="effect_enable">
-                    <property name="label" translatable="yes">FX</property>
-                    <property name="name">effect_enable</property>
+                  <object class="GtkCheckButton" id="eq_enable">
+                    <property name="label" translatable="yes">EQ</property>
+                    <property name="name">eq_enable</property>
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
                     <property name="receives-default">False</property>
                     <property name="draw-indicator">True</property>
-                    <style>
-                      <class name="effect_select=0:opacity=0"/>
-                      <class name="effect_select=1:opacity=0"/>
-                      <class name="effect_select=2:opacity=0"/>
-                      <class name="effect_select=*:opacity=1"/>
-                    </style>
                   </object>
                   <packing>
-                    <property name="left-attach">3</property>
+                    <property name="left-attach">5</property>
                     <property name="top-attach">1</property>
                   </packing>
                 </child>
@@ -291,7 +283,7 @@
                     <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">4</property>
+                    <property name="left-attach">8</property>
                     <property name="top-attach">1</property>
                   </packing>
                 </child>
@@ -305,7 +297,7 @@
                     <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">5</property>
+                    <property name="left-attach">9</property>
                     <property name="top-attach">1</property>
                   </packing>
                 </child>
@@ -319,21 +311,81 @@
                     <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">6</property>
+                    <property name="left-attach">1</property>
                     <property name="top-attach">1</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkCheckButton" id="stomp_enable">
+                    <property name="label" translatable="yes">Stomp</property>
+                    <property name="name">stomp_enable</property>
                     <property name="visible">True</property>
-                    <property name="can-focus">False</property>
-                    <property name="margin-bottom">8</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
                   </object>
                   <packing>
-                    <property name="left-attach">0</property>
-                    <property name="top-attach">0</property>
-                    <property name="width">7</property>
+                    <property name="left-attach">2</property>
+                    <property name="top-attach">1</property>
                   </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="compressor_enable">
+                    <property name="label" translatable="yes">Comp</property>
+                    <property name="name">compressor_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">4</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkCheckButton" id="mod_enable">
+                    <property name="label" translatable="yes">Mod</property>
+                    <property name="name">mod_enable</property>
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">False</property>
+                    <property name="draw-indicator">True</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">7</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
               </object>
               <packing>

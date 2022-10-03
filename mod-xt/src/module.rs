@@ -34,7 +34,7 @@ struct PodXtInterface {
 
 impl PodXtInterface {
     fn new(config: &'static Config) -> Self {
-        let builder = Builder::from_string(include_str!("pocket-pod.glade"));
+        let builder = Builder::from_string(include_str!("pod-xt.glade"));
         let objects = ObjectList::new(&builder);
 
         let widow: gtk::Window = builder.object("app_win").unwrap();
@@ -70,6 +70,8 @@ impl Interface for PodXtInterface {
 
         wire(controller.clone(), &self.objects, callbacks)?;
 
+        wire_toggles("toggles", &config.toggles,
+                     controller.clone(), &self.objects, callbacks)?;
         wire_amp_select(controller.clone(), config, &self.objects, callbacks)?;
         wire_effect_select(config, controller, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;

@@ -117,6 +117,8 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
             *c = config;
         }
 
+        info!("Initiating module for config {:?}", &config.name);
+
         state.interface = init_module(config).unwrap();
 
         state.edit_buffer.store(state.interface.edit_buffer.clone());
@@ -449,7 +451,8 @@ async fn main() -> Result<()> {
         //       to provide bogus (empty) configs and don't need to dissect interface
         //       by hand?
         let config = configs().get(0).unwrap();
-        let interface = init_module(config)?;
+        let interface = init_module(config)
+            .with_context(|| format!("Failed to initialize module for {:?} config", config.name))?;
         let edit_buffer = interface.edit_buffer.clone();
         let dump = interface.dump.clone();
 

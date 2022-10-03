@@ -6,6 +6,7 @@ use pod_core::config::GUI;
 use pod_core::model::Toggle;
 use pod_core::store::Store;
 use gtk::prelude::*;
+use log::warn;
 use crate::{Callbacks, ObjectList};
 
 pub fn wire_toggles(container_name: &str,
@@ -53,7 +54,12 @@ pub fn wire_toggles(container_name: &str,
             let name = toggle.position_control.clone();
             button.connect_clicked(move |_| {
                 let mut controller = controller.lock().unwrap();
-                let v = controller.get(&name).unwrap() > 0;
+                let v = controller.get(&name);
+                if v.is_none() {
+                    warn!("Toggle position control {:?} not found", &name);
+                    return;
+                }
+                let v = v.unwrap() > 0;
                 let v = !v; // toggling
                 controller.set(&name, v as u16, GUI);
             });
