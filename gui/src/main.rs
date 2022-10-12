@@ -26,14 +26,16 @@ use core::result::Result::Ok;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use arc_swap::{ArcSwap, ArcSwapOption};
 use clap::{Args, Command, FromArgMatches};
 use dyn_iter::DynIter;
+use futures_util::future::join_all;
 use maplit::*;
 use crate::settings::*;
 use result::prelude::*;
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
@@ -106,7 +108,6 @@ pub fn midi_in_out_stop(state: &mut State) {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
-
     /* TODO: this should one day be 'async fn midi_in_out_stop' so that we
              can wait on the MIDI in/out threads stopping, but for now,
              State is not Send, so we can't really schedule this in a
@@ -176,6 +177,7 @@ pub fn midi_in_out_start(state: &mut State,
                             }
                         }
                         _ = &mut in_cancel_rx => {
+                            midi_in.close();
                             break;
                         }
                     }
@@ -209,6 +211,7 @@ pub fn midi_in_out_start(state: &mut State,
                             }
                         }
                         _ = &mut out_cancel_rx => {
+                            midi_out.close();
                             break;
                         }
                     }
@@ -1064,6 +1067,8 @@ async fn main() -> Result<()> {
     {
         let edit_buffer = edit_buffer.clone();
         let ui_controller = ui_controller.clone();
+        let state = state.clone();
+
 
         let mut objects = ObjectList::default();
         let mut callbacks = Callbacks::new();
@@ -1343,6 +1348,15 @@ async fn main() -> Result<()> {
     debug!("starting gtk main loop");
     gtk::main();
     debug!("end of gtk main loop");
+
+    /*
+    let mut state = state.lock().unwrap();
+    midi_in_out_stop(&mut state);
+
+    let handles = state.midi_in_handle.take().into_iter()
+        .chain(state.midi_out_handle.take().into_iter());
+    join_all(handles).await;
+     */
 
     Ok(())
 }
