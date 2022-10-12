@@ -24,7 +24,6 @@ use std::thread;
 use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
-use std::option::IntoIter;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
@@ -34,9 +33,11 @@ use dyn_iter::DynIter;
 use maplit::*;
 use crate::settings::*;
 use result::prelude::*;
+use tokio::task::JoinHandle;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
+use crate::glib::thread_guard::thread_id;
 use crate::panic::wire_panic_indicator;
 use crate::registry::{init_module, init_module_controls, InitializedInterface, register_module};
 use crate::util::ToSome;
@@ -66,9 +67,11 @@ pub struct DetectedDevVersion {
 pub struct State {
     pub midi_in_name: Option<String>,
     pub midi_in_cancel: Option<oneshot::Sender<()>>,
+    pub midi_in_handle: Option<JoinHandle<()>>,
 
     pub midi_out_name: Option<String>,
     pub midi_out_cancel: Option<oneshot::Sender<()>>,
+    pub midi_out_handle: Option<JoinHandle<()>>,
 
     pub midi_in_tx: mpsc::UnboundedSender<MidiMessage>,
     pub midi_out_tx: broadcast::Sender<MidiMessage>,
@@ -99,11 +102,128 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     ))
 });
 
+pub fn midi_in_out_stop(state: &mut State) {
+    state.midi_in_cancel.take().map(|cancel| cancel.send(()));
+    state.midi_out_cancel.take().map(|cancel| cancel.send(()));
+
+
+    /* TODO: this should one day be 'async fn midi_in_out_stop' so that we
+             can wait on the MIDI in/out threads stopping, but for now,
+             State is not Send, so we can't really schedule this in a
+             separate thread. For now we assume that MIDI in/out threads stop
+             "very soon after cancel is signalled", which should be good
+             enough around the settings dialog user interaction...
+
+    let handles = state.midi_in_handle.take().into_iter()
+        .chain(state.midi_out_handle.take().into_iter());
+    join_all(handles).await;
+     */
+}
+
+pub fn midi_in_out_start(state: &mut State,
+                         midi_in: Option<MidiIn>, midi_out: Option<MidiOut>, midi_channel: u8) {
+    if midi_in.is_none() || midi_out.is_none() {
+        warn!("Not starting MIDI because in/out is None");
+        state.midi_in_name = None;
+        state.midi_in_cancel = None;
+        state.midi_out_name = None;
+        state.midi_out_cancel = None;
+        state.midi_channel_num = 0;
+        state.ui_event_tx.send(UIEvent::NewMidiConnection)
+            .map_err(|err| warn!("Cannot send UIEvent: {}", err))
+            .unwrap();
+        return;
+    }
+
+    let mut midi_in = midi_in.unwrap();
+    let mut midi_out = midi_out.unwrap();
+
+    let (in_cancel_tx, mut in_cancel_rx) = oneshot::channel::<()>();
+    let (out_cancel_tx, mut out_cancel_rx) = oneshot::channel::<()>();
+
+    state.midi_in_name = Some(midi_in.name.clone());
+    state.midi_in_cancel = Some(in_cancel_tx);
+
+    state.midi_out_name = Some(midi_out.name.clone());
+    state.midi_out_cancel = Some(out_cancel_tx);
+
+    state.midi_channel_num = midi_channel;
+    state.ui_event_tx.send(UIEvent::NewMidiConnection)
+        .map_err(|err| warn!("Cannot send UIEvent: {}", err))
+        .unwrap();
+
+    // midi in
+    let midi_in_handle =
+        tokio::spawn({
+            let midi_in_tx = state.midi_in_tx.clone();
+            let ui_event_tx = state.ui_event_tx.clone();
+
+            async move {
+                let id = thread_id();
+                info!("MIDI in thread {} start", id);
+                loop {
+                    tokio::select! {
+                        msg  = midi_in.recv() => {
+                            match msg {
+                                Some(bytes) => {
+                                    match MidiMessage::from_bytes(bytes) {
+                                        Ok(msg) => { midi_in_tx.send(msg); () },
+                                        Err(err) => error!("Error deserializing MIDI message: {}", err)
+                                    }
+                                    ui_event_tx.send(UIEvent::MidiRx);
+                                }
+                                _ => {}
+                            }
+                        }
+                        _ = &mut in_cancel_rx => {
+                            break;
+                        }
+                    }
+                }
+                info!("MIDI in thread {} finish", id);
+            }
+        });
+
+    // midi out
+    let midi_out_handle =
+        tokio::spawn({
+            let mut midi_out_rx = state.midi_out_tx.subscribe();
+            let ui_event_tx = state.ui_event_tx.clone();
+
+            async move {
+                let id = thread_id();
+                info!("MIDI out thread {} start", id);
+                loop {
+                    tokio::select! {
+                        msg = midi_out_rx.recv() => {
+                            match msg {
+                                Ok(msg) => {
+                                    let bytes = msg.to_bytes();
+                                    midi_out.send(&bytes)
+                                    .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
+                                    ui_event_tx.send(UIEvent::MidiTx);
+                                }
+                                Err(err) => {
+                                    error!("MIDI OUT thread rx error: {:?}", err);
+                                }
+                            }
+                        }
+                        _ = &mut out_cancel_rx => {
+                            break;
+                        }
+                    }
+                }
+                info!("MIDI out thread {} finish", id);
+            }
+        });
+
+    state.midi_in_handle = Some(midi_in_handle);
+    state.midi_out_handle = Some(midi_out_handle);
+}
 
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
                        midi_channel: u8, config: Option<&'static Config>) -> bool {
-    state.midi_in_cancel.take().map(|cancel| cancel.send(()));
-    state.midi_out_cancel.take().map(|cancel| cancel.send(()));
+    midi_in_out_stop(state);
 
     let config_changed = match (config, *state.config.read().unwrap()) {
         (Some(a), b) => { *a != *b }
@@ -127,83 +247,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.ui_event_tx.send(UIEvent::NewEditBuffer);
     }
 
-    if midi_in.is_none() || midi_out.is_none() {
-        warn!("Not starting MIDI because in/out is None");
-        state.midi_in_name = None;
-        state.midi_in_cancel = None;
-        state.midi_out_name = None;
-        state.midi_out_cancel = None;
-        state.ui_event_tx.send(UIEvent::NewMidiConnection);
-        state.midi_channel_num = 0;
-        return config_changed;
-    }
-
-    let mut midi_in = midi_in.unwrap();
-    let mut midi_out = midi_out.unwrap();
-
-    let (in_cancel_tx, mut in_cancel_rx) = tokio::sync::oneshot::channel::<()>();
-    let (out_cancel_tx, mut out_cancel_rx) = tokio::sync::oneshot::channel::<()>();
-
-    state.midi_in_name = Some(midi_in.name.clone());
-    state.midi_in_cancel = Some(in_cancel_tx);
-
-    state.midi_out_name = Some(midi_out.name.clone());
-    state.midi_out_cancel = Some(out_cancel_tx);
-
-    state.midi_channel_num = midi_channel;
-    state.ui_event_tx.send(UIEvent::NewMidiConnection);
-
-    // midi in
-    {
-        let midi_in_tx = state.midi_in_tx.clone();
-        let ui_event_tx = state.ui_event_tx.clone();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(bytes) = midi_in.recv() => {
-                        match MidiMessage::from_bytes(bytes) {
-                            Ok(msg) => { midi_in_tx.send(msg); () },
-                            Err(err) => error!("Error deserializing MIDI message: {}", err)
-                        }
-                        ui_event_tx.send(UIEvent::MidiRx);
-                    }
-                    _ = &mut in_cancel_rx => {
-                        return;
-                    }
-                }
-            }
-        });
-    }
-
-    // midi out
-    {
-        let mut midi_out_rx = state.midi_out_tx.subscribe();
-        let ui_event_tx = state.ui_event_tx.clone();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    msg = midi_out_rx.recv() => {
-                        match msg {
-                            Ok(msg) => {
-                                let bytes = msg.to_bytes();
-                                midi_out.send(&bytes)
-                                .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
-                                ui_event_tx.send(UIEvent::MidiTx);
-                            }
-                            Err(err) => {
-                                error!("MIDI OUT thread rx error: {:?}", err);
-                            }
-                        }
-                    }
-                    _ = &mut out_cancel_rx => {
-                        return;
-                    }
-                }
-            }
-        });
-    }
+    midi_in_out_start(state, midi_in, midi_out, midi_channel);
 
     // we assume that something changed -- either the config or the midi settings
     // so signal a new device ping!
@@ -455,8 +499,10 @@ async fn main() -> Result<()> {
         Arc::new(Mutex::new(State {
             midi_in_name: None,
             midi_in_cancel: None,
+            midi_in_handle: None,
             midi_out_name: None,
             midi_out_cancel: None,
+            midi_out_handle: None,
             midi_in_tx,
             midi_out_tx,
             ui_event_tx: ui_event_tx.clone(),
@@ -1296,6 +1342,7 @@ async fn main() -> Result<()> {
 
     debug!("starting gtk main loop");
     gtk::main();
+    debug!("end of gtk main loop");
 
     Ok(())
 }

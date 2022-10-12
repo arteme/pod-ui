@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use pod_core::pod::*;
-use crate::{gtk, set_midi_in_out, State};
+use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
 use pod_gtk::gtk::prelude::*;
 use pod_gtk::gtk::{IconSize, ResponseType};
 use crate::util::ManualPoll;
@@ -117,7 +117,7 @@ fn populate_midi_combos(settings: &SettingsDialog,
     };
 }
 
-fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
+fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
     settings.model_combo.remove_all();
 
     let mut names = configs().iter().map(|c| &c.name).collect::<Vec<_>>();
@@ -127,7 +127,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
     }
 
     let selected =
-        selected.and_then(|selected| {
+        selected.as_ref().and_then(|selected| {
             names.iter().enumerate()
                 .find(|(_, &n)| *n == *selected)
                 .map(|(i, _)| i as u32)
@@ -161,7 +161,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
                                          &Some(in_.name.clone()), &Some(out_.name.clone()));
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
-                    populate_model_combo(&settings, Some(&config.name));
+                    populate_model_combo(&settings, &Some(config.name.clone()));
                     false
                 }
                 Some(Err(e)) => {
@@ -259,16 +259,18 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
 
         // update in/out port selection, channel, model
         {
-            let state = state.lock().unwrap();
+            let mut state = state.lock().unwrap();
             populate_midi_combos(&settings,
                                  &state.midi_in_name, &state.midi_out_name);
 
             let index = midi_channel_to_combo_index(state.midi_channel_num);
             settings.midi_channel_combo.set_active(index);
 
-            let config = state.config.read().unwrap();
-            populate_model_combo(&settings,
-                                 Some(&config.name));
+            let config_name = state.config.read().unwrap().name.clone();
+            populate_model_combo(&settings, &Some(config_name));
+
+            // stop the midi thread during test
+            midi_in_out_stop(&mut state);
         }
 
         match settings.dialog.run() {
@@ -304,7 +306,26 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                 let midi_channel = midi_channel_from_combo_index(midi_channel);
                 set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, config);
             }
-            _ => {}
+            _ => {
+                let mut state = state.lock().unwrap();
+                let names = state.midi_in_name.as_ref().and_then(|in_name| {
+                    state.midi_out_name.as_ref().map(|out_name| (in_name.clone(), out_name.clone()))
+                });
+
+                // restart midi thread after test
+                if let Some((in_name, out_name)) = names {
+                    let midi_in = MidiIn::new_for_name(in_name.as_str())
+                        .map_err(|err| {
+                        error!("Unable to restart MIDI input thread for {:?}: {}", in_name, err)
+                    }).ok();
+                    let midi_out = MidiOut::new_for_name(out_name.as_str())
+                        .map_err(|err| {
+                            error!("Unable to restart MIDI output thread for {:?}: {}", out_name, err)
+                        }).ok();
+                    let midi_channel_num = state.midi_channel_num;
+                    midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num);
+                }
+            }
         }
 
         settings.dialog.hide();
