@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use anyhow::anyhow;
 use pod_core::pod::*;
 use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
 use pod_gtk::gtk::prelude::*;
@@ -258,7 +259,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         settings.clear_message();
 
         // update in/out port selection, channel, model
-        {
+        let midi_io_stop_handle = {
             let mut state = state.lock().unwrap();
             populate_midi_combos(&settings,
                                  &state.midi_in_name, &state.midi_out_name);
@@ -270,7 +271,44 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
             populate_model_combo(&settings, &Some(config_name));
 
             // stop the midi thread during test
-            midi_in_out_stop(&mut state);
+            midi_in_out_stop(&mut state)
+        };
+
+        settings.set_message("", "Waiting for MIDI...");
+        settings.set_interactive(false);
+
+        let mut midi_io_stop_wait = tokio::spawn(async {
+            let results = midi_io_stop_handle.await;
+            let errors = results.into_iter()
+                .filter(|r| r.is_err())
+                .map(|r| r.unwrap_err())
+                .collect::<Vec<_>>();
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(anyhow!("Failed to stop {} MIDI threads", errors.len()))
+            }
+        });
+
+        {
+            let settings = settings.clone();
+            glib::idle_add_local(move || {
+                let cont = match midi_io_stop_wait.poll() {
+                    None => { true }
+                    Some(Ok(_)) => {
+                        settings.clear_message();
+                        settings.set_interactive(true);
+                        false
+                    }
+                    Some(Err(e)) => {
+                        let msg = format!("Failed to stop MIDI threads:\n{}", e);
+                        settings.set_message("dialog-error", &msg);
+                        settings.set_interactive(true);
+                        false
+                    }
+                };
+                Continue(cont)
+            });
         }
 
         match settings.dialog.run() {
