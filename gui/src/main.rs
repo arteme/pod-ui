@@ -1107,6 +1107,8 @@ async fn main() -> Result<()> {
         // This is a cache of the current page number of the whole of the glib idle callback
         let mut current_page = 0usize;
 
+        let mut shutting_down = false;
+
         glib::idle_add_local(move || {
             if rx.is_none() {
                 let edit_buffer = edit_buffer.load();
@@ -1325,8 +1327,9 @@ async fn main() -> Result<()> {
                                     }
                                 });
                         },
-                        UIEvent::ShutDown => {
+                        UIEvent::ShutDown if !shutting_down => {
                             header_bar.set_subtitle(Some("Shutting down..."));
+                            shutting_down = true;
 
                             let mut state = state.lock().unwrap();
                             let handle = midi_in_out_stop(&mut state);
@@ -1335,6 +1338,11 @@ async fn main() -> Result<()> {
                                 handle.await;
                                 ui_event_tx.send(UIEvent::Quit);
                             });
+                        }
+                        UIEvent::ShutDown => {
+                            // for the impatient ones that press the "close" button
+                            // again while shut down is in progress...
+                            header_bar.set_subtitle(Some("SHUTTING DOWN. PLEASE WAIT..."));
                         }
                         UIEvent::Quit => {
                             info!("Quitting...");
