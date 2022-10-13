@@ -15,7 +15,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, atomic, Mutex, RwLock};
-use pod_core::model::{AbstractControl, Button, Config, Control, DeviceFlags, VirtualSelect};
+use pod_core::model::{AbstractControl, Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_core::config::{config_for_id, configs, GUI, MIDI, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
@@ -26,28 +26,28 @@ use core::result::Result::Ok;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use arc_swap::{ArcSwap, ArcSwapOption};
 use clap::{Args, Command, FromArgMatches};
 use dyn_iter::DynIter;
-use futures_util::future::join_all;
+use futures_util::future::{join_all, JoinAll};
+use futures_util::FutureExt;
 use maplit::*;
 use crate::settings::*;
 use result::prelude::*;
 use tokio::task::JoinHandle;
-use tokio::time::timeout;
+use tokio::time::sleep;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_gtk::gtk::gdk;
-use crate::glib::thread_guard::thread_id;
 use crate::panic::wire_panic_indicator;
 use crate::registry::{init_module, init_module_controls, InitializedInterface, register_module};
 use crate::util::ToSome;
 use crate::widgets::*;
 
-
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const UI_EVENT_CHANNEL_CAPACITY: usize = 128;
+const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 
 #[derive(Clone, Debug)]
 pub enum UIEvent {
@@ -58,6 +58,7 @@ pub enum UIEvent {
     MidiRx,
     Modified(usize, bool),
     Panic,
+    ShutDown,
     Quit
 }
 
@@ -104,7 +105,7 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     ))
 });
 
-pub fn midi_in_out_stop(state: &mut State) {
+pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
@@ -114,15 +115,16 @@ pub fn midi_in_out_stop(state: &mut State) {
              separate thread. For now we assume that MIDI in/out threads stop
              "very soon after cancel is signalled", which should be good
              enough around the settings dialog user interaction...
+    */
 
     let handles = state.midi_in_handle.take().into_iter()
         .chain(state.midi_out_handle.take().into_iter());
-    join_all(handles).await;
-     */
+    join_all(handles)
 }
 
 pub fn midi_in_out_start(state: &mut State,
-                         midi_in: Option<MidiIn>, midi_out: Option<MidiOut>, midi_channel: u8) {
+                         midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
+                         midi_channel: u8, quirks: MidiQuirks) {
     if midi_in.is_none() || midi_out.is_none() {
         warn!("Not starting MIDI because in/out is None");
         state.midi_in_name = None;
@@ -158,10 +160,13 @@ pub fn midi_in_out_start(state: &mut State,
         tokio::spawn({
             let midi_in_tx = state.midi_in_tx.clone();
             let ui_event_tx = state.ui_event_tx.clone();
+            let mut in_cancel_rx = in_cancel_rx.fuse();
 
             async move {
-                let id = thread_id();
-                info!("MIDI in thread {} start", id);
+                let id = thread::current().id();
+                let mut close_quiet_duration: Option<Duration> = None;
+
+                info!("MIDI in thread {:?} start", id);
                 loop {
                     tokio::select! {
                         msg  = midi_in.recv() => {
@@ -177,12 +182,26 @@ pub fn midi_in_out_start(state: &mut State,
                             }
                         }
                         _ = &mut in_cancel_rx => {
-                            midi_in.close();
+                            if quirks.contains(MidiQuirks::MIDI_CLOSE_QUIET_TIMEOUT) {
+                                debug!("close_quiet_duration set!");
+                                close_quiet_duration = Some(Duration::from_millis(CLOSE_QUIET_DURATION_MS));
+                            } else {
+                                break;
+                            }
+                        }
+                        _ = async {
+                            if let Some(d) = close_quiet_duration {
+                                sleep(d).await
+                            } else {
+                                std::future::pending::<()>().await
+                            }
+                        } => {
                             break;
                         }
                     }
                 }
-                info!("MIDI in thread {} finish", id);
+                midi_in.close();
+                info!("MIDI in thread {:?} finish", id);
             }
         });
 
@@ -191,10 +210,11 @@ pub fn midi_in_out_start(state: &mut State,
         tokio::spawn({
             let mut midi_out_rx = state.midi_out_tx.subscribe();
             let ui_event_tx = state.ui_event_tx.clone();
+            let mut out_cancel_rx = out_cancel_rx.fuse();
 
             async move {
-                let id = thread_id();
-                info!("MIDI out thread {} start", id);
+                let id = thread::current().id();
+                info!("MIDI out thread {:?} start", id);
                 loop {
                     tokio::select! {
                         msg = midi_out_rx.recv() => {
@@ -216,7 +236,8 @@ pub fn midi_in_out_start(state: &mut State,
                         }
                     }
                 }
-                info!("MIDI out thread {} finish", id);
+                midi_out.close();
+                info!("MIDI out thread {:?} finish", id);
             }
         });
 
@@ -250,7 +271,8 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.ui_event_tx.send(UIEvent::NewEditBuffer);
     }
 
-    midi_in_out_start(state, midi_in, midi_out, midi_channel);
+    let quirks = state.config.read().unwrap().midi_quirks;
+    midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks);
 
     // we assume that something changed -- either the config or the midi settings
     // so signal a new device ping!
@@ -570,10 +592,13 @@ async fn main() -> Result<()> {
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
-    window.connect_delete_event(move |_, _| {
-        info!("Quitting");
-        ui_event_tx.send(UIEvent::Quit);
-        Inhibit(true)
+    window.connect_delete_event({
+        let ui_event_tx = ui_event_tx.clone();
+        move |_, _| {
+            info!("Shutting down...");
+            ui_event_tx.send(UIEvent::ShutDown);
+            Inhibit(true)
+        }
     });
     let transfer_icon_up: gtk::Label = ui.object("transfer_icon_up").unwrap();
     let transfer_icon_down: gtk::Label = ui.object("transfer_icon_down").unwrap();
@@ -1300,7 +1325,19 @@ async fn main() -> Result<()> {
                                     }
                                 });
                         },
+                        UIEvent::ShutDown => {
+                            header_bar.set_subtitle(Some("Shutting down..."));
+
+                            let mut state = state.lock().unwrap();
+                            let handle = midi_in_out_stop(&mut state);
+                            let ui_event_tx = ui_event_tx.clone();
+                            tokio::spawn(async move {
+                                handle.await;
+                                ui_event_tx.send(UIEvent::Quit);
+                            });
+                        }
                         UIEvent::Quit => {
+                            info!("Quitting...");
                             // application is being closed, perform clean-up
                             // that needs to happen inside the GTK thread...
 
@@ -1348,15 +1385,6 @@ async fn main() -> Result<()> {
     debug!("starting gtk main loop");
     gtk::main();
     debug!("end of gtk main loop");
-
-    /*
-    let mut state = state.lock().unwrap();
-    midi_in_out_stop(&mut state);
-
-    let handles = state.midi_in_handle.take().into_iter()
-        .chain(state.midi_out_handle.take().into_iter());
-    join_all(handles).await;
-     */
 
     Ok(())
 }

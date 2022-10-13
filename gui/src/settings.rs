@@ -323,7 +323,8 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                             error!("Unable to restart MIDI output thread for {:?}: {}", out_name, err)
                         }).ok();
                     let midi_channel_num = state.midi_channel_num;
-                    midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num);
+                    let quirks = state.config.read().unwrap().midi_quirks;
+                    midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num, quirks);
                 }
             }
         }
