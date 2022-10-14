@@ -1206,6 +1206,17 @@ async fn main() -> Result<()> {
                                     .as_ref()
                                     .map(|d| (d.name.clone(), d.ver.clone()))
                                     .unwrap_or_else(|| (String::new(), String::new()));
+
+                                sentry::configure_scope(|scope| {
+                                    scope.set_tag("midi.in",
+                                                  midi_in_name.cloned().unwrap_or_else(|| String::new()));
+                                    scope.set_tag("midi.out",
+                                                  midi_out_name.cloned().unwrap_or_else(|| String::new()));
+                                    scope.set_tag("device.name", &detected_name);
+                                    scope.set_tag("device.ver", &detected_ver);
+                                    scope.set_tag("device.comfig", &config_name);
+                                });
+
                                 match (&detected_name, config_name) {
                                     (a, b) if a.is_empty() => {
                                         b.clone()
