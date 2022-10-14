@@ -21,7 +21,9 @@ struct SettingsDialog {
     autodetect_button: gtk::Button,
     test_button: gtk::Button,
     message_label: gtk::Label,
-    message_image: gtk::Image
+    message_image: gtk::Image,
+
+    spinner: Option<gtk::Spinner>
 }
 
 impl SettingsDialog {
@@ -35,7 +37,8 @@ impl SettingsDialog {
             autodetect_button: ui.object("settings_autodetect_button").unwrap(),
             test_button: ui.object("settings_test_button").unwrap(),
             message_label: ui.object("settings_message_label").unwrap(),
-            message_image: ui.object("settings_message_image").unwrap()
+            message_image: ui.object("settings_message_image").unwrap(),
+            spinner: None
         }
     }
 
@@ -50,13 +53,35 @@ impl SettingsDialog {
     }
 
     fn set_message(&self, icon: &str, message: &str) {
-        self.message_image.set_from_icon_name(Some(icon), IconSize::Dialog);
+        let icon = if icon.is_empty() { None } else { Some(icon) };
+        self.message_image.set_from_icon_name(icon, IconSize::Dialog);
         self.message_label.set_label(message);
     }
 
     fn clear_message(&self) {
-        self.message_image.set_from_icon_name(None, IconSize::Dialog);
-        self.message_label.set_label(&"");
+        self.set_message("", "");
+    }
+
+    fn work_start(&mut self, button: Option<&gtk::Button>) {
+        if let Some(button) = button {
+            let spinner = gtk::Spinner::new();
+            (*button).set_image(Some(&spinner));
+            spinner.start();
+
+            self.spinner = Some(spinner);
+        }
+
+        self.clear_message();
+        self.set_interactive(false);
+    }
+
+    fn work_finish(&mut self, icon: &str, message: &str) {
+        self.set_message(icon, message);
+        self.set_interactive(true);
+
+        if let Some(spinner) = self.spinner.take() {
+            spinner.stop();
+        }
     }
 }
 
@@ -137,25 +162,19 @@ fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
 }
 
 fn wire_autodetect_button(settings: &SettingsDialog) {
-    let settings = settings.clone();
+    let mut settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
         let mut autodetect = tokio::spawn(pod_core::pod::autodetect());
 
-        let spinner = gtk::Spinner::new();
-        (*button).set_image(Some(&spinner));
-        spinner.start();
+        let mut settings = settings.clone();
+        settings.work_start(Some(button));
 
-        settings.set_interactive(false);
-
-        let settings = settings.clone();
         glib::idle_add_local(move || {
             let cont = match autodetect.poll() {
                 None => { true }
                 Some(Ok((in_, out_, channel, config))) => {
                     let msg = format!("Autodetect successful!");
-                    settings.set_message("dialog-ok", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-ok", &msg);
 
                     // update in/out port selection, channel, device
                     populate_midi_combos(&settings,
@@ -168,9 +187,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
                 Some(Err(e)) => {
                     error!("Settings MIDI autodetect failed: {}", e);
                     let msg = format!("Autodetect failed:\n{}", e);
-                    settings.set_message("dialog-error", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-error", &msg);
 
                     false
                 }
@@ -208,22 +225,15 @@ fn wire_test_button(settings: &SettingsDialog) {
             pod_core::pod::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
         });
 
-        let spinner = gtk::Spinner::new();
-        (*button).set_image(Some(&spinner));
-        spinner.start();
+        let mut settings = settings.clone();
+        settings.work_start(Some(button));
 
-        settings.clear_message();
-        settings.set_interactive(false);
-
-        let settings = settings.clone();
         glib::idle_add_local(move || {
             let cont = match test.poll() {
                 None => { true }
                 Some(Ok((in_, out_, _))) => {
                     let msg = format!("Test successful!");
-                    settings.set_message("dialog-ok", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-ok", &msg);
 
                     // update in/out port selection
                     // TODO: do we need to update the combo here at all?
@@ -234,9 +244,7 @@ fn wire_test_button(settings: &SettingsDialog) {
                 Some(Err(e)) => {
                     error!("Settings MIDI test failed: {}", e);
                     let msg = format!("Test failed:\n{}", e);
-                    settings.set_message("dialog-error", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-error", &msg);
 
                     false
                 }
@@ -291,19 +299,17 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         });
 
         {
-            let settings = settings.clone();
+            let mut settings = settings.clone();
             glib::idle_add_local(move || {
                 let cont = match midi_io_stop_wait.poll() {
                     None => { true }
                     Some(Ok(_)) => {
-                        settings.clear_message();
-                        settings.set_interactive(true);
+                        settings.work_finish("", "");
                         false
                     }
                     Some(Err(e)) => {
                         let msg = format!("Failed to stop MIDI threads:\n{}", e);
-                        settings.set_message("dialog-error", &msg);
-                        settings.set_interactive(true);
+                        settings.work_finish("dialog-error", &msg);
                         false
                     }
                 };
