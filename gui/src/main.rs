@@ -105,6 +105,23 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     ))
 });
 
+fn sentry_set_midi_tags(in_name: Option<&String>, out_name: Option<&String>) {
+    sentry::configure_scope(|scope| {
+        scope.set_tag("midi.in",
+                      in_name.unwrap_or(&"-".to_string()));
+        scope.set_tag("midi.out",
+                      out_name.unwrap_or(&"-".to_string()));
+    })
+}
+
+fn sentry_set_device_tags(detected_name: &String, detected_ver: &String, config_name: &String) {
+    sentry::configure_scope(|scope| {
+        scope.set_tag("device.name", detected_name);
+        scope.set_tag("device.ver", detected_ver);
+        scope.set_tag("device.config", config_name);
+    })
+}
+
 pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
@@ -135,6 +152,7 @@ pub fn midi_in_out_start(state: &mut State,
         state.ui_event_tx.send(UIEvent::NewMidiConnection)
             .map_err(|err| warn!("Cannot send UIEvent: {}", err))
             .unwrap();
+        sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
         return;
     }
 
@@ -154,6 +172,7 @@ pub fn midi_in_out_start(state: &mut State,
     state.ui_event_tx.send(UIEvent::NewMidiConnection)
         .map_err(|err| warn!("Cannot send UIEvent: {}", err))
         .unwrap();
+    sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
 
     // midi in
     let midi_in_handle =
@@ -1054,6 +1073,7 @@ async fn main() -> Result<()> {
                             .map(|c| c.name.clone())
                             .unwrap_or_else(|| format!("Unknown ({:04x}:{:04x})", family, member));
 
+                        sentry_set_device_tags(&name, &ver, &config.name);
                         detected.store(Some(Arc::new(DetectedDevVersion {
                             name,
                             ver
@@ -1206,16 +1226,6 @@ async fn main() -> Result<()> {
                                     .as_ref()
                                     .map(|d| (d.name.clone(), d.ver.clone()))
                                     .unwrap_or_else(|| (String::new(), String::new()));
-
-                                sentry::configure_scope(|scope| {
-                                    scope.set_tag("midi.in",
-                                                  midi_in_name.cloned().unwrap_or_else(|| String::new()));
-                                    scope.set_tag("midi.out",
-                                                  midi_out_name.cloned().unwrap_or_else(|| String::new()));
-                                    scope.set_tag("device.name", &detected_name);
-                                    scope.set_tag("device.ver", &detected_ver);
-                                    scope.set_tag("device.comfig", &config_name);
-                                });
 
                                 match (&detected_name, config_name) {
                                     (a, b) if a.is_empty() => {
