@@ -50,6 +50,16 @@ impl<T> OptionToResultsExt for Option<T> {
     }
 }
 
+pub fn u16_to_2_u7(v: u16) -> (u8, u8) {
+    let b1 = v >> 7;
+    let b2 = v & 0x7f;
+    (b1 as u8, b2 as u8)
+}
+
+pub fn u16_from_2_u7(v1: u8, v2: u8) -> u16 {
+    (v1 as u16) << 7 | (v2 as u16)
+}
+
 /// A shorthand for `Default::default()` while waiting on
 pub fn def<T: Default>() -> T {
     Default::default()

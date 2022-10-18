@@ -22,6 +22,11 @@ pub enum MidiMessage {
 
     XtInstalledPacksRequest,
     XtInstalledPacks { packs: u8 },
+    XtEditBufferDumpRequest,
+    XtEditBufferDump { id: u8, data: Vec<u8> },
+    XtPatchDumpRequest { patch: u16 },
+    XtPatchDump { patch: u16, id: u8, data: Vec<u8> },
+    XtPatchDumpEnd,
 
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
@@ -69,7 +74,28 @@ impl MidiMessage {
             MidiMessage::XtInstalledPacksRequest =>
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, 0xf7].to_vec(),
             MidiMessage::XtInstalledPacks { packs } =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, *packs, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x01, *packs, 0xf7].to_vec(),
+            MidiMessage::XtEditBufferDumpRequest =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x75, 0xf7].to_vec(),
+            MidiMessage::XtEditBufferDump { id,  data } => {
+                let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x74, *id];
+                msg.extend(data);
+                msg.extend_from_slice(&[0xf7]);
+                msg
+            }
+            MidiMessage::XtPatchDumpRequest { patch } => {
+                let (p1, p2) = u16_to_2_u7(*patch);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x73, p1, p2, 0x00, 0x00, 0xf7].to_vec()
+            }
+            MidiMessage::XtPatchDump { patch, id, data } => {
+                let (p1, p2) = u16_to_2_u7(*patch);
+                let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x71, *id, p1, p2];
+                msg.extend(data);
+                msg.extend_from_slice(&[0xf7]);
+                msg
+            }
+            MidiMessage::XtPatchDumpEnd =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x72, 0xf7].to_vec(),
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
@@ -143,28 +169,45 @@ impl MidiMessage {
                 // program dump response
                 match array_ref!(bytes, 4, 3) {
                     &[0x01, 0x00, 0x00] => return Ok(MidiMessage::ProgramPatchDumpRequest {
-                       patch: bytes[7]
+                        patch: bytes[7]
                     }),
                     &[0x01, 0x00, 0x01] => return Ok(MidiMessage::ProgramEditBufferDumpRequest {}),
                     &[0x01, 0x00, 0x02] => return Ok(MidiMessage::AllProgramsDumpRequest {}),
                     &[0x01, 0x01, 0x00] => return Ok(MidiMessage::ProgramPatchDump {
                         patch: bytes[7],
                         ver: bytes[8],
-                        data: nibbles_to_u8_vec(&bytes[9 .. len-1])
+                        data: nibbles_to_u8_vec(&bytes[9..len - 1])
                     }),
                     &[0x01, 0x01, 0x01] => return Ok(MidiMessage::ProgramEditBufferDump {
                         ver: bytes[7],
-                        data: nibbles_to_u8_vec(&bytes[8 .. len-1])
+                        data: nibbles_to_u8_vec(&bytes[8..len - 1])
                     }),
                     &[0x01, 0x01, 0x02] => return Ok(MidiMessage::AllProgramsDump {
                         ver: bytes[7],
-                        data: nibbles_to_u8_vec(&bytes[8 .. len-1])
+                        data: nibbles_to_u8_vec(&bytes[8..len - 1])
                     }),
                     &[0x03, 0x0e, 0x00] => return Ok(MidiMessage::XtInstalledPacksRequest),
-                    // TODO: XtInstalledPacks
-
-                    _ => return Err(anyhow!("Unknown program dump message"))
+                    _ => {}
                 }
+                match array_ref!(bytes, 4, 2) {
+                    &[0x03, 0x75] => return Ok(MidiMessage::XtEditBufferDumpRequest),
+                    &[0x03, 0x74] => return Ok(MidiMessage::XtEditBufferDump {
+                        id: bytes[6],
+                        data: bytes[7..len-1].to_vec()
+                    }),
+                    &[0x03, 0x73] => return Ok(MidiMessage::XtPatchDumpRequest {
+                        patch: u16_from_2_u7(bytes[6], bytes[7])
+                    }),
+                    &[0x03, 0x72] => return Ok(MidiMessage::XtPatchDumpEnd),
+                    &[0x03, 0x71] => return Ok(MidiMessage::XtPatchDump {
+                        id: bytes[6],
+                        patch: u16_from_2_u7(bytes[7], bytes[8]),
+                        data: bytes[9..len-1].to_vec()
+                    }),
+                    _ => {}
+                }
+
+                return Err(anyhow!("Unknown program dump message"))
             }
 
             return Err(anyhow!("Failed to parse SysEx message!"))

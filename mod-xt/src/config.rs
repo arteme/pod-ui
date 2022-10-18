@@ -71,6 +71,10 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         controls,
         init_controls,
 
+        program_size: 72*2 + 16,
+        program_name_addr: 0,
+        program_name_length: 16,
+
         ..pod2_config
     }
 });

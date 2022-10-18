@@ -976,10 +976,29 @@ async fn main() -> Result<()> {
                             midi_out_tx.send(m);
                         }
                     },
-                    MidiMessage::UniversalDeviceInquiryResponse { family, member, ver, .. } => {
-                        let hi = if &ver[0 .. 1] == "0" { &ver[1 ..= 1] } else { &ver[0 ..= 1] };
-                        let lo = &ver[2 ..= 3];
-                        let ver = format!("{}.{}", hi, lo);
+                    MidiMessage::UniversalDeviceInquiryResponse { family, member, ref ver, .. } => {
+                        let c1 = &ver.chars().next().unwrap_or_default();
+                        let ver = if ('0' ..= '9').contains(c1) {
+                            let hi = if *c1 == '0' { &ver[1 ..= 1] } else { &ver[0 ..= 1] };
+                            let lo = &ver[2 ..= 3];
+                            format!("{}.{}", hi, lo)
+                        } else {
+                            let mut bytes = ver.bytes();
+                            let b1 = bytes.next().unwrap_or_default();
+                            let b2 = bytes.next().unwrap_or_default();
+                            let b3 = bytes.next().unwrap_or_default();
+                            let b4 = bytes.next().unwrap_or_default();
+                            if b1 == 0 && b3 == 0 {
+                                format!("{}.{:02}", b2, b4)
+                            } else {
+                                sentry::capture_message(
+                                    &format!("Unsupported version string: {:?}", &msg),
+                                    sentry::Level::Error
+                                );
+                                "?.?".to_string()
+                            }
+                        };
+
                         let name = config_for_id(family, member)
                             .map(|c| c.name.clone())
                             .unwrap_or_else(|| format!("Unknown ({:04x}:{:04x})", family, member));
@@ -990,10 +1009,65 @@ async fn main() -> Result<()> {
                         })));
                         ui_event_tx.send(UIEvent::NewMidiConnection);
                     },
+                    // <EXPERIMENTAL> ----------------------------------------------------------
                     MidiMessage::XtInstalledPacksRequest => {
-                        let res = MidiMessage::XtInstalledPacks { packs: 0 };
+                        let res = MidiMessage::XtInstalledPacks { packs: 0x00 };
                         midi_out_tx.send(res);
                     }
+                    MidiMessage::XtEditBufferDumpRequest => {
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
+                        let ui_controller = ui_controller.lock().unwrap();
+                        let messages = program_dump_message(
+                            Program::EditBuffer, &mut dump, &mut edit_buffer,
+                            &ui_controller, &ui_event_tx, config);
+                        for m in messages.unwrap_or_default() {
+                            let m1 = match m {
+                                MidiMessage::ProgramEditBufferDump { ver, data } => {
+                                    MidiMessage::XtEditBufferDump { id: 0x0a, data }
+                                }
+                                _ => m
+                            };
+                            midi_out_tx.send(m1);
+                        }
+                    }
+                    MidiMessage::XtPatchDumpRequest { patch } => {
+                        let edit_buffer = edit_buffer.load();
+                        let dump = dump.load();
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        let mut dump = dump.lock().unwrap();
+                        let ui_controller = ui_controller.lock().unwrap();
+                        let messages  = program_dump_message(
+                            Program::EditBuffer, &mut dump, &mut edit_buffer,
+                            &ui_controller, &ui_event_tx, config);
+                        /*
+                        let messages  = program_dump_message(
+                            Program::All, &mut dump, &mut edit_buffer,
+                            &ui_controller, &ui_event_tx, config);
+                         */
+                        for m in messages.unwrap_or_default() {
+                            let t = patch >> 7;
+                            let b = patch & 0x7f;
+                            let n = format!("{} = {}/{}", patch, t, b);
+
+                            let m1 = match m {
+                                MidiMessage::ProgramEditBufferDump { data, .. } => {
+                                    let mut d = data.clone();
+                                    for (i,c) in n.as_bytes().iter().enumerate() {
+                                        d[i] = *c;
+                                    }
+
+                                    MidiMessage::XtEditBufferDump { id: 0x0a, data: d }
+                                }
+                                _ => m
+                            };
+                            midi_out_tx.send(m1);
+                        }
+                        midi_out_tx.send(MidiMessage::XtPatchDumpEnd);
+                    }
+                    // </EXPERIMENTAL> ---------------------------------------------------------
 
                     // pretend we're a POD
                     MidiMessage::UniversalDeviceInquiry { channel } => {
@@ -1007,10 +1081,12 @@ async fn main() -> Result<()> {
                             channel,
                             family: config.family,
                             member: config.member,
-                            ver: String::from("0303")
+                            ver: String::from("\x03\x03\x11\x10")
+                            //ver: String::from("0303")
                         };
                         midi_out_tx.send(res);
                     }
+                    // </EXPERIMENTAL>
 
                     _ => {
                         warn!("Unhandled MIDI message: {:?}", msg);
