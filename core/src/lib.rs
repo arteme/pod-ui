@@ -9,6 +9,8 @@ extern crate arrayref;
 pub mod midi;
 mod util;
 
+pub use util::def;
+
 pub mod store;
 pub mod model;
 pub mod builders;

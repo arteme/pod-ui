@@ -1033,6 +1033,15 @@ async fn main() -> Result<()> {
                             midi_out_tx.send(m1);
                         }
                     }
+                    MidiMessage::XtEditBufferDump { id, data } => {
+                        if data.len() != config.program_size {
+                            error!("Program size mismatch: expected {}, got {}",
+                                  config.program_size, data.len());
+                            continue;
+                        }
+                        program::load_patch_dump_ctrl(
+                            &mut edit_buffer.load().lock().unwrap(), data.as_slice(), MIDI);
+                    },
                     MidiMessage::XtPatchDumpRequest { patch } => {
                         let edit_buffer = edit_buffer.load();
                         let dump = dump.load();

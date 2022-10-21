@@ -89,6 +89,7 @@ pub enum Control {
     MidiSwitchControl(MidiSwitchControl),
     RangeControl(RangeControl),
     Select(Select),
+    MidiSelect(MidiSelect),
     VirtualSelect(VirtualSelect),
     Button(Button)
 }
@@ -127,7 +128,15 @@ impl Default for FormatData {
 }
 
 #[derive(Clone, Debug)]
-pub struct SwitchControl { pub cc: u8, pub addr: u8 }
+pub struct SwitchControl { pub cc: u8, pub addr: u8, pub inverted: bool, pub config: SwitchConfig }
+#[derive(Clone, Debug)]
+pub enum SwitchConfig {
+    /// Switch value in program dump = switch control value
+    Normal,
+    /// Switch value in program dump = MIDI value of the switch control value
+    Midi
+}
+
 #[derive(Clone, Debug)]
 pub struct MidiSwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
@@ -146,6 +155,8 @@ pub enum RangeConfig {
 #[derive(Clone, Debug)]
 pub struct Select { pub cc: u8, pub addr: u8 }
 #[derive(Clone, Debug)]
+pub struct MidiSelect { pub cc: u8 }
+#[derive(Clone, Debug)]
 pub struct VirtualSelect {}
 #[derive(Clone, Debug)]
 pub struct Button {}
@@ -154,7 +165,7 @@ pub struct Button {}
 
 impl Default for SwitchControl {
     fn default() -> Self {
-        SwitchControl { cc: 0, addr: 0 }
+        SwitchControl { cc: 0, addr: 0, inverted: false, config: SwitchConfig::Normal }
     }
 }
 
@@ -198,6 +209,18 @@ impl Default for Select {
 impl From<Select> for Control {
     fn from(c: Select) -> Self {
         Control::Select(c)
+    }
+}
+
+impl Default for MidiSelect {
+    fn default() -> Self {
+        MidiSelect { cc: 0 }
+    }
+}
+
+impl From<MidiSelect> for Control {
+    fn from(c: MidiSelect) -> Self {
+        Control::MidiSelect(c)
     }
 }
 
@@ -325,11 +348,37 @@ impl AbstractControl for SwitchControl {
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 
     fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
-        value as u16 / 64
+        let value = value > 63;
+        (self.inverted ^ value) as u16
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
-        if value > 0 { 127 } else { 0 }
+        let value = value > 0;
+        if self.inverted ^ value { 127 } else { 0 }
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        match &self.config {
+            SwitchConfig::Normal => {
+                let value = value != 0;
+                (self.inverted ^ value) as u16
+            }
+            SwitchConfig::Midi => {
+                self.value_from_midi(value as u8, 0)
+            }
+        }
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        match &self.config {
+            SwitchConfig::Normal => {
+                let value = value != 0;
+                (self.inverted ^ value) as u32
+            }
+            SwitchConfig::Midi => {
+                self.value_to_midi(value) as u32
+            }
+        }
     }
 }
 
@@ -350,6 +399,10 @@ impl AbstractControl for Select {
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 }
 
+impl AbstractControl for MidiSelect {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+}
+
 impl AbstractControl for VirtualSelect {}
 
 impl AbstractControl for Button {}
@@ -361,6 +414,7 @@ impl Control {
             Control::MidiSwitchControl(c) => c,
             Control::RangeControl(c) => c,
             Control::Select(c) => c,
+            Control::MidiSelect(c) => c,
             Control::VirtualSelect(c) => c,
             Control::Button(c) => c
         }

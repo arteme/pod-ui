@@ -2,34 +2,42 @@ use std::collections::HashMap;
 use maplit::*;
 use once_cell::sync::Lazy;
 use pod_core::builders::shorthand::*;
+use pod_core::def;
 use pod_core::model::*;
 use pod_gtk::*;
+
+use pod_mod_pod2::{short, fmt_percent};
 
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
     let exclude = vec!["drive2", "digiout_show", "eq_enable", "effect_enable"];
 
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
-        // drive => cc: 13
-        // bass => cc: 14
-        // mid => cc: 15
-        // treble => cc: 16
-        // presence => cc: 21
-        // chan volume => cc: 17
+        // switches
+        "noise_gate_enable" => SwitchControl { cc: 22, addr: 32 + 22, config: SwitchConfig::Midi, ..def() },
+        "wah_enable" => SwitchControl { cc: 43, addr: 32 + 43, config: SwitchConfig::Midi, ..def() },
+        "stomp_enable" => SwitchControl { cc: 25, addr: 32 + 25, config: SwitchConfig::Midi, ..def() },
+        "mod_enable" => SwitchControl { cc: 50, addr: 32 + 25, config: SwitchConfig::Midi, ..def() },
+        "mod_position" => SwitchControl { cc: 57, addr: 32 + 57, config: SwitchConfig::Midi, ..def() },
+        "delay_enable" => SwitchControl { cc: 28, addr: 32 + 28, config: SwitchConfig::Midi, ..def() },
+        "delay_position" => SwitchControl { cc: 87, addr: 32 + 87, config: SwitchConfig::Midi, ..def() },
+        "reverb_enable" => SwitchControl { cc: 36, addr: 32 + 36, config: SwitchConfig::Midi, ..def() },
+        "reverb_position" => SwitchControl { cc: 41, addr: 32 + 41, config: SwitchConfig::Midi, ..def() },
+        "amp_enable" => SwitchControl { cc: 111, addr: 32 + 111, inverted: true,
+            config: SwitchConfig::Midi },
+        "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, config: SwitchConfig::Midi, ..def()  },
+        "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, config: SwitchConfig::Midi, ..def() },
 
-        // noise_gate_enable => cc: 22
-        "wah_enable" => MidiSwitchControl { cc: 43 },
-        "stomp_enable" => MidiSwitchControl { cc: 25 },
-        "mod_enable" => MidiSwitchControl { cc: 50 },
-        "mod_position" => MidiSwitchControl { cc: 57 },
-        "reverb_position" => MidiSwitchControl { cc: 57 },
-        // delay_enable => cc: 28
-        "delay_position" => MidiSwitchControl { cc: 87 },
-        // reverb_enable => cc: 36
-        "reverb_position" => MidiSwitchControl { cc: 41 },
-        "amp_enable" => MidiSwitchControl { cc: 111 },
-        "compressor_enable" => MidiSwitchControl { cc: 26 },
-        "eq_enable" => MidiSwitchControl { cc: 63 },
+        // preamp
+        "amp_select" => Select { cc: 12, addr: 32 + 12 , ..def() },
+        "amp_select:no_def" => MidiSelect { cc: 11 }, // TODO: wire me!
+        "drive" => RangeControl { cc: 13, addr: 32 + 13, format: fmt_percent!(), ..def() },
+        "bass" => RangeControl { cc: 14, addr: 32 + 14, format: fmt_percent!(), ..def() },
+        "mid" => RangeControl { cc: 15, addr: 32 + 15, format: fmt_percent!(), ..def() },
+        "treble" => RangeControl { cc: 16, addr: 32 + 16, format: fmt_percent!(), ..def() },
+        "presence" => RangeControl { cc: 21, addr: 32 + 21, format: fmt_percent!(), ..def() },
+        "chan_volume" => RangeControl { cc: 17, addr: 32 + 17, format: fmt_percent!(), ..def() },
+
 
         "loop_enable:show" => VirtualSelect {}
     ));
@@ -53,7 +61,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         member: 0x0002,
 
         program_num: 128,
-        flags: DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER,
+        flags: DeviceFlags::empty(),
 
         toggles: convert_args!(vec!(
             toggle("noise_gate_enable").non_moving(0),

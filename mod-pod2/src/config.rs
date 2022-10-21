@@ -38,6 +38,7 @@ macro_rules! fx {
 macro_rules! fmt {
     ($f:tt) => ( Format::Callback($f) );
 }
+#[macro_export]
 macro_rules! fmt_percent {
     (signed) => ( Format::Callback(RangeControl::fmt_percent_signed) );
     () => ( Format::Callback(RangeControl::fmt_percent) );
@@ -206,14 +207,14 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
         ],
         controls: convert_args!(hashmap!(
            // switches
-           "distortion_enable" => SwitchControl { cc: 25, addr: 0 },
-           "drive_enable" => SwitchControl { cc: 26, addr: 1 },
-           "eq_enable" => SwitchControl { cc: 27, addr: 2 },
-           "delay_enable" => SwitchControl { cc: 28, addr: 3 },
-           "effect_enable" => SwitchControl { cc: 50, addr: 4 }, // trem/rotary speaker/chorus/flanger
-           "reverb_enable" => SwitchControl { cc: 36, addr: 5 },
-           "noise_gate_enable" => SwitchControl { cc: 22, addr: 6 },
-           "bright_switch_enable" => SwitchControl { cc: 73, addr: 7 },
+           "distortion_enable" => SwitchControl { cc: 25, addr: 0, ..def!() },
+           "drive_enable" => SwitchControl { cc: 26, addr: 1, ..def!() },
+           "eq_enable" => SwitchControl { cc: 27, addr: 2, ..def!() },
+           "delay_enable" => SwitchControl { cc: 28, addr: 3, ..def!() },
+           "effect_enable" => SwitchControl { cc: 50, addr: 4, ..def!() }, // trem/rotary speaker/chorus/flanger
+           "reverb_enable" => SwitchControl { cc: 36, addr: 5, ..def!() },
+           "noise_gate_enable" => SwitchControl { cc: 22, addr: 6, ..def!() },
+           "bright_switch_enable" => SwitchControl { cc: 73, addr: 7, ..def!() },
            // preamp
            "amp_select" => Select { cc: 12, addr: 8, ..def!() },
            "drive" => RangeControl { cc: 13, addr: 9, config: short!(),
