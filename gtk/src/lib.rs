@@ -1,11 +1,9 @@
-pub use gtk;
-pub use glib;
-
 mod object_list;
 mod module;
 mod util;
 mod wiring;
 mod toggles;
+pub mod prelude;
 
 pub use object_list::*;
 pub use module::*;

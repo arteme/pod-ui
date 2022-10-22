@@ -1,14 +1,13 @@
 use std::sync::{Arc, Mutex};
 use pod_core::midi_io::*;
-use crate::{gtk, set_midi_in_out, State};
-use pod_gtk::gtk::prelude::*;
-use pod_gtk::gtk::{IconSize, ResponseType};
+use crate::{set_midi_in_out, State};
+use pod_gtk::prelude::*;
+use gtk::{IconSize, ResponseType};
 use crate::util::ManualPoll;
 
 use log::*;
 use pod_core::config::configs;
 use pod_core::midi::Channel;
-use pod_gtk::glib;
 
 #[derive(Clone)]
 struct SettingsDialog {

@@ -5,8 +5,7 @@ use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
 use pod_core::store::{Signal, Store};
-use pod_gtk::{animate, Callbacks, gtk, Module, ObjectList};
-use crate::glib;
+use pod_gtk::prelude::*;
 
 static mut MODULES: Vec<Box<dyn Module>> = vec![];
 

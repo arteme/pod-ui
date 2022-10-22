@@ -7,8 +7,7 @@ use pod_core::store::{Signal, Store};
 use pod_core::controller::Controller;
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
-use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList, SignalHandler, SignalHandlerExt};
-use pod_gtk::gtk::prelude::*;
+use pod_gtk::prelude::*;
 
 pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     // controller -> gui

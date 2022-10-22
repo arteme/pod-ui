@@ -1,12 +1,7 @@
 use std::cell::Cell;
 use std::time::Duration;
-use crate::glib;
-use crate::gtk;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
+use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
-use crate::glib::{ParamSpec, Value};
-use crate::glib::value::FromValue;
 use super::program_button::{ProgramButton, ProgramButtonExt};
 
 const NUM_BUTTONS_PER_PAGE: usize = 36;

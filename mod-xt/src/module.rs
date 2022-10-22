@@ -3,9 +3,8 @@ use pod_core::config::MIDI;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
-use pod_gtk::*;
-use pod_gtk::gtk::prelude::*;
-use pod_gtk::gtk::{Builder, Widget};
+use pod_gtk::prelude::*;
+use gtk::{Builder, Widget};
 use pod_mod_pod2::wiring::*;
 
 use crate::config;

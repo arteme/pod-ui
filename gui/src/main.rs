@@ -8,8 +8,7 @@ mod widgets;
 
 use anyhow::*;
 
-use pod_gtk::*;
-use pod_gtk::gtk::prelude::*;
+use pod_gtk::prelude::*;
 use pod_core::midi_io::*;
 use pod_core::controller::Controller;
 use pod_core::program;
@@ -36,7 +35,7 @@ use crate::settings::*;
 use result::prelude::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
-use pod_gtk::gtk::gdk;
+use gtk::gdk;
 use crate::panic::wire_panic_indicator;
 use crate::registry::{init_module, init_module_controls, InitializedInterface, register_module};
 use crate::util::ToSome;
