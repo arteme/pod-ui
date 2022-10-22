@@ -411,8 +411,8 @@
                 </child>
               </object>
               <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
                 <property name="pack-type">end</property>
                 <property name="position">0</property>
               </packing>
@@ -485,7 +485,7 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">12</property>
                         <child>
-                          <!-- n-columns=3 n-rows=7 -->
+                          <!-- n-columns=3 n-rows=8 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
@@ -496,6 +496,10 @@
                                 <property name="name">amp_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
+                                <style>
+                                  <class name="amp_enable=0:disable"/>
+                                  <class name="amp_enable=1:enable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -509,6 +513,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Drive</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -521,6 +529,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Bass</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -533,6 +545,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Mid</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -545,6 +561,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Treble</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -558,6 +578,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Presence</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -570,6 +594,10 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="label" translatable="yes">Chan Volume</property>
+                                <style>
+                                  <class name="amp_enable=1:show"/>
+                                  <class name="amp_enable=0:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -586,6 +614,10 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -603,6 +635,10 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -620,6 +656,10 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -637,6 +677,10 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -654,6 +698,10 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=1:enable"/>
+                                  <class name="amp_enable=0:disable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -671,10 +719,51 @@
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=0:hide"/>
+                                  <class name="amp_enable=1:show"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
                                 <property name="top-attach">6</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label40">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="label" translatable="yes">Amp Bypass Volume</property>
+                                <style>
+                                  <class name="amp_enable=0:show"/>
+                                  <class name="amp_enable=1:hide"/>
+                                </style>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">7</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale2">
+                                <property name="name">bypass_volume</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="hexpand">True</property>
+                                <property name="adjustment">adjustment7</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                                <style>
+                                  <class name="amp_enable=0:show"/>
+                                  <class name="amp_enable=1:hide"/>
+                                </style>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">7</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -1152,7 +1241,7 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">10</property>
                         <child>
-                          <!-- n-columns=3 n-rows=2 -->
+                          <!-- n-columns=3 n-rows=3 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
@@ -1163,6 +1252,10 @@
                                 <property name="name">cab_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
+                                <style>
+                                  <class name="amp_enable=0:disable"/>
+                                  <class name="amp_enable=1:enable"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1176,7 +1269,7 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Air</property>
+                                <property name="label" translatable="yes">Room</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1185,7 +1278,7 @@
                             </child>
                             <child>
                               <object class="GtkScale" id="scale15">
-                                <property name="name">air</property>
+                                <property name="name">room</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="hexpand">True</property>
@@ -1197,6 +1290,39 @@
                               <packing>
                                 <property name="left-attach">1</property>
                                 <property name="top-attach">1</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label2">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Mic</property>
+                                <style>
+                                  <class name="cab_select=0:disable"/>
+                                  <class name="cab_select=*:enable"/>
+                                </style>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkComboBoxText" id="comboboxtext4">
+                                <property name="name">mic_select</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <style>
+                                  <class name="cab_select=0:disable"/>
+                                  <class name="cab_select=*:enable"/>
+                                </style>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">2</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>

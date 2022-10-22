@@ -1,5 +1,5 @@
 mod config;
 mod module;
-//mod wiring;
+mod wiring;
 
 pub use module::*;

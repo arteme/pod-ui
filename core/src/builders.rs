@@ -45,6 +45,12 @@ impl Into<Amp> for &mut AmpBuilder {
     }
 }
 
+impl Into<Amp> for AmpBuilder {
+    fn into(self) -> Amp {
+        self.build()
+    }
+}
+
 // -------------------------------------------------------------
 
 pub struct ToggleBuilder(Toggle);
