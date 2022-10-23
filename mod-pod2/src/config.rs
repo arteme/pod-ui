@@ -233,7 +233,7 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
                format: fmt_percent!(), ..def!() },
            // noise gate
            "gate_threshold" => RangeControl { cc: 23, addr: 16,
-               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi },
+               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi, buffer_config: BufferConfig::Normal },
                format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
            "gate_decay" => RangeControl { cc: 24, addr: 17, config: short!(),
                 format: fmt_percent!(), ..def!() }, // todo: 8.1 msec .. 159 msec

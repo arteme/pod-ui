@@ -1031,6 +1031,7 @@ async fn main() -> Result<()> {
                             };
                             midi_out_tx.send(m1);
                         }
+                        midi_out_tx.send(MidiMessage::XtPatchDumpEnd);
                     }
                     MidiMessage::XtEditBufferDump { id, data } => {
                         if data.len() != config.program_size {

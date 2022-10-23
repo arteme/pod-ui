@@ -26,26 +26,34 @@ pub static BX_MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     convert_args!(vec!("Tube 47 Close", "Tube 47 Far", "112 Dynamic", "20 Dynamic"))
 });
 
+fn gate_threshold_from_midi(value: u8) -> u16 {
+    (96 - value.min(96)) as u16
+}
+
+fn gate_threshold_to_midi(value: u16) -> u8 {
+    (96 - value.min(96)) as u8
+}
+
+
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
     let exclude = vec!["drive2", "digiout_show", "eq_enable", "effect_enable"];
 
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
         // switches
-        "noise_gate_enable" => SwitchControl { cc: 22, addr: 32 + 22, config: SwitchConfig::Midi, ..def() },
-        "wah_enable" => SwitchControl { cc: 43, addr: 32 + 43, config: SwitchConfig::Midi, ..def() },
-        "stomp_enable" => SwitchControl { cc: 25, addr: 32 + 25, config: SwitchConfig::Midi, ..def() },
-        "mod_enable" => SwitchControl { cc: 50, addr: 32 + 25, config: SwitchConfig::Midi, ..def() },
-        "mod_position" => SwitchControl { cc: 57, addr: 32 + 57, config: SwitchConfig::Midi, ..def() },
-        "delay_enable" => SwitchControl { cc: 28, addr: 32 + 28, config: SwitchConfig::Midi, ..def() },
-        "delay_position" => SwitchControl { cc: 87, addr: 32 + 87, config: SwitchConfig::Midi, ..def() },
-        "reverb_enable" => SwitchControl { cc: 36, addr: 32 + 36, config: SwitchConfig::Midi, ..def() },
-        "reverb_position" => SwitchControl { cc: 41, addr: 32 + 41, config: SwitchConfig::Midi, ..def() },
+        "noise_gate_enable" => SwitchControl { cc: 22, addr: 32 + 22, buffer_config: BufferConfig::Midi, ..def() },
+        "wah_enable" => SwitchControl { cc: 43, addr: 32 + 43, buffer_config: BufferConfig::Midi, ..def() },
+        "stomp_enable" => SwitchControl { cc: 25, addr: 32 + 25, buffer_config: BufferConfig::Midi, ..def() },
+        "mod_enable" => SwitchControl { cc: 50, addr: 32 + 25, buffer_config: BufferConfig::Midi, ..def() },
+        "mod_position" => SwitchControl { cc: 57, addr: 32 + 57, buffer_config: BufferConfig::Midi, ..def() },
+        "delay_enable" => SwitchControl { cc: 28, addr: 32 + 28, buffer_config: BufferConfig::Midi, ..def() },
+        "delay_position" => SwitchControl { cc: 87, addr: 32 + 87, buffer_config: BufferConfig::Midi, ..def() },
+        "reverb_enable" => SwitchControl { cc: 36, addr: 32 + 36, buffer_config: BufferConfig::Midi, ..def() },
+        "reverb_position" => SwitchControl { cc: 41, addr: 32 + 41, buffer_config: BufferConfig::Midi, ..def() },
         "amp_enable" => SwitchControl { cc: 111, addr: 32 + 111, inverted: true,
-            config: SwitchConfig::Midi },
-        "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, config: SwitchConfig::Midi, ..def()  },
-        "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, config: SwitchConfig::Midi, ..def() },
-
+            buffer_config: BufferConfig::Midi },
+        "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, buffer_config: BufferConfig::Midi, ..def()  },
+        "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, buffer_config: BufferConfig::Midi, ..def() },
         // preamp
         "amp_select" => Select { cc: 12, addr: 32 + 12 , ..def() },
         "amp_select:no_def" => MidiSelect { cc: 11 }, // TODO: wire me!
@@ -60,6 +68,22 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "amp_select" => Select { cc: 71, addr: 32 + 71, ..def() },
         "mic_select" => Select { cc: 70, addr: 32 + 70, ..def() },
         "room" => RangeControl { cc: 76, addr: 32 + 76, format: fmt_percent!(), ..def() },
+        // noise gate
+        // note: despite what the manual says, L6E sends "gate_threshold" as a value 0..96 (0..-96db)
+        "gate_threshold" => RangeControl { cc: 23, addr: 32 + 23,
+            config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi, buffer_config: BufferConfig::Midi },
+            format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def() },
+        "gate_decay" => RangeControl { cc: 24, addr: 32 + 24,format: fmt_percent!(), ..def() }, // can be in milliseconds
+        // compressor
+        // note: despite what the manual says, L6E sends "compressor_threshold" as a value 0..127 (-63..0db)
+        "compressor_threshold" => RangeControl { cc: 9, addr: 32 + 9,
+            format: Format::Data(FormatData { k: 63.0/127.0, b: -63.0, format: "{val:1.1f} db".into() }),
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            ..def() },
+        "compressor_gain" => RangeControl { cc: 5, addr: 32 + 5,
+            format: Format::Data(FormatData { k: 16.0/127.0, b: 0.0, format: "{val:1.1f} db".into() }),
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            ..def() },
 
         "loop_enable:show" => VirtualSelect {}
     ));
