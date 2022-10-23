@@ -64,6 +64,9 @@ impl Interface for PodXtInterface {
             init_amp_models(XtPacks::empty(), &self.objects, &config)?;
             init_cab_models(XtPacks::empty(), &self.objects, &config)?;
             init_combo(&controller, &self.objects,
+                       "reverb_select", &config::REVERB_NAMES, |s| s.as_str() )?;
+
+            init_combo(&controller, &self.objects,
                        "effect_select", &config.effects, |eff| eff.name.as_str() )?;
 
             init_mic_models(&self.objects);

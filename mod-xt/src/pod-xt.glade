@@ -195,15 +195,6 @@
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
-  <object class="GtkRadioButton" id="reverb_type">
-    <property name="label" translatable="yes">radiobutton</property>
-    <property name="name">reverb_type</property>
-    <property name="visible">True</property>
-    <property name="can-focus">True</property>
-    <property name="receives-default">False</property>
-    <property name="active">True</property>
-    <property name="draw-indicator">True</property>
-  </object>
   <object class="GtkWindow" id="app_win">
     <property name="can-focus">False</property>
     <child>
@@ -1017,57 +1008,18 @@
                             <property name="column-spacing">10</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkLabel">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Type</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkRadioButton" id="radiobutton1">
-                                <property name="label" translatable="yes">Spring</property>
-                                <property name="name">reverb_type:0</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="receives-default">False</property>
-                                <property name="active">True</property>
-                                <property name="draw-indicator">True</property>
-                                <property name="group">reverb_type</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkRadioButton" id="radiobutton2">
-                                <property name="label" translatable="yes">Room</property>
-                                <property name="name">reverb_type:1</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="receives-default">False</property>
-                                <property name="active">True</property>
-                                <property name="draw-indicator">True</property>
-                                <property name="group">reverb_type</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">2</property>
-                                <property name="top-attach">0</property>
-                              </packing>
-                            </child>
-                            <child>
                               <object class="GtkLabel" id="label10">
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Decay</property>
+                                <property name="label" translatable="yes">Pre-delay</property>
+                                <style>
+                                  <class name="reverb_select=0:hide"/>
+                                  <class name="reverb_select=1:hide"/>
+                                  <class name="reverb_select=2:hide"/>
+                                  <class name="reverb_select=*:show"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1080,7 +1032,13 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Density</property>
+                                <property name="label" translatable="yes">Dwell</property>
+                                <style>
+                                  <class name="reverb_select=0:show"/>
+                                  <class name="reverb_select=1:show"/>
+                                  <class name="reverb_select=2:show"/>
+                                  <class name="reverb_select=*:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1093,7 +1051,13 @@
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Diffusion</property>
+                                <property name="label" translatable="yes">Decay</property>
+                                <style>
+                                  <class name="reverb_select=0:hide"/>
+                                  <class name="reverb_select=1:hide"/>
+                                  <class name="reverb_select=2:hide"/>
+                                  <class name="reverb_select=*:show"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1129,13 +1093,19 @@
                             </child>
                             <child>
                               <object class="GtkScale" id="scale10">
-                                <property name="name">reverb_decay</property>
+                                <property name="name">reverb_pre_delay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="adjustment">adjustment11</property>
                                 <property name="round-digits">1</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="reverb_select=0:hide"/>
+                                  <class name="reverb_select=1:hide"/>
+                                  <class name="reverb_select=2:hide"/>
+                                  <class name="reverb_select=*:show"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -1145,13 +1115,19 @@
                             </child>
                             <child>
                               <object class="GtkScale" id="scale11">
-                                <property name="name">reverb_density</property>
+                                <property name="name">reverb_decay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="adjustment">adjustment12</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="reverb_select=0:show"/>
+                                  <class name="reverb_select=1:show"/>
+                                  <class name="reverb_select=2:show"/>
+                                  <class name="reverb_select=*:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -1161,13 +1137,19 @@
                             </child>
                             <child>
                               <object class="GtkScale" id="scale12">
-                                <property name="name">reverb_diffusion</property>
+                                <property name="name">reverb_decay</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="adjustment">adjustment13</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="reverb_select=0:hide"/>
+                                  <class name="reverb_select=1:hide"/>
+                                  <class name="reverb_select=2:hide"/>
+                                  <class name="reverb_select=*:show"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -1205,6 +1187,18 @@
                                 <property name="left-attach">1</property>
                                 <property name="top-attach">5</property>
                                 <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkComboBoxText" id="comboboxtext5">
+                                <property name="name">reverb_select</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">0</property>
+                                <property name="width">3</property>
                               </packing>
                             </child>
                           </object>

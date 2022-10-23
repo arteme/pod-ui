@@ -26,6 +26,16 @@ pub static BX_MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     convert_args!(vec!("Tube 47 Close", "Tube 47 Far", "112 Dynamic", "20 Dynamic"))
 });
 
+pub static REVERB_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
+    convert_args!(vec!(
+        "Lux Spring", "Std Sping", "King Spring",
+        "Small Room", "Tiled Room", "Brite Room",
+        "Dark Hall", "Medium Hall", "Large Hall",
+        "Rich Chamber", "Chamber", "Cavernous",
+        "Slap Plate", "Vintage Plate", "Large Plate"
+    ))
+});
+
 fn gate_threshold_from_midi(value: u8) -> u16 {
     (96 - value.min(96)) as u16
 }
@@ -37,7 +47,10 @@ fn gate_threshold_to_midi(value: u16) -> u8 {
 
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
-    let exclude = vec!["drive2", "digiout_show", "eq_enable", "effect_enable"];
+    let exclude = vec![
+        "drive2", "digiout_show", "eq_enable", "effect_enable",
+        "reverb_type", "reverb_diffusion", "reverb_density"
+    ];
 
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
         // switches
@@ -83,6 +96,24 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "compressor_gain" => RangeControl { cc: 5, addr: 32 + 5,
             format: Format::Data(FormatData { k: 16.0/127.0, b: 0.0, format: "{val:1.1f} db".into() }),
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            ..def() },
+        // reverb
+        "reverb_select" => Select { cc: 37, addr: 32 + 37, ..def() },
+        "reverb_decay" => RangeControl { cc: 38, addr: 32 + 38,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "reverb_tone" => RangeControl { cc: 39, addr: 32 + 39,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "reverb_pre_delay" => RangeControl { cc: 40, addr: 32 + 40,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "reverb_level" => RangeControl { cc: 18, addr: 32 + 18,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
             ..def() },
 
         "loop_enable:show" => VirtualSelect {}
@@ -282,6 +313,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "amp_select",
             "cab_select",
             "mic_select",
+            "reverb_select",
             // switches
             "noise_gate_enable",
             "wah_enable",
