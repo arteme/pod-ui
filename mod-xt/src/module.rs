@@ -65,15 +65,16 @@ impl Interface for PodXtInterface {
             init_cab_models(XtPacks::empty(), &self.objects, &config)?;
             init_mic_models(&self.objects)?;
             init_combo(&controller, &self.objects,
-                       "reverb_select", &config::REVERB_NAMES, |s| s.as_str() )?;
+                       "reverb_select", &config::REVERB_NAMES, |s| s.as_str())?;
+            init_combo(&controller, &self.objects,
+                       "stomp_select", &config::STOMP_CONFIG, |c| c.name.as_str())?;
         }
 
         wire(controller.clone(), &self.objects, callbacks)?;
 
         wire_toggles("toggles", &config.toggles,
                      controller.clone(), &self.objects, callbacks)?;
-        wire_amp_select(controller.clone(), config, &self.objects, callbacks)?;
-        wire_effect_select(config, controller, callbacks)?;
+        wire_stomp_select(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         //todo!()
         Ok(())

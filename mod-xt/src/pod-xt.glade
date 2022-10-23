@@ -165,7 +165,32 @@
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
+  <object class="GtkAdjustment" id="adjustment39">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkAdjustment" id="adjustment4">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment40">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment41">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment42">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment43">
     <property name="upper">100</property>
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
@@ -1592,7 +1617,7 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">12</property>
                         <child>
-                          <!-- n-columns=3 n-rows=13 -->
+                          <!-- n-columns=3 n-rows=11 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
@@ -1600,7 +1625,7 @@
                             <property name="column-homogeneous">True</property>
                             <child>
                               <object class="GtkComboBoxText" id="comboboxtext3">
-                                <property name="name">effect_select</property>
+                                <property name="name">stomp_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                               </object>
@@ -1612,7 +1637,7 @@
                             </child>
                             <child>
                               <object class="GtkScale" id="scale19">
-                                <property name="name">compression_ratio</property>
+                                <property name="name">stomp_param2</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="hexpand">True</property>
@@ -1620,10 +1645,6 @@
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=1:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -1633,15 +1654,12 @@
                             </child>
                             <child>
                               <object class="GtkLabel" id="label19">
+                                <property name="name">stomp_param2_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Ratio</property>
-                                <style>
-                                  <class name="effect_select=1:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
+                                <property name="label" translatable="yes">Stomp Param 2</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -1650,34 +1668,162 @@
                             </child>
                             <child>
                               <object class="GtkLabel" id="label20">
+                                <property name="name">stomp_param3_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Atack Time</property>
-                                <style>
-                                  <class name="effect_select=2:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
+                                <property name="label" translatable="yes">Stomp Param 3</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">2</property>
+                                <property name="top-attach">4</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkScale" id="scale20">
-                                <property name="name">volume_swell_time</property>
+                                <property name="name">stomp_param3</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="adjustment">adjustment20</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=2:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">4</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label21">
+                                <property name="name">stomp_param4_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 4</property>
+                                <property name="justify">center</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">7</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale21">
+                                <property name="name">stomp_param4</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment21</property>
+                                <property name="round-digits">1</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">7</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label22">
+                                <property name="name">stomp_param5_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 5</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">9</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label23">
+                                <property name="name">stomp_param6_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 6</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">10</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale22">
+                                <property name="name">stomp_param5</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment22</property>
+                                <property name="round-digits">1</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">9</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale23">
+                                <property name="name">stomp_param6</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment23</property>
+                                <property name="round-digits">1</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">10</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label24">
+                                <property name="name">stomp_param2_wave_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 2 Wave</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label25">
+                                <property name="name">stomp_param2_octave_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 2 Octave</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">3</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale24">
+                                <property name="name">stomp_param2_wave</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment39</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -1686,403 +1832,109 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkLabel" id="label21">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Speed</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">3</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale21">
-                                <property name="name">chorus_flanger_speed</property>
+                              <object class="GtkScale" id="scale25">
+                                <property name="name">stomp_param2_octave</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment21</property>
-                                <property name="round-digits">1</property>
+                                <property name="adjustment">adjustment40</property>
+                                <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
                                 <property name="top-attach">3</property>
                                 <property name="width">2</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label22">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Depth</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">4</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label23">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Feedback</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">5</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label24">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Pre-delay</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">6</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale22">
-                                <property name="name">chorus_flanger_depth</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment22</property>
-                                <property name="round-digits">1</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">4</property>
-                                <property name="width">2</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale23">
-                                <property name="name">chorus_flanger_feedback</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment23</property>
-                                <property name="round-digits">1</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">5</property>
-                                <property name="width">2</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale24">
-                                <property name="name">chorus_flanger_pre_delay</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment24</property>
-                                <property name="round-digits">1</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=3:show"/>
-                                  <class name="effect_select=4:show"/>
-                                  <class name="effect_select=5:show"/>
-                                  <class name="effect_select=6:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">6</property>
-                                <property name="width">2</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label25">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Speed</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=7:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">7</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkLabel" id="label26">
+                                <property name="name">stomp_param3_octave_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Depth</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=7:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
+                                <property name="label" translatable="yes">Stomp Param 3 Octave</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">8</property>
+                                <property name="top-attach">5</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkLabel" id="label27">
+                                <property name="name">stomp_param3_offset_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Speed</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
+                                <property name="label" translatable="yes">Stomp Param 3 Offset</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">9</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label28">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Fast Speed</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">10</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label29">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Slow Speed</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">11</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label30">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="hexpand">True</property>
-                                <property name="label" translatable="yes">Depth</property>
-                                <property name="justify">center</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">12</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale25">
-                                <property name="name">trem_speed</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment25</property>
-                                <property name="round-digits">0</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=7:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">7</property>
-                                <property name="width">2</property>
+                                <property name="top-attach">6</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkScale" id="scale26">
-                                <property name="name">trem_depth</property>
+                                <property name="name">stomp_param3_octave</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment26</property>
+                                <property name="adjustment">adjustment41</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=7:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">8</property>
+                                <property name="top-attach">5</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkScale" id="scale27">
-                                <property name="name">rotary_speed</property>
+                                <property name="name">stomp_param3_offset</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment27</property>
+                                <property name="adjustment">adjustment42</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">9</property>
+                                <property name="top-attach">6</property>
                                 <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label28">
+                                <property name="name">stomp_param4_offset_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 4 Offset</property>
+                                <property name="justify">center</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">8</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkScale" id="scale28">
-                                <property name="name">rotary_fast_speed</property>
+                                <property name="name">stomp_param4_offset</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment28</property>
+                                <property name="adjustment">adjustment43</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">10</property>
-                                <property name="width">2</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale29">
-                                <property name="name">rotary_slow_speed</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment29</property>
-                                <property name="round-digits">0</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">11</property>
-                                <property name="width">2</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkScale" id="scale30">
-                                <property name="name">effect_tweak</property>
-                                <property name="visible">True</property>
-                                <property name="can-focus">True</property>
-                                <property name="adjustment">adjustment30</property>
-                                <property name="round-digits">0</property>
-                                <property name="digits">0</property>
-                                <property name="value-pos">right</property>
-                                <style>
-                                  <class name="effect_select=8:show"/>
-                                  <class name="effect_select=*:hide"/>
-                                </style>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">12</property>
+                                <property name="top-attach">8</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -2094,9 +1946,13 @@
                       <object class="GtkLabel">
                         <property name="visible">True</property>
                         <property name="can-focus">False</property>
-                        <property name="label" translatable="yes">FX</property>
+                        <property name="label" translatable="yes">Stomp</property>
                       </object>
                     </child>
+                    <style>
+                      <class name="stomp_enable=1:enable"/>
+                      <class name="delay_enable=0:disable"/>
+                    </style>
                   </object>
                   <packing>
                     <property name="expand">False</property>

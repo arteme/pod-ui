@@ -145,7 +145,7 @@ pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
     Normal { buffer_config: BufferConfig },
-    Short { from: u8, to: u8 },
+    Short { from: u8, to: u8, buffer_config: BufferConfig },
     Long { from: u16, to: u16 },
     Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8, buffer_config: BufferConfig },
     MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
@@ -274,7 +274,7 @@ impl AbstractControl for RangeControl {
 
     fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
         match &self.config {
-            RangeConfig::Short { from, to } => {
+            RangeConfig::Short { from, to, .. } => {
                 let scale = 127 / (to - from);
                 (value / scale + from) as u16
             }
@@ -298,7 +298,7 @@ impl AbstractControl for RangeControl {
 
     fn value_to_midi(&self, value: u16) -> u8 {
         match &self.config {
-            RangeConfig::Short { from, to } => {
+            RangeConfig::Short { from, to, .. } => {
                 let scale = 127 / (to - from);
                 (value as u8 - from) * scale
             }
@@ -331,6 +331,9 @@ impl AbstractControl for RangeControl {
             RangeConfig::Normal { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
                 self.value_from_midi(value as u8, 0)
             }
+            RangeConfig::Short { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_from_midi(value as u8, 0)
+            }
             _ => {
                 value as u16
             }
@@ -346,6 +349,9 @@ impl AbstractControl for RangeControl {
                 self.value_to_midi(value) as u32
             }
             RangeConfig::Normal { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_to_midi(value) as u32
+            }
+            RangeConfig::Short { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
                 self.value_to_midi(value) as u32
             }
             _ => {
@@ -467,7 +473,7 @@ impl RangeControl {
     pub fn bounds(&self) -> (f64, f64) {
         match self.config {
             RangeConfig::Normal { .. } => (0.0, 127.0),
-            RangeConfig::Short { from, to } => (from as f64, to as f64),
+            RangeConfig::Short { from, to, .. } => (from as f64, to as f64),
             RangeConfig::Function { from_midi, .. } => {
                 let a = from_midi(0) as f64;
                 let b = from_midi(127) as f64;
@@ -541,7 +547,7 @@ impl Config {
 
     pub fn cc_to_control(&self, cc: u8) -> Option<(&String, &Control)> {
         self.controls.iter()
-            .find(|&(_, control)| {
+            .find(|(_, control)| {
                 match control.get_cc() {
                     Some(v) if v == cc => true,
                     _ => false

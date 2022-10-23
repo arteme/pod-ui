@@ -1,9 +1,12 @@
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use pod_core::store::{Signal, Store};
 use pod_core::controller::Controller;
 use pod_core::model::Config;
 use pod_gtk::prelude::*;
 use anyhow::*;
 use log::*;
-use crate::config;
+use crate::{config, model};
 use crate::config::XtPacks;
 
 fn is_sensitive(packs: XtPacks, name: &str) -> bool {
@@ -75,6 +78,48 @@ pub fn init_mic_models(objs: &ObjectList) -> Result<()> {
     let renderer = gtk::CellRendererText::new();
     select.pack_start(&renderer, true);
     select.add_attribute(&renderer, "text", 1);
+
+    Ok(())
+}
+
+pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let param_names = vec![
+        "stomp_param2", "stomp_param2_wave", "stomp_param2_octave",
+        "stomp_param3", "stomp_param3_octave", "stomp_param3_offset",
+        "stomp_param4", "stomp_param4_offset",
+        "stomp_param5", "stomp_param6",
+    ];
+
+    // controller -> gui
+    {
+        let objs = objs.clone();
+        let controller = controller.clone();
+        let name = "stomp_select".to_string();
+        callbacks.insert(
+            name.clone(),
+            Rc::new(move || {
+                let controller = controller.lock().unwrap();
+                let v = controller.get(&name).unwrap();
+                let stomp_config = &(*config::STOMP_CONFIG)[v as usize];
+
+                for param in param_names.iter() {
+                    let label_name = format!("{}_label", param);
+                    let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
+                    let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
+
+                    if let Some(text) = stomp_config.labels.get(&param.to_string()) {
+                        label.set_text(text);
+                        label.show();
+                        widget.show();
+                    } else {
+                        label.hide();
+                        widget.hide();
+                    }
+                }
+            })
+        )
+    };
+
 
     Ok(())
 

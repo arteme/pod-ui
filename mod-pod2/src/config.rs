@@ -46,7 +46,7 @@ macro_rules! fmt_percent {
 
 #[macro_export]
 macro_rules! short {
-    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to } );
+    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, buffer_config: BufferConfig::Normal } );
     () => ( short!(0, 63) );
 }
 #[macro_export]
