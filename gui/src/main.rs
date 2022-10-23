@@ -1010,7 +1010,8 @@ async fn main() -> Result<()> {
                     },
                     // <EXPERIMENTAL> ----------------------------------------------------------
                     MidiMessage::XtInstalledPacksRequest => {
-                        let res = MidiMessage::XtInstalledPacks { packs: 0x00 };
+                        // when Line6 Edit asks, we report we have all packs
+                        let res = MidiMessage::XtInstalledPacks { packs: 0x0f };
                         midi_out_tx.send(res);
                     }
                     MidiMessage::XtEditBufferDumpRequest => {

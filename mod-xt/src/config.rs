@@ -68,8 +68,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, buffer_config: BufferConfig::Midi, ..def()  },
         "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, buffer_config: BufferConfig::Midi, ..def() },
         // preamp
-        "amp_select" => Select { cc: 12, addr: 32 + 12 , ..def() },
-        "amp_select:no_def" => MidiSelect { cc: 11 }, // TODO: wire me!
+        "amp_select" => Select { cc: 11, addr: 32 + 12 , ..def() },
+        "amp_select:no_def" => MidiSelect { cc: 12 }, // TODO: wire me!
         "drive" => RangeControl { cc: 13, addr: 32 + 13, format: fmt_percent!(), ..def() },
         "bass" => RangeControl { cc: 14, addr: 32 + 14, format: fmt_percent!(), ..def() },
         "mid" => RangeControl { cc: 15, addr: 32 + 15, format: fmt_percent!(), ..def() },
@@ -78,7 +78,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "chan_volume" => RangeControl { cc: 17, addr: 32 + 17, format: fmt_percent!(), ..def() },
         "bypass_volume" => RangeControl { cc: 105, addr: 32 + 105, format: fmt_percent!(), ..def() },
         // cab
-        "amp_select" => Select { cc: 71, addr: 32 + 71, ..def() },
+        "cab_select" => Select { cc: 71, addr: 32 + 71, ..def() },
         "mic_select" => Select { cc: 70, addr: 32 + 70, ..def() },
         "room" => RangeControl { cc: 76, addr: 32 + 76, format: fmt_percent!(), ..def() },
         // noise gate
@@ -118,10 +118,12 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
 
         "loop_enable:show" => VirtualSelect {}
     ));
+    /*
     let controls = pod2_config.controls.into_iter()
         .filter(|(k, _)| !exclude.contains(&k.as_str()))
         .chain(podxt_controls)
         .collect();
+     */
 
     Config {
         name: "PODxt".to_string(),
@@ -307,7 +309,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             toggle("eq_enable").non_moving(9),
         )),
 
-        controls,
+        controls: podxt_controls,
         init_controls: convert_args!(vec!(
             // selects
             "amp_select",
@@ -327,6 +329,10 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             // show signals
             "loop_enable:show"
         )),
+
+        // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37
+        // todo: others?
+        out_cc_edit_buffer_dump_req: vec![ 12, 37 ],
 
         ..pod2_config
     }

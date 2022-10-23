@@ -53,7 +53,7 @@ impl ProgramButtonPriv {
 
     fn set_program_name(&self, value: &str) {
         if let Some(w) = self.widgets.get() {
-            //w.program_name_label.set_label(value)
+            w.program_name_label.set_label(value)
         }
     }
 
