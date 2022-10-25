@@ -181,5 +181,81 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         });
 
     Ok(())
+}
+
+pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let param_names = vec!["mod_param2", "mod_param3", "mod_param4"];
+
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        // wire `mod_select` controller -> gui
+        .on("mod_select")
+        .run(move |value, _, _| {
+            let mod_config = &(*config::MOD_CONFIG)[value as usize];
+
+            for param in param_names.iter() {
+                let label_name = format!("{}_label", param);
+                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
+                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
+
+                if let Some(text) = mod_config.labels.get(&param.to_string()) {
+                    label.set_text(text);
+                    label.show();
+                    widget.show();
+                } else {
+                    label.hide();
+                    widget.hide();
+                }
+            }
+        });
+
+    Ok(())
+}
+
+pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks,
+                  control_name: &str, msb_name: &str, lsb_name: &str) -> Result<()> {
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        .on(control_name)
+        .run({
+            let lsb_name = lsb_name.to_string();
+            let msb_name = msb_name.to_string();
+
+            move |value, controller, origin| {
+                let msb = (value & 0x3f80) >> 7;
+                let lsb = value & 0x7f;
+
+                // Make sure GUI event always generates both MSB and LSB MIDI messages
+                let signal = if origin == GUI { Signal::Force } else { Signal::Change };
+                controller.set_full(&msb_name, msb, origin, signal.clone());
+                controller.set_full(&lsb_name, lsb, origin, signal);
+            }
+        })
+        .on(msb_name).from(MIDI)
+        .run({
+            let control_name = control_name.to_string();
+
+            move |value, controller, origin| {
+                let control_value = controller.get(&control_name).unwrap();
+                let lsb = control_value & 0x7f;
+                let control_value = ((value & 0x7f) << 7) | lsb;
+                controller.set(&control_name, control_value, origin);
+            }
+        })
+        .on(lsb_name).from(MIDI)
+        .run({
+            let control_name = control_name.to_string();
+
+            move |value, controller, origin| {
+                let control_value = controller.get(&control_name).unwrap();
+                let msb = control_value & 0x3f80;
+                let control_value = msb | (value & 0x7f);
+                controller.set(&control_name, control_value, origin);
+            }
+        });
+
+    Ok(())
 
 }

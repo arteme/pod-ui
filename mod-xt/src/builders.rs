@@ -9,7 +9,7 @@ pub struct StompConfigBuilder {
 
 impl StompConfigBuilder {
     pub fn new(name: &str) -> Self {
-        StompConfigBuilder {
+        Self {
             name: name.into(),
             labels: HashMap::new(),
             n: 2
@@ -69,3 +69,52 @@ pub fn stomp(name: &str) -> StompConfigBuilder {
     StompConfigBuilder::new(name)
 }
 
+// -----------------------------------------------------------------
+
+pub struct ModConfigBuilder {
+    name: String,
+    labels: HashMap<String, String>,
+    n: usize
+}
+
+impl ModConfigBuilder {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.into(),
+            labels: HashMap::new(),
+            n: 2
+        }
+    }
+
+    fn add(&mut self, label: &str) {
+        if !label.is_empty() {
+            let control = format!("mod_param{}", self.n);
+            self.labels.insert(control, label.into());
+        }
+        self.n += 1;
+    }
+
+    pub fn control(&mut self, name: &str) -> &mut Self {
+        self.add(name);
+        self
+    }
+
+    pub fn skip(&mut self) -> &mut Self {
+        self.add("");
+        self
+    }
+
+    pub fn build(&self) -> ModConfig {
+        ModConfig { name: self.name.clone(), labels: self.labels.clone() }
+    }
+}
+
+impl Into<ModConfig> for &mut ModConfigBuilder {
+    fn into(self) -> ModConfig {
+        self.build()
+    }
+}
+
+pub fn modc(name: &str) -> ModConfigBuilder {
+    ModConfigBuilder::new(name)
+}

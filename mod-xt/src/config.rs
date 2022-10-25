@@ -8,7 +8,7 @@ use pod_gtk::prelude::*;
 use glib::bitflags::bitflags;
 use pod_core::model::RangeConfig::Function;
 
-use pod_mod_pod2::{short, fmt_percent};
+use pod_mod_pod2::{short, long, fmt_percent};
 use crate::model::*;
 use crate::builders::*;
 
@@ -36,6 +36,16 @@ pub static REVERB_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
         "Dark Hall", "Medium Hall", "Large Hall",
         "Rich Chamber", "Chamber", "Cavernous",
         "Slap Plate", "Vintage Plate", "Large Plate"
+    ))
+});
+
+pub static NOTE_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
+    convert_args!(vec!(
+        "Off","Whole Note",
+        "Dotted Half Note", "Half", "Half Note Triplet",
+        "Dotted Quarter", "Quarter", "Quarter Note Triplet",
+        "Dotted Eighth", "Eighth", "Eighth Note Triplet",
+        "Dotted Sixteenth", "Sixteenth", "Sixteenth Note Triplet",
     ))
 });
 
@@ -72,6 +82,35 @@ pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
         /* 28 */ stomp("Bronze Master").control("Drive").control("Tone").skip().control("Blend"),
         /* 29 */ stomp("Sub Octaves").control("-1OCTG").control("-2OCTG").skip().control("Mix"),
         /* 30 */ stomp("Bender").control("Position").offset("Heel").offset("Toe").control("Mix"),
+    ))
+});
+
+pub static MOD_CONFIG: Lazy<Vec<ModConfig>> = Lazy::new(|| {
+    convert_args!(vec!(
+        /*  0 */ modc("Sine Chorus").control("Depth").control("Bass").control("Treble"),
+        /*  1 */ modc("Analog Chorus").control("Depth").control("Bass").control("Treble"),
+        /*  2 */ modc("Line 6 Flanger").control("Depth"),
+        /*  3 */ modc("Jet Flanger").control("Depth").control("Feedback").control("Manual"),
+        /*  4 */ modc("Phaser").control("Feedback"),
+        /*  5 */ modc("U-Vibe").control("Depth"),
+        /*  6 */ modc("Opto Trem").control("Wave"),
+        /*  7 */ modc("Bias Trem").control("Wave"),
+        /*  8 */ modc("Rotary Drum + Horn").skip().control("Tone"),
+        /*  9 */ modc("Rotary Drum").skip().control("Tone"),
+        /* 10 */ modc("Auto Plan").control("Wave"),
+        /* 11 */ modc("FX-Analog Square").control("Depth").control("Bass").control("Treble"),
+        /* 12 */ modc("FX-Square Chorus").control("Depth").control("Pre-delay").control("Feedback"),
+        /* 13 */ modc("FX-Expo Chorus").control("Depth").control("Pre-delay").control("Feedback"),
+        /* 14 */ modc("FX-Random Chorus").control("Depth").control("Bass").control("Treble"),
+        /* 15 */ modc("FX-Square Flange").control("Depth").control("Pre-delay").control("Feedback"),
+        /* 16 */ modc("FX-Expo Flange").control("Depth").control("Pre-delay").control("Feedback"),
+        /* 17 */ modc("FX-Lumpy Phase").control("Depth").control("Bass").control("Treble"),
+        /* 18 */ modc("FX-Hi-Talk").control("Depth").control("Q"),
+        /* 19 */ modc("FX-Sweeper").control("Depth").control("Q").control("Frequency"),
+        /* 20 */ modc("FX-POD Purple X").control("Feedback").control("Depth"),
+        /* 21 */ modc("FX-Random S/H").control("Depth").control("Q"),
+        /* 22 */ modc("FX-Tape Eater").control("Feedback").control("Flutter").control("Distortion"),
+        /* 23 */ modc("FX-Warble-Matic").control("Depth").control("Q"),
     ))
 });
 
@@ -217,6 +256,31 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             format: fmt_percent!(),
             ..def() },
         "stomp_param6" => RangeControl { cc: 83, addr: 32 + 83,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        // mod
+        "mod_select" => Select { cc: 58, addr: 32 + 58, ..def() },
+        "mod_speed" => VirtualRangeControl {
+            config: long!(0, 16383),
+            format: Format::Data(FormatData { k: 14.9/16383.0, b: 0.1, format: "{val:1.2f} Hz".into() }),
+            ..def() }, // 0.10 Hz - 15.00 Hz
+        "mod_speed:msb" => RangeControl { cc: 29, addr: 32 + 29, ..def() },
+        "mod_speed:lsb" => RangeControl { cc: 61, addr: 32 + 61, ..def() },
+        "mod_note_select" => Select { cc: 51, addr: 32 + 51, ..def() },
+        "mod_param2" => RangeControl { cc: 52, addr: 32 + 52,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "mod_param3" => RangeControl { cc: 53, addr: 32 + 53,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "mod_param4" => RangeControl { cc: 54, addr: 32 + 54,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "mod_mix" => RangeControl { cc: 56, addr: 32 + 56,
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
@@ -422,6 +486,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "mic_select",
             "reverb_select",
             "stomp_select",
+            "mod_select",
+            "mod_note_select",
             // switches
             "noise_gate_enable",
             "wah_enable",

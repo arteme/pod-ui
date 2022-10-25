@@ -61,13 +61,17 @@ impl Interface for PodXtInterface {
         {
             let controller = controller.lock().unwrap();
 
-            init_amp_models(XtPacks::empty(), &self.objects, &config)?;
-            init_cab_models(XtPacks::empty(), &self.objects, &config)?;
+            init_amp_models(XtPacks::all(), &self.objects, &config)?;
+            init_cab_models(XtPacks::all(), &self.objects, &config)?;
             init_mic_models(&self.objects)?;
             init_combo(&controller, &self.objects,
                        "reverb_select", &config::REVERB_NAMES, |s| s.as_str())?;
             init_combo(&controller, &self.objects,
                        "stomp_select", &config::STOMP_CONFIG, |c| c.name.as_str())?;
+            init_combo(&controller, &self.objects,
+                       "mod_select", &config::MOD_CONFIG, |c| c.name.as_str())?;
+            init_combo(&controller, &self.objects,
+                       "mod_note_select", &config::NOTE_NAMES, |v| v.as_str())?;
         }
 
         wire(controller.clone(), &self.objects, callbacks)?;
@@ -75,6 +79,9 @@ impl Interface for PodXtInterface {
         wire_toggles("toggles", &config.toggles,
                      controller.clone(), &self.objects, callbacks)?;
         wire_stomp_select(controller.clone(), &self.objects, callbacks)?;
+        wire_mod_select(controller.clone(), &self.objects, callbacks)?;
+        wire_14bit(controller.clone(), &self.objects, callbacks,
+                   "mod_speed", "mod_speed:msb", "mod_speed:lsb")?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         //todo!()
         Ok(())
