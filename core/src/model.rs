@@ -148,7 +148,7 @@ pub struct VirtualRangeControl { pub config: RangeConfig, pub format: Format<Ran
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
     Normal { buffer_config: BufferConfig },
-    Short { from: u8, to: u8, buffer_config: BufferConfig },
+    Short { from: u8, to: u8, edge: bool, buffer_config: BufferConfig },
     Long { from: u16, to: u16 },
     Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8, buffer_config: BufferConfig },
     MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
@@ -489,8 +489,14 @@ impl RangeConfig {
 
     fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
         match self {
-            RangeConfig::Short { from, to, .. } => {
-                let scale = 127 / (to - from);
+            RangeConfig::Short { from, to, edge, .. } => {
+                // if this is an "edge config", the last value is situated squarely on value 127
+                if *edge && value == 127 {
+                    return *to as u16;
+                }
+                let to = if *edge { *to - 1 } else { *to };
+
+                let scale = 128 / (to - from + 1);
                 (value / scale + from) as u16
             }
             RangeConfig::Long { from, to } => {
@@ -513,8 +519,14 @@ impl RangeConfig {
 
     fn value_to_midi(&self, value: u16) -> u8 {
         match self {
-            RangeConfig::Short { from, to, .. } => {
-                let scale = 127 / (to - from);
+            RangeConfig::Short { from, to, edge, .. } => {
+                // if this is an "edge config", the last value is situated squarely on value 127
+                if *edge && (value as u8) >= *to {
+                    return 127;
+                }
+                let to = if *edge { *to - 1 } else { *to };
+
+                let scale = 128 / (to - from + 1);
                 (value as u8 - from) * scale
             }
             RangeConfig::Long { from, to } => {

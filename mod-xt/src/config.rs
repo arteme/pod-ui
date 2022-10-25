@@ -6,6 +6,7 @@ use pod_core::def;
 use pod_core::model::*;
 use pod_gtk::prelude::*;
 use glib::bitflags::bitflags;
+use pod_core::model::RangeConfig::Function;
 
 use pod_mod_pod2::{short, fmt_percent};
 use crate::model::*;
@@ -50,10 +51,10 @@ pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
         /*  7 */ stomp("Vetta Comp").control("Sens").control("Level"),
         /*  8 */ stomp("Auto Swell").control("Ramp").control("Depth"),
         /*  9 */ stomp("Auto Wah").control("Sens").control("Q"),
-        /* 10 */ stomp("FX-Killer Z").control("Drive").control("Contour").control("Gain").control("Mid").control("Midfreq"),
+        /* 10 */ stomp("FX-Killer Z").control("Drive").control("Contour").control("Gain").control("Mid").control("Mid Freq"),
         /* 11 */ stomp("FX-Tube Drive").control("Drive").control("Treble").control("Gain").control("Bass"),
         /* 12 */ stomp("FX-Vetta Juice").control("Amount").control("Level"),
-        /* 13 */ stomp("FX-Boost + EQ").control("Gain").control("Bass").control("Treble").control("Mid").control("Midfreq"),
+        /* 13 */ stomp("FX-Boost + EQ").control("Gain").control("Bass").control("Treble").control("Mid").control("Mid Freq"),
         /* 14 */ stomp("FX-Blue Comp Treb").control("Level").control("Sustain"),
         /* 15 */ stomp("FX-Dingo-Tron").skip().control("Sens").control("Q"),
         /* 16 */ stomp("FX-Clean Sweep").control("Decay").control("Sens").control("Q"),
@@ -70,7 +71,7 @@ pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
         /* 27 */ stomp("Bass Overdrive").control("Bass").control("Treble").control("Drive").control("Gain"),
         /* 28 */ stomp("Bronze Master").control("Drive").control("Tone").skip().control("Blend"),
         /* 29 */ stomp("Sub Octaves").control("-1OCTG").control("-2OCTG").skip().control("Mix"),
-        /* 30 */ stomp("Bender").control("Posi").offset("Heel").offset("Toe").control("Mix"),
+        /* 30 */ stomp("Bender").control("Position").offset("Heel").offset("Toe").control("Mix"),
     ))
 });
 
@@ -80,6 +81,20 @@ fn gate_threshold_from_midi(value: u8) -> u16 {
 
 fn gate_threshold_to_midi(value: u16) -> u8 {
     (96 - value.min(96)) as u8
+}
+
+fn heel_toe_from_midi(value: u8) -> u16 {
+    if value <= 17 { return 0 };
+    if value >= 112 { return 48 };
+
+    (value as u16 - 18) / 2 + 1
+}
+
+fn heel_toe_to_midi(value: u16) -> u8 {
+    if value == 0 { return 0 };
+    if value == 48 { return 127 };
+
+    (value as u8 - 1) * 2 + 18
 }
 
 fn delay_time_from_buffer(value: u32) -> u16 {
@@ -103,7 +118,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "noise_gate_enable" => SwitchControl { cc: 22, addr: 32 + 22, buffer_config: BufferConfig::Midi, ..def() },
         "wah_enable" => SwitchControl { cc: 43, addr: 32 + 43, buffer_config: BufferConfig::Midi, ..def() },
         "stomp_enable" => SwitchControl { cc: 25, addr: 32 + 25, buffer_config: BufferConfig::Midi, ..def() },
-        "mod_enable" => SwitchControl { cc: 50, addr: 32 + 25, buffer_config: BufferConfig::Midi, ..def() },
+        "mod_enable" => SwitchControl { cc: 50, addr: 32 + 50, buffer_config: BufferConfig::Midi, ..def() },
         "mod_position" => SwitchControl { cc: 57, addr: 32 + 57, buffer_config: BufferConfig::Midi, ..def() },
         "delay_enable" => SwitchControl { cc: 28, addr: 32 + 28, buffer_config: BufferConfig::Midi, ..def() },
         "delay_position" => SwitchControl { cc: 87, addr: 32 + 87, buffer_config: BufferConfig::Midi, ..def() },
@@ -167,10 +182,10 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
-        "stomp_param2_wave" => VirtualRangeControl { config: short!(0, 7),
+        "stomp_param2_wave" => VirtualRangeControl { config: short!(1, 8),
             ..def() },
         "stomp_param2_octave" => VirtualRangeControl {
-            config: short!(0, 8),
+            config: short!(@edge 0, 8),
             format: Format::Labels(convert_args!(vec!(
                 "-1 oct", "-maj 6th", "-min 6th", "-4th", "unison", "min 3rd", "maj 3rd", "5th", "1 oct"
             ))),
@@ -180,28 +195,28 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             format: fmt_percent!(),
             ..def() },
         "stomp_param3_octave" => VirtualRangeControl {
-            config: short!(0, 8),
+            config: short!(@edge 0, 8),
             format: Format::Labels(convert_args!(vec!(
                 "-1 oct", "-5th", "-4th", "-2nd", "unison", "4th", "5th", "7th", "1 oct"
             ))),
             ..def() },
         "stomp_param3_offset" => VirtualRangeControl {
-            config: short!(0, 49),
-            format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val}".into() }),
+            config: RangeConfig::Function { from_midi: heel_toe_from_midi, to_midi: heel_toe_to_midi, buffer_config: BufferConfig::Midi },
+            format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val:+}".into() }),
             ..def() },
-        "stomp_param4" => RangeControl { cc: 81, addr: 32 + 82,
+        "stomp_param4" => RangeControl { cc: 81, addr: 32 + 81,
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
         "stomp_param4_offset" => VirtualRangeControl {
-            config: short!(0, 49),
-            format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val}".into() }),
+            config: RangeConfig::Function { from_midi: heel_toe_from_midi, to_midi: heel_toe_to_midi, buffer_config: BufferConfig::Midi },
+            format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val:+}".into() }),
             ..def() },
-        "stomp_param5" => RangeControl { cc: 82, addr: 32 + 83,
+        "stomp_param5" => RangeControl { cc: 82, addr: 32 + 82,
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
-        "stomp_param6" => RangeControl { cc: 83, addr: 32 + 84,
+        "stomp_param6" => RangeControl { cc: 83, addr: 32 + 83,
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
@@ -417,13 +432,16 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "amp_enable",
             "compressor_enable",
             "eq_enable",
+            // misc
+            "stomp_param2_wave", // wonder, why?
             // show signals
             "loop_enable:show"
         )),
 
         // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37
+        // 'stomp select' CC 75
         // todo: others?
-        out_cc_edit_buffer_dump_req: vec![ 12, 37 ],
+        out_cc_edit_buffer_dump_req: vec![ 12, 37, 75 ],
 
         ..pod2_config
     }

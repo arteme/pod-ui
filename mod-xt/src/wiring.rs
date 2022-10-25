@@ -120,24 +120,24 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("stomp_param2")
         .run(move |value, controller, _| {
             let control = controller.get_config("stomp_param2_wave").unwrap();
-            let value = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param2_wave", value, MIDI);
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param2_wave", midi, MIDI);
 
             let control = controller.get_config("stomp_param2_octave").unwrap();
-            let value = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param2_octave", value, MIDI);
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param2_octave", midi, MIDI);
         })
         .on("stomp_param2_wave").from(GUI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param2_wave").unwrap();
-            let value = control.value_to_midi(value);
-            controller.set("stomp_param2", value as u16, origin);
+            let midi = control.value_to_midi(value);
+            controller.set("stomp_param2", midi as u16, origin);
         })
         .on("stomp_param2_octave").from(GUI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param2_octave").unwrap();
-            let value = control.value_to_midi(value);
-            controller.set("stomp_param2", value as u16, origin);
+            let midi = control.value_to_midi(value);
+            controller.set("stomp_param2", midi as u16, origin);
         })
         // any change on the `stomp_param3` will show up on the virtual
         // controls as a value coming from MIDI, GUI changes from virtual
@@ -145,24 +145,24 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("stomp_param3")
         .run(move |value, controller, _| {
             let control = controller.get_config("stomp_param3_octave").unwrap();
-            let value = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param3_octave", value, MIDI);
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param3_octave", midi, MIDI);
 
             let control = controller.get_config("stomp_param3_offset").unwrap();
-            let value = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param3_offset", value, MIDI);
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param3_offset", midi, MIDI);
         })
         .on("stomp_param3_octave").from(GUI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param3_octave").unwrap();
-            let value = control.value_to_midi(value);
-            controller.set("stomp_param3", value as u16, origin);
+            let midi = control.value_to_midi(value);
+            controller.set("stomp_param3", midi as u16, origin);
         })
         .on("stomp_param3_offset").from(GUI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param3_offset").unwrap();
-            let value = control.value_to_midi(value);
-            controller.set("stomp_param3", value as u16, origin);
+            let midi = control.value_to_midi(value);
+            controller.set("stomp_param3", midi as u16, origin);
         })
         // any change on the `stomp_param4` will show up on the virtual
         // controls as a value coming from MIDI, GUI changes from virtual
@@ -170,14 +170,14 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("stomp_param4")
         .run(move |value, controller, _| {
             let control = controller.get_config("stomp_param4_offset").unwrap();
-            let value = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param4_offset", value, MIDI);
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param4_offset", midi, MIDI);
         })
         .on("stomp_param4_offset").from(GUI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param4_offset").unwrap();
-            let value = control.value_to_midi(value);
-            controller.set("stomp_param4", value as u16, origin);
+            let midi = control.value_to_midi(value);
+            controller.set("stomp_param4", midi as u16, origin);
         });
 
     Ok(())
