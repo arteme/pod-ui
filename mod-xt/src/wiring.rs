@@ -1,11 +1,12 @@
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use pod_core::store::{Signal, Store};
 use pod_core::controller::Controller;
-use pod_core::model::Config;
+use pod_core::model::{AbstractControl, Config};
 use pod_gtk::prelude::*;
 use anyhow::*;
 use log::*;
+use pod_core::config::{GUI, MIDI};
+use pod_gtk::logic::LogicBuilder;
 use crate::{config, model};
 use crate::config::XtPacks;
 
@@ -90,36 +91,94 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         "stomp_param5", "stomp_param6",
     ];
 
-    // controller -> gui
-    {
-        let objs = objs.clone();
-        let controller = controller.clone();
-        let name = "stomp_select".to_string();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let controller = controller.lock().unwrap();
-                let v = controller.get(&name).unwrap();
-                let stomp_config = &(*config::STOMP_CONFIG)[v as usize];
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        // wire `stomp_select` controller -> gui
+        .on("stomp_select")
+        .run(move |value, _, _| {
+            let stomp_config = &(*config::STOMP_CONFIG)[value as usize];
 
-                for param in param_names.iter() {
-                    let label_name = format!("{}_label", param);
-                    let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
-                    let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
+            for param in param_names.iter() {
+                let label_name = format!("{}_label", param);
+                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
+                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
 
-                    if let Some(text) = stomp_config.labels.get(&param.to_string()) {
-                        label.set_text(text);
-                        label.show();
-                        widget.show();
-                    } else {
-                        label.hide();
-                        widget.hide();
-                    }
+                if let Some(text) = stomp_config.labels.get(&param.to_string()) {
+                    label.set_text(text);
+                    label.show();
+                    widget.show();
+                } else {
+                    label.hide();
+                    widget.hide();
                 }
-            })
-        )
-    };
+            }
+        })
+        // any change on the `stomp_param2` will show up on the virtual
+        // controls as a value coming from MIDI, GUI changes from virtual
+        // controls will show up on `stamp_param2` as a value coming from GUI
+        .on("stomp_param2")
+        .run(move |value, controller, _| {
+            let control = controller.get_config("stomp_param2_wave").unwrap();
+            let value = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param2_wave", value, MIDI);
 
+            let control = controller.get_config("stomp_param2_octave").unwrap();
+            let value = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param2_octave", value, MIDI);
+        })
+        .on("stomp_param2_wave").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("stomp_param2_wave").unwrap();
+            let value = control.value_to_midi(value);
+            controller.set("stomp_param2", value as u16, origin);
+        })
+        .on("stomp_param2_octave").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("stomp_param2_octave").unwrap();
+            let value = control.value_to_midi(value);
+            controller.set("stomp_param2", value as u16, origin);
+        })
+        // any change on the `stomp_param3` will show up on the virtual
+        // controls as a value coming from MIDI, GUI changes from virtual
+        // controls will show up on `stamp_param3` as a value coming from GUI
+        .on("stomp_param3")
+        .run(move |value, controller, _| {
+            let control = controller.get_config("stomp_param3_octave").unwrap();
+            let value = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param3_octave", value, MIDI);
+
+            let control = controller.get_config("stomp_param3_offset").unwrap();
+            let value = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param3_offset", value, MIDI);
+        })
+        .on("stomp_param3_octave").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("stomp_param3_octave").unwrap();
+            let value = control.value_to_midi(value);
+            controller.set("stomp_param3", value as u16, origin);
+        })
+        .on("stomp_param3_offset").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("stomp_param3_offset").unwrap();
+            let value = control.value_to_midi(value);
+            controller.set("stomp_param3", value as u16, origin);
+        })
+        // any change on the `stomp_param4` will show up on the virtual
+        // controls as a value coming from MIDI, GUI changes from virtual
+        // controls will show up on `stamp_param4` as a value coming from GUI
+        .on("stomp_param4")
+        .run(move |value, controller, _| {
+            let control = controller.get_config("stomp_param4_offset").unwrap();
+            let value = control.value_from_midi(value as u8, 0);
+            controller.set("stomp_param4_offset", value, MIDI);
+        })
+        .on("stomp_param4_offset").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("stomp_param4_offset").unwrap();
+            let value = control.value_to_midi(value);
+            controller.set("stomp_param4", value as u16, origin);
+        });
 
     Ok(())
 

@@ -88,6 +88,7 @@ pub enum Control {
     SwitchControl(SwitchControl),
     MidiSwitchControl(MidiSwitchControl),
     RangeControl(RangeControl),
+    VirtualRangeControl(VirtualRangeControl),
     Select(Select),
     MidiSelect(MidiSelect),
     VirtualSelect(VirtualSelect),
@@ -141,7 +142,9 @@ pub struct SwitchControl { pub cc: u8, pub addr: u8, pub inverted: bool, pub buf
 #[derive(Clone, Debug)]
 pub struct MidiSwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
-pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<Self> }
+pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<RangeConfig> }
+#[derive(Clone, Debug)]
+pub struct VirtualRangeControl { pub config: RangeConfig, pub format: Format<RangeConfig> }
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
     Normal { buffer_config: BufferConfig },
@@ -198,6 +201,19 @@ impl Default for RangeControl {
 impl From<RangeControl> for Control {
     fn from(c: RangeControl) -> Self {
         Control::RangeControl(c)
+    }
+}
+
+impl Default for VirtualRangeControl {
+    fn default() -> Self {
+        Self { config: RangeConfig::Normal { buffer_config: BufferConfig::Normal },
+            format: Format::None }
+    }
+}
+
+impl From<VirtualRangeControl> for Control {
+    fn from(c: VirtualRangeControl) -> Self {
+        Control::VirtualRangeControl(c)
     }
 }
 
@@ -273,51 +289,11 @@ impl AbstractControl for RangeControl {
     }
 
     fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
-        match &self.config {
-            RangeConfig::Short { from, to, .. } => {
-                let scale = 127 / (to - from);
-                (value / scale + from) as u16
-            }
-            RangeConfig::Long { from, to } => {
-                let (from, to) = (*from as f64, *to as f64);
-                let scale = (to - from) / 127.0;
-                let v = value as f64 * scale + from;
-                v.min(to).max(from) as u16
-            }
-            RangeConfig::MultibyteHead { bitmask, shift, .. } |
-            RangeConfig::MultibyteTail { bitmask, shift, .. } => {
-                let mask = bitmask << shift;
-                (control_value & !mask) | ((value as u16 & bitmask) << shift)
-            },
-            RangeConfig::Function { from_midi, .. } => {
-                from_midi(value)
-            }
-            _ => value as u16
-        }
+        self.config.value_from_midi(value, control_value)
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
-        match &self.config {
-            RangeConfig::Short { from, to, .. } => {
-                let scale = 127 / (to - from);
-                (value as u8 - from) * scale
-            }
-            RangeConfig::Long { from, to } => {
-                let (from, to) = (*from as f64, *to as f64);
-                let scale = (to - from) / 127.0;
-                let v = (value as f64 - from) / scale;
-                v.min(127.0).max(0.0) as u8
-            }
-            RangeConfig::MultibyteHead { bitmask, shift, .. } |
-            RangeConfig::MultibyteTail { bitmask, shift } => {
-                let v = (value >> shift) & bitmask;
-                v.min(127).max(0) as u8
-            }
-            RangeConfig::Function { to_midi, .. } => {
-                to_midi(value)
-            }
-            _ => value as u8
-        }
+        self.config.value_to_midi(value)
     }
 
     fn value_from_buffer(&self, value: u32) -> u16 {
@@ -358,9 +334,19 @@ impl AbstractControl for RangeControl {
                 value as u32
             }
         }
-
     }
 }
+
+impl AbstractControl for VirtualRangeControl {
+    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
+        self.config.value_from_midi(value, control_value)
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        self.config.value_to_midi(value)
+    }
+}
+
 
 impl AbstractControl for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
@@ -432,6 +418,7 @@ impl Control {
             Control::SwitchControl(c) => c,
             Control::MidiSwitchControl(c) => c,
             Control::RangeControl(c) => c,
+            Control::VirtualRangeControl(c) => c,
             Control::Select(c) => c,
             Control::MidiSelect(c) => c,
             Control::VirtualSelect(c) => c,
@@ -469,18 +456,18 @@ impl AbstractControl for Control {
 
 // --
 
-impl RangeControl {
+impl RangeConfig {
     pub fn bounds(&self) -> (f64, f64) {
-        match self.config {
+        match self {
             RangeConfig::Normal { .. } => (0.0, 127.0),
-            RangeConfig::Short { from, to, .. } => (from as f64, to as f64),
+            RangeConfig::Short { from, to, .. } => (*from as f64, *to as f64),
             RangeConfig::Function { from_midi, .. } => {
                 let a = from_midi(0) as f64;
                 let b = from_midi(127) as f64;
                 (a.min(b), a.max(b))
             }
             RangeConfig::Long { from, to } |
-            RangeConfig::MultibyteHead { from, to, .. } => (from as f64, to as f64),
+            RangeConfig::MultibyteHead { from, to, .. } => (*from as f64, *to as f64),
             RangeConfig::MultibyteTail { .. } => (0.0, 0.0)
         }
     }
@@ -498,6 +485,54 @@ impl RangeControl {
 
         let v1 = if v <= n { v - n } else { v - p };
         format!("{:1.0}%", v1 * 100.0 / n)
+    }
+
+    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
+        match self {
+            RangeConfig::Short { from, to, .. } => {
+                let scale = 127 / (to - from);
+                (value / scale + from) as u16
+            }
+            RangeConfig::Long { from, to } => {
+                let (from, to) = (*from as f64, *to as f64);
+                let scale = (to - from) / 127.0;
+                let v = value as f64 * scale + from;
+                v.min(to).max(from) as u16
+            }
+            RangeConfig::MultibyteHead { bitmask, shift, .. } |
+            RangeConfig::MultibyteTail { bitmask, shift, .. } => {
+                let mask = bitmask << shift;
+                (control_value & !mask) | ((value as u16 & bitmask) << shift)
+            },
+            RangeConfig::Function { from_midi, .. } => {
+                from_midi(value)
+            }
+            _ => value as u16
+        }
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        match self {
+            RangeConfig::Short { from, to, .. } => {
+                let scale = 127 / (to - from);
+                (value as u8 - from) * scale
+            }
+            RangeConfig::Long { from, to } => {
+                let (from, to) = (*from as f64, *to as f64);
+                let scale = (to - from) / 127.0;
+                let v = (value as f64 - from) / scale;
+                v.min(127.0).max(0.0) as u8
+            }
+            RangeConfig::MultibyteHead { bitmask, shift, .. } |
+            RangeConfig::MultibyteTail { bitmask, shift } => {
+                let v = (value >> shift) & bitmask;
+                v.min(127).max(0) as u8
+            }
+            RangeConfig::Function { to_midi, .. } => {
+                to_midi(value)
+            }
+            _ => value as u8
+        }
     }
 }
 
@@ -543,6 +578,10 @@ impl Config {
             program_name_length: 0,
             flags: DeviceFlags::empty()
         }
+    }
+
+    pub fn control_by_name(&self, name: &str) -> Option<&Control> {
+        self.controls.get(name)
     }
 
     pub fn cc_to_control(&self, cc: u8) -> Option<(&String, &Control)> {

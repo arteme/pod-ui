@@ -40,8 +40,8 @@ macro_rules! fmt {
 }
 #[macro_export]
 macro_rules! fmt_percent {
-    (signed) => ( Format::Callback(RangeControl::fmt_percent_signed) );
-    () => ( Format::Callback(RangeControl::fmt_percent) );
+    (signed) => ( Format::Callback(RangeConfig::fmt_percent_signed) );
+    () => ( Format::Callback(RangeConfig::fmt_percent) );
 }
 
 #[macro_export]

@@ -9,7 +9,7 @@ use glib::SignalHandlerId;
 use gtk::prelude::*;
 use pod_core::config::GUI;
 use pod_core::controller::{Controller, ControllerStoreExt};
-use pod_core::model::{Control, Format};
+use pod_core::model::{Control, Format, RangeControl, VirtualRangeControl};
 use pod_core::store::*;
 use crate::{Callbacks, ObjectList};
 
@@ -89,17 +89,18 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                 {
                     let controller = controller.lock().unwrap();
                     match controller.get_config(&name) {
-                        Some(Control::RangeControl(c)) => {
-                            let (from, to) = c.bounds();
+                        Some(Control::RangeControl(RangeControl { config, format, .. })) |
+                        Some(Control::VirtualRangeControl(VirtualRangeControl { config, format, .. })) => {
+                            let (from, to) = config.bounds();
                             info!("Rage: {} .. {}", from, to);
                             adj.set_lower(from);
                             adj.set_upper(to);
 
-                            match &c.format {
+                            match format {
                                 Format::Callback(f) => {
-                                    let c = c.clone();
+                                    let config = config.clone();
                                     let f = f.clone();
-                                    scale.connect_format_value(move |_, val| f(&c, val));
+                                    scale.connect_format_value(move |_, val| f(&config, val));
                                 },
                                 Format::Data(data) => {
                                     let data = data.clone();
@@ -110,7 +111,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                     scale.connect_format_value(move |_, val| labels.get(val as usize).unwrap_or(&"".into()).clone());
 
                                 }
-                                _ => {}
+                                Format::None => {}
                             }
                         },
                         _ => {

@@ -167,11 +167,10 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
-        "stomp_param2_wave" => RangeControl { cc: 79, addr: 32 + 79,
-            config: RangeConfig::Short { from: 1, to: 8, buffer_config: BufferConfig::Midi },
+        "stomp_param2_wave" => VirtualRangeControl { config: short!(0, 7),
             ..def() },
-        "stomp_param2_octave" => RangeControl { cc: 79, addr: 32 + 79,
-            config: RangeConfig::Short { from: 0, to: 8, buffer_config: BufferConfig::Midi },
+        "stomp_param2_octave" => VirtualRangeControl {
+            config: short!(0, 8),
             format: Format::Labels(convert_args!(vec!(
                 "-1 oct", "-maj 6th", "-min 6th", "-4th", "unison", "min 3rd", "maj 3rd", "5th", "1 oct"
             ))),
@@ -180,22 +179,22 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
-        "stomp_param3_octave" => RangeControl { cc: 80, addr: 32 + 80,
-            config: RangeConfig::Short { from: 0, to: 8, buffer_config: BufferConfig::Midi },
+        "stomp_param3_octave" => VirtualRangeControl {
+            config: short!(0, 8),
             format: Format::Labels(convert_args!(vec!(
                 "-1 oct", "-5th", "-4th", "-2nd", "unison", "4th", "5th", "7th", "1 oct"
             ))),
             ..def() },
-        "stomp_param3_offset" => RangeControl { cc: 80, addr: 32 + 80,
-            config: RangeConfig::Short { from: 0, to: 49, buffer_config: BufferConfig::Midi },
+        "stomp_param3_offset" => VirtualRangeControl {
+            config: short!(0, 49),
             format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val}".into() }),
             ..def() },
         "stomp_param4" => RangeControl { cc: 81, addr: 32 + 82,
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
-        "stomp_param4_offset" => RangeControl { cc: 81, addr: 32 + 81,
-            config: RangeConfig::Short { from: 0, to: 49, buffer_config: BufferConfig::Midi },
+        "stomp_param4_offset" => VirtualRangeControl {
+            config: short!(0, 49),
             format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val}".into() }),
             ..def() },
         "stomp_param5" => RangeControl { cc: 82, addr: 32 + 83,
