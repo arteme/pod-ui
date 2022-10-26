@@ -1112,6 +1112,7 @@ async fn main() -> Result<()> {
     {
         let edit_buffer = edit_buffer.clone();
         let ui_controller = ui_controller.clone();
+        let window = window.clone();
 
         let mut objects = ObjectList::default();
         let mut callbacks = Callbacks::new();
@@ -1316,6 +1317,14 @@ async fn main() -> Result<()> {
                             }
 
                             program_grid.store(Arc::new(g));
+
+                            // magic constant of 200ms! Works For Me (tm)
+                            glib::timeout_add_local_once(Duration::from_millis(200), {
+                                let window = window.clone();
+                                move || {
+                                    window.resize(10, 10);
+                                }
+                            });
                         }
                         UIEvent::NewDevice => {
                             // connected to a possibly new  device, perform a new device ping

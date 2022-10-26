@@ -332,8 +332,22 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
+        // d.i.
+        "di_model" => RangeControl { cc: 48, addr: 32 + 48,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "di_delay" => RangeControl { cc: 49, addr: 32 + 49,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: Format::Data(FormatData { k: 12.7/127.0, b: 0.0, format: "{val:1.1f} ms".into() }),
+            ..def() },
+        "di_xover" => RangeControl { cc: 45, addr: 32 + 45,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: Format::Data(FormatData { k: 800.0/127.0, b: 0.0, format: "{val:1.0f} Hz".into() }),
+            ..def() }, // not exactly as L6E shows it!
 
-        "loop_enable:show" => VirtualSelect {}
+        "loop_enable:show" => VirtualSelect {},
+        "di:show" => VirtualSelect {}
     ));
     /*
     let controls = pod2_config.controls.into_iter()
@@ -551,7 +565,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             // misc
             "stomp_param2_wave", // wonder, why?
             // show signals
-            "loop_enable:show"
+            "loop_enable:show",
+            "di:show"
         )),
 
         // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37

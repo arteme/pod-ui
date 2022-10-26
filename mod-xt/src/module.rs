@@ -89,6 +89,7 @@ impl Interface for PodXtInterface {
                    "mod_speed", "mod_speed:msb", "mod_speed:lsb")?;
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "delay_time", "delay_time:msb", "delay_time:lsb")?;
+        wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         //todo!()
         Ok(())
@@ -99,6 +100,7 @@ impl Interface for PodXtInterface {
         controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
         controller.set_full("amp_enable", 1, MIDI, Signal::Force);
+        controller.set_full("di:show", 0, MIDI, Signal::Force);
 
         let show_loop_enable = self.config.member == config::PODXT_PRO_CONFIG.member;
         controller.set_full("loop_enable:show", show_loop_enable as u16, MIDI, Signal::Force);

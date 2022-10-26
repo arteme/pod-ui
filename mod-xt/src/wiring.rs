@@ -83,6 +83,23 @@ pub fn init_mic_models(objs: &ObjectList) -> Result<()> {
     Ok(())
 }
 
+pub fn wire_di_show(controller: Arc<Mutex<Controller>>, config: &'static Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        // wire `amp_select` for `di:show`
+        .on("amp_select")
+        .run(move |value, controller, origin| {
+            let amp = config.amp_models.get(value as usize);
+            if let Some(amp) = amp {
+                let show = amp.name.starts_with("BX-") as u16;
+                controller.set("di:show", show, origin);
+            }
+        });
+
+    Ok(())
+}
+
 pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let param_names = vec![
         "stomp_param2", "stomp_param2_wave", "stomp_param2_octave",
