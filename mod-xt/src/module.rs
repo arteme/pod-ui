@@ -72,6 +72,10 @@ impl Interface for PodXtInterface {
                        "mod_select", &config::MOD_CONFIG, |c| c.name.as_str())?;
             init_combo(&controller, &self.objects,
                        "mod_note_select", &config::NOTE_NAMES, |v| v.as_str())?;
+            init_combo(&controller, &self.objects,
+                       "delay_select", &config::DELAY_CONFIG, |c| c.name.as_str())?;
+            init_combo(&controller, &self.objects,
+                       "delay_note_select", &config::NOTE_NAMES, |v| v.as_str())?;
         }
 
         wire(controller.clone(), &self.objects, callbacks)?;
@@ -80,8 +84,11 @@ impl Interface for PodXtInterface {
                      controller.clone(), &self.objects, callbacks)?;
         wire_stomp_select(controller.clone(), &self.objects, callbacks)?;
         wire_mod_select(controller.clone(), &self.objects, callbacks)?;
+        wire_delay_select(controller.clone(), &self.objects, callbacks)?;
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "mod_speed", "mod_speed:msb", "mod_speed:lsb")?;
+        wire_14bit(controller.clone(), &self.objects, callbacks,
+                   "delay_time", "delay_time:msb", "delay_time:lsb")?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         //todo!()
         Ok(())

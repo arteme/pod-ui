@@ -213,6 +213,70 @@ pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, ca
     Ok(())
 }
 
+pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let param_names = vec![
+        "delay_param2",
+        "delay_param3", "delay_param3_heads",
+        "delay_param4", "delay_param4_bits",
+    ];
+
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        // wire `delay_select` controller -> gui
+        .on("delay_select")
+        .run(move |value, _, _| {
+            let config = &(*config::DELAY_CONFIG)[value as usize];
+
+            for param in param_names.iter() {
+                let label_name = format!("{}_label", param);
+                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
+                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
+
+                if let Some(text) = config.labels.get(&param.to_string()) {
+                    label.set_text(text);
+                    label.show();
+                    widget.show();
+                } else {
+                    label.hide();
+                    widget.hide();
+                }
+            }
+        })
+        // any change on the `delay_param3` will show up on the virtual
+        // controls as a value coming from MIDI, GUI changes from virtual
+        // controls will show up on `delay_param3` as a value coming from GUI
+        .on("delay_param3")
+        .run(move |value, controller, _| {
+            let control = controller.get_config("delay_param3_heads").unwrap();
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("delay_param3_heads", midi, MIDI);
+        })
+        .on("delay_param3_heads").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("delay_param3_heads").unwrap();
+            let midi = control.value_to_midi(value);
+            controller.set("delay_param3", midi as u16, origin);
+        })
+        // any change on the `delay_param4` will show up on the virtual
+        // controls as a value coming from MIDI, GUI changes from virtual
+        // controls will show up on `stamp_param4` as a value coming from GUI
+        .on("delay_param4")
+        .run(move |value, controller, _| {
+            let control = controller.get_config("delay_param4_bits").unwrap();
+            let midi = control.value_from_midi(value as u8, 0);
+            controller.set("delay_param4_bits", midi, MIDI);
+        })
+        .on("delay_param4_bits").from(GUI)
+        .run(move |value, controller, origin| {
+            let control = controller.get_config("delay_param4_bits").unwrap();
+            let midi = control.value_to_midi(value);
+            controller.set("delay_param4", midi as u16, origin);
+        });
+
+    Ok(())
+}
+
 pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks,
                   control_name: &str, msb_name: &str, lsb_name: &str) -> Result<()> {
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
@@ -257,5 +321,4 @@ pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
         });
 
     Ok(())
-
 }

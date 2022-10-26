@@ -220,7 +220,47 @@
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
+  <object class="GtkAdjustment" id="adjustment49">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkAdjustment" id="adjustment5">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment50">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment51">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment52">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment53">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment54">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment55">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="adjustment56">
     <property name="upper">100</property>
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
@@ -1512,73 +1552,190 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">12</property>
                         <child>
-                          <!-- n-columns=3 n-rows=3 -->
+                          <!-- n-columns=3 n-rows=9 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
                             <property name="column-spacing">10</property>
-                            <property name="row-homogeneous">True</property>
                             <property name="column-homogeneous">True</property>
                             <child>
-                              <object class="GtkLabel" id="label16">
+                              <object class="GtkComboBoxText" id="comboboxtext8">
+                                <property name="name">delay_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="label" translatable="yes">Time</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
                                 <property name="top-attach">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label17">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="label" translatable="yes">Feedback</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">1</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label18">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                                <property name="halign">end</property>
-                                <property name="label" translatable="yes">Level</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">0</property>
-                                <property name="top-attach">2</property>
+                                <property name="width">3</property>
                               </packing>
                             </child>
                             <child>
                               <object class="GtkScale" id="scale16">
-                                <property name="name">delay_time</property>
+                                <property name="name">delay_param2</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="hexpand">True</property>
-                                <property name="adjustment">adjustment16</property>
+                                <property name="adjustment">adjustment51</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">0</property>
+                                <property name="top-attach">3</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
                             <child>
+                              <object class="GtkLabel" id="label16">
+                                <property name="name">delay_param2_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Delay Param 2</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">3</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label17">
+                                <property name="name">delay_param3_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Delay Param 3</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">4</property>
+                              </packing>
+                            </child>
+                            <child>
                               <object class="GtkScale" id="scale17">
-                                <property name="name">delay_feedback</property>
+                                <property name="name">delay_param3</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment52</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">4</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label18">
+                                <property name="name">delay_param4_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Delay Param 4</property>
+                                <property name="justify">center</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">6</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale18">
+                                <property name="name">delay_param4</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment54</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">6</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label43">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Mix</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">8</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale41">
+                                <property name="name">delay_mix</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment56</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">8</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label44">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Note</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkComboBoxText" id="comboboxtext9">
+                                <property name="name">delay_note_select</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">2</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label45">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Time</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">1</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale42">
+                                <property name="name">delay_time</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="hexpand">True</property>
-                                <property name="adjustment">adjustment17</property>
+                                <property name="adjustment">adjustment50</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
@@ -1590,19 +1747,63 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkScale" id="scale18">
-                                <property name="name">delay_level</property>
+                              <object class="GtkLabel" id="label46">
+                                <property name="name">delay_param4_bits_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Delay Param 4 Bits</property>
+                                <property name="justify">center</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">7</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label47">
+                                <property name="name">delay_param3_heads_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Delay Param 3 Heads</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">5</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale43">
+                                <property name="name">delay_param3_heads</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
-                                <property name="hexpand">True</property>
-                                <property name="adjustment">adjustment18</property>
+                                <property name="adjustment">adjustment53</property>
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">2</property>
+                                <property name="top-attach">5</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale44">
+                                <property name="name">delay_param4_bits</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment55</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">7</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -2111,7 +2312,6 @@
                             </child>
                             <child>
                               <object class="GtkLabel" id="label32">
-                                <property name="name">stomp_param5_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -2141,7 +2341,6 @@
                             </child>
                             <child>
                               <object class="GtkLabel" id="label33">
-                                <property name="name">stomp_param2_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
@@ -2167,7 +2366,6 @@
                             </child>
                             <child>
                               <object class="GtkLabel" id="label34">
-                                <property name="name">stomp_param2_label</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>

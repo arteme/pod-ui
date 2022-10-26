@@ -114,6 +114,25 @@ pub static MOD_CONFIG: Lazy<Vec<ModConfig>> = Lazy::new(|| {
     ))
 });
 
+pub static DELAY_CONFIG: Lazy<Vec<DelayConfig>> = Lazy::new(|| {
+    convert_args!(vec!(
+        /*  0 */ delay("Analog Delay").control("Feedback").control("Bass").control("Treble"),
+        /*  1 */ delay("Analog Delay w/ Mod").control("Feedback").control("Mod Speed").control("Depth"),
+        /*  2 */ delay("Tube Echo").control("Feedback").control("Flutter").control("Drive"),
+        /*  3 */ delay("Multi-Head").control("Feedback").heads("Heads").control("Flutter"),
+        /*  4 */ delay("Sweep Echo").control("Feedback").control("Speed").control("Depth"),
+        /*  5 */ delay("Digital Delay").control("Feedback").control("Bass").control("Treble"),
+        /*  6 */ delay("Stereo Delay").control("Offset").control("Feedback L").control("Feedback R"),
+        /*  7 */ delay("Ping Pong").control("Feedback").control("Offset").control("Spread"),
+        /*  8 */ delay("Reverse").control("Feedback"),
+        /*  9 */ delay("FX-Echo Platter").control("Feedback").heads("Heads").control("Flutter"),
+        /* 10 */ delay("FX-Tape Echo").control("Feedback").control("Bass").control("Treble"),
+        /* 11 */ delay("FX-Low Rez").control("Feedback").control("Tone").bits("Bits"),
+        /* 12 */ delay("FX-Phaze Echo").control("Feedback").control("Mod Speed").control("Depth"),
+        /* 13 */ delay("FX-Bubble Echo").control("Feedback").control("Speed").control("Depth"),
+    ))
+});
+
 fn gate_threshold_from_midi(value: u8) -> u16 {
     (96 - value.min(96)) as u16
 }
@@ -134,14 +153,6 @@ fn heel_toe_to_midi(value: u16) -> u8 {
     if value == 48 { return 127 };
 
     (value as u8 - 1) * 2 + 18
-}
-
-fn delay_time_from_buffer(value: u32) -> u16 {
-    (value / 6).min(0xffff) as u16
-}
-
-fn delay_time_to_buffer(value: u16) -> u32 {
-    (value as u32) * 6
 }
 
 
@@ -281,6 +292,43 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             format: fmt_percent!(),
             ..def() },
         "mod_mix" => RangeControl { cc: 56, addr: 32 + 56,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        // delay
+        "delay_select" => Select { cc: 88, addr: 32 + 88, ..def() },
+        "delay_time" => VirtualRangeControl {
+            config: long!(0, 16383),
+            format: Format::Data(FormatData { k: 1980.0/16383.0, b: 20.0, format: "{val:1.0f} ms".into() }),
+            ..def() }, // 20ms - 2000ms
+        "delay_time:msb" => RangeControl { cc: 30, addr: 32 + 30, ..def() },
+        "delay_time:lsb" => RangeControl { cc: 62, addr: 32 + 62, ..def() },
+        "delay_note_select" => Select { cc: 31, addr: 32 + 31, ..def() },
+        "delay_param2" => RangeControl { cc: 33, addr: 32 + 33,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "delay_param3" => RangeControl { cc: 35, addr: 32 + 35,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "delay_param3_heads" => VirtualRangeControl {
+            config: short!(@edge 0, 8),
+            format: Format::Labels(convert_args!(vec!(
+                "12--", "1-3-", "1--4", "-23-", "123-", "12-4", "1-34", "-234", "1234"
+            ))),
+            ..def() },
+        "delay_param4" => RangeControl { cc: 85, addr: 32 + 85,
+            config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
+            format: fmt_percent!(),
+            ..def() },
+        "delay_param4_bits" => VirtualRangeControl {
+            config: short!(@edge 0, 8),
+            format: Format::Labels(convert_args!(vec!(
+                "12", "11", "10", "9", "8", "7", "6", "5", "4"
+            ))),
+            ..def() },
+        "delay_mix" => RangeControl { cc: 34, addr: 32 + 34,
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: fmt_percent!(),
             ..def() },
@@ -488,6 +536,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "stomp_select",
             "mod_select",
             "mod_note_select",
+            "delay_select",
+            "delay_note_select",
             // switches
             "noise_gate_enable",
             "wah_enable",
@@ -505,15 +555,14 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         )),
 
         // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37
-        // 'stomp select' CC 75
+        // 'stomp select' CC 75, 'delay select' CC 88
         // todo: others?
-        out_cc_edit_buffer_dump_req: vec![ 12, 37, 75 ],
+        out_cc_edit_buffer_dump_req: vec![ 12, 37, 75, 88 ],
 
         ..pod2_config
     }
 });
 
-// TODO: is not recognized
 pub static PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_config = PODXT_CONFIG.clone();
 
