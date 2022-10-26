@@ -344,6 +344,11 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal { buffer_config: BufferConfig::Midi },
             format: Format::Data(FormatData { k: 800.0/127.0, b: 0.0, format: "{val:1.0f} Hz".into() }),
             ..def() }, // not exactly as L6E shows it!
+        // volume pedal
+        "vol_level" => RangeControl { cc: 7, addr: 32 + 7, format: fmt_percent!(), ..def() },
+        "vol_minimum" => RangeControl { cc: 46, addr: 32 + 46, format: fmt_percent!(), ..def() },
+        // wah wah
+        "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
 
         "loop_enable:show" => VirtualSelect {},
         "di:show" => VirtualSelect {},
