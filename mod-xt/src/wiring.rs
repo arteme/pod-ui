@@ -7,8 +7,9 @@ use anyhow::*;
 use log::*;
 use pod_core::config::{GUI, MIDI};
 use pod_gtk::logic::LogicBuilder;
-use crate::{config, model};
+use crate::config;
 use crate::config::XtPacks;
+
 
 fn is_sensitive(packs: XtPacks, name: &str) -> bool {
     let ms = name.starts_with("MS-");
@@ -23,23 +24,25 @@ fn is_sensitive(packs: XtPacks, name: &str) -> bool {
         (fx && packs.contains(XtPacks::FX))
 }
 
-fn init_combo(packs: XtPacks, objs: &ObjectList, name: &str, items: Vec<&str>) -> Result<()> {
+pub fn init_combo<T, F>(objs: &ObjectList, name: &str, list: &Vec<T>, get_name: F) -> Result<()>
+    where F: Fn(&T) -> &str
+
+{
     let select = objs.ref_by_name::<gtk::ComboBox>(name)?;
 
     let list_store = gtk::ListStore::new(
-        &[u8::static_type(), String::static_type(), bool::static_type()]
+        &[u32::static_type(), String::static_type(), bool::static_type()]
     );
 
-    for (i, item) in items.iter().enumerate() {
-        let sensitive = is_sensitive(packs, item);
+    for (i, item) in list.iter().enumerate() {
+        let name = get_name(item);
         list_store.insert_with_values(None, &[
-            (0, &(i as u32)), (1, item), (2, &sensitive)
+            (0, &(i as u32)), (1, &name), (2, &true)
         ]);
     }
 
     select.set_model(Some(&list_store));
     select.clear();
-    select.set_entry_text_column(1);
 
     let renderer = gtk::CellRendererText::new();
     select.pack_start(&renderer, true);
@@ -49,13 +52,33 @@ fn init_combo(packs: XtPacks, objs: &ObjectList, name: &str, items: Vec<&str>) -
     Ok(())
 }
 
-pub fn init_amp_models(packs: XtPacks, objs: &ObjectList, config: &Config) -> Result<()> {
-    let items = config.amp_models.iter().map(|a| a.name.as_str()).collect::<Vec<_>>();
-    return init_combo(packs, objs, "amp_select", items);
-}
-pub fn init_cab_models(packs: XtPacks, objs: &ObjectList, config: &Config) -> Result<()> {
-    let items = config.cab_models.iter().map(|s| s.as_str()).collect::<Vec<_>>();
-    return init_combo(packs, objs, "cab_select", items);
+fn update_combo<F>(objs: &ObjectList, name: &str, update: F) -> Result<()>
+    where F: Fn(u32, &str) -> (Option<String>, Option<bool>)
+{
+    let select = objs.ref_by_name::<gtk::ComboBox>(name)?;
+    let model = select.model().unwrap();
+
+    let list_store = model.dynamic_cast::<gtk::ListStore>().unwrap();
+    list_store.foreach(|_, _, iter| {
+        let idx = list_store.value(iter, 0);
+        let idx = idx.get::<u32>().unwrap();
+
+        let value = list_store.value(iter, 1);
+        let value = value.get::<&str>().unwrap();
+
+        let values = update(idx, value);
+
+        if let Some(text) = values.0 {
+            list_store.set_value(iter, 1, &text.to_value());
+        }
+        if let Some(sensitive) = values.1 {
+            list_store.set_value(iter, 2, &sensitive.to_value());
+        }
+
+        false
+    });
+
+    Ok(())
 }
 
 // todo: when switching to BX cab update the mic names from BC_MIC_NAMES!
@@ -339,3 +362,50 @@ pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
 
     Ok(())
 }
+
+pub fn wire_xt_packs(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let selects = vec![
+        "amp_select", "cab_select", "stomp_select", "mod_select", "delay_select"
+    ];
+
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        .on("xt_packs")
+        .run(move |value, _, _| {
+            let packs = XtPacks::from_bits(value as u8).unwrap();
+            for name in selects.iter() {
+                update_combo(&objs, name, |_, name| {
+                    let sensitive = is_sensitive(packs, name);
+                    (None, Some(sensitive))
+                }).unwrap();
+            }
+        });
+
+    Ok(())
+}
+
+pub fn wire_mics_update(controller: Arc<Mutex<Controller>>, config: &'static Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        .on("cab_select")
+        .run(move |value, _, _| {
+            let cab_name = config.cab_models.get(value as usize);
+            if cab_name.is_none() {
+                error!("Cab select invalid value: {}", value);
+                return;
+            }
+            let is_bx = cab_name.unwrap().starts_with("BX-");
+            let mics = if is_bx { &config::BX_MIC_NAMES } else { &config::MIC_NAMES };
+            update_combo(&objs, "mic_select", |n, _| {
+                let name = mics.get(n as usize).map(|v| v.as_str())
+                    .unwrap_or(&"");
+                (Some(name.into()), None)
+            }).unwrap();
+        });
+
+    Ok(())
+}
+
+

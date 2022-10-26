@@ -9,7 +9,7 @@ use pod_mod_pod2::wiring::*;
 
 use crate::config;
 use crate::config::XtPacks;
-use crate::wiring::*;
+use crate::wiring::{*, init_combo};
 
 pub struct PodXtModule;
 
@@ -58,25 +58,25 @@ impl Interface for PodXtInterface {
     fn wire(&self, edit: Arc<Mutex<EditBuffer>>, callbacks: &mut Callbacks) -> anyhow::Result<()> {
         let config = self.config;
         let controller = edit.lock().unwrap().controller();
-        {
-            let controller = controller.lock().unwrap();
 
-            init_amp_models(XtPacks::all(), &self.objects, &config)?;
-            init_cab_models(XtPacks::all(), &self.objects, &config)?;
-            init_mic_models(&self.objects)?;
-            init_combo(&controller, &self.objects,
-                       "reverb_select", &config::REVERB_NAMES, |s| s.as_str())?;
-            init_combo(&controller, &self.objects,
-                       "stomp_select", &config::STOMP_CONFIG, |c| c.name.as_str())?;
-            init_combo(&controller, &self.objects,
-                       "mod_select", &config::MOD_CONFIG, |c| c.name.as_str())?;
-            init_combo(&controller, &self.objects,
-                       "mod_note_select", &config::NOTE_NAMES, |v| v.as_str())?;
-            init_combo(&controller, &self.objects,
-                       "delay_select", &config::DELAY_CONFIG, |c| c.name.as_str())?;
-            init_combo(&controller, &self.objects,
-                       "delay_note_select", &config::NOTE_NAMES, |v| v.as_str())?;
-        }
+        init_combo(&self.objects, "amp_select",
+                   &config.amp_models, |c| c.name.as_str())?;
+        init_combo(&self.objects, "cab_select",
+                   &config.cab_models, |v| v.as_str())?;
+        init_combo(&self.objects, "mic_select",
+                   &config::MIC_NAMES, |v| v.as_str())?;
+        init_combo(&self.objects, "reverb_select",
+                   &config::REVERB_NAMES, |s| s.as_str())?;
+        init_combo(&self.objects, "stomp_select",
+                   &config::STOMP_CONFIG, |c| c.name.as_str())?;
+        init_combo(&self.objects, "mod_select",
+                   &config::MOD_CONFIG, |c| c.name.as_str())?;
+        init_combo(&self.objects, "mod_note_select",
+                   &config::NOTE_NAMES, |v| v.as_str())?;
+        init_combo(&self.objects, "delay_select",
+                   &config::DELAY_CONFIG, |c| c.name.as_str())?;
+        init_combo(&self.objects, "delay_note_select",
+                   &config::NOTE_NAMES, |v| v.as_str())?;
 
         wire(controller.clone(), &self.objects, callbacks)?;
 
@@ -90,8 +90,10 @@ impl Interface for PodXtInterface {
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "delay_time", "delay_time:msb", "delay_time:lsb")?;
         wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
+        wire_xt_packs(controller.clone(), &self.objects, callbacks)?;
+        wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
-        //todo!()
+
         Ok(())
     }
 
@@ -101,6 +103,8 @@ impl Interface for PodXtInterface {
 
         controller.set_full("amp_enable", 1, MIDI, Signal::Force);
         controller.set_full("di:show", 0, MIDI, Signal::Force);
+        // say we have all packs, unless a real POD tells us otherwise
+        controller.set_full("xt_packs", 0xf, MIDI, Signal::Force);
 
         let show_loop_enable = self.config.member == config::PODXT_PRO_CONFIG.member;
         controller.set_full("loop_enable:show", show_loop_enable as u16, MIDI, Signal::Force);

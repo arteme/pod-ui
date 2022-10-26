@@ -6,7 +6,6 @@ use pod_core::def;
 use pod_core::model::*;
 use pod_gtk::prelude::*;
 use glib::bitflags::bitflags;
-use pod_core::model::RangeConfig::Function;
 
 use pod_mod_pod2::{short, long, fmt_percent};
 use crate::model::*;
@@ -347,7 +346,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             ..def() }, // not exactly as L6E shows it!
 
         "loop_enable:show" => VirtualSelect {},
-        "di:show" => VirtualSelect {}
+        "di:show" => VirtualSelect {},
+        "xt_packs" => VirtualSelect {},
     ));
     /*
     let controls = pod2_config.controls.into_iter()
@@ -566,7 +566,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "stomp_param2_wave", // wonder, why?
             // show signals
             "loop_enable:show",
-            "di:show"
+            "di:show",
+            "xt_packs"
         )),
 
         // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37
