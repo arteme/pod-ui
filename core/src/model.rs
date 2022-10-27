@@ -100,6 +100,7 @@ pub enum Format<T> {
     None,
     Callback(fn (&T, f64) -> String),
     Data(FormatData),
+    Interpolate(FormatInterpolate),
     Labels(Vec<String>)
 }
 
@@ -109,6 +110,7 @@ impl<T> fmt::Debug for Format<T>  {
             Format::None => write!(f, "<no format>"),
             Format::Callback(_) => write!(f, "<callback>"),
             Format::Data(_) => write!(f, "<data>"),
+            Format::Interpolate(_) => write!(f, "<interpolate>"),
             Format::Labels(_) => write!(f, "<labels>")
         }
     }
@@ -125,6 +127,19 @@ pub struct FormatData {
 impl Default for FormatData {
     fn default() -> Self {
         FormatData { k: 1.0, b: 0.0, format: "{val}".into() }
+    }
+}
+
+/// Interpolate between a given set of points
+#[derive(Clone, Debug)]
+pub struct FormatInterpolate {
+    pub points: Vec<(u8, f64)>,
+    pub format: String
+}
+
+impl Default for FormatInterpolate {
+    fn default() -> Self {
+        FormatInterpolate { points: vec![], format: "{val}".into() }
     }
 }
 
@@ -551,6 +566,36 @@ impl RangeConfig {
 impl FormatData {
     pub fn format(&self, v: f64) -> String {
         let val = self.k * v + self.b;
+
+        let mut vars: HashMap<String, f64> = HashMap::new();
+        vars.insert("val".into(), val);
+
+        let f = |mut fmt: strfmt::Formatter| {
+            fmt.f64(*vars.get(fmt.key).unwrap())
+        };
+
+        strfmt::strfmt_map(&self.format, &f)
+            .unwrap_or_else(|err| {
+                // TODO: format failed for which widget?
+                warn!("Format failed: {}", err);
+                "".into()
+            })
+    }
+}
+
+impl FormatInterpolate {
+    pub fn format(&self, v: f64) -> String {
+        // weird logic to keep up with L6E, which skips 127 altogether for
+        // the sake of nice round values in the interpolation
+        let v = if v >= 127.0 { 128 } else { v as u8 };
+        let mut val = 0.0;
+        for w in self.points.windows(2) {
+            let (x1, y1) = w[0];
+            let (x2, y2) = w[1];
+            if v > x2 { continue }
+            val = y1 + (v - x1) as f64 * (y2 - y1) / (x2 - x1) as f64;
+            break;
+        }
 
         let mut vars: HashMap<String, f64> = HashMap::new();
         vars.insert("val".into(), val);

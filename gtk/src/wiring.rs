@@ -106,6 +106,10 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                     let data = data.clone();
                                     scale.connect_format_value(move |_, val| data.format(val));
                                 },
+                                Format::Interpolate(data) => {
+                                    let data = data.clone();
+                                    scale.connect_format_value(move |_, val| data.format(val));
+                                },
                                 Format::Labels(labels) => {
                                     let labels = labels.clone();
                                     scale.connect_format_value(move |_, val| labels.get(val as usize).unwrap_or(&"".into()).clone());
