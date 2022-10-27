@@ -48,6 +48,29 @@ pub static NOTE_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     ))
 });
 
+pub static WAH_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
+    convert_args!(vec!(
+        "Vetta Wah", "Fassel", "Weeper", "Chrome", "Chrome Custom",
+        "Throaty", "Conductor", "Colorful"
+    ))
+});
+
+pub static TWEAK_PARAM_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
+    convert_args!(vec!(
+        "Compressor Threshold", "Stomp Drive", "Stomp Gain", "Stomp Tone",
+        "Mod Speed", "Mod Depth", "Mod Bass", "Mod Treble", "Mod Mix",
+        "Delay Time", "Delay Feedback", "Delay Bass", "Delay Treble",
+        "Delay Mix", "Reverb Dwell", "Reverb Tone", "Reverb Mix",
+        "???", "Wah Position", "???", "???"
+    ))
+});
+
+pub static PEDAL_ASSIGN_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
+    convert_args!(vec!(
+        "1 - Wah \t\t\t 2 - Vol", "1 - Tweak \t\t 2 - Vol", "1 - Wah/Vol \t\t 2 - Tweak"
+    ))
+});
+
 pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
     convert_args!(vec!(
         /*  0 */ stomp("Facial Fuzz").control("Drive").control("Gain").control("Tone"),
@@ -351,7 +374,12 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "vol_level" => RangeControl { cc: 7, addr: 32 + 7, format: fmt_percent!(), ..def() },
         "vol_minimum" => RangeControl { cc: 46, addr: 32 + 46, format: fmt_percent!(), ..def() },
         // wah wah
+        "wah_select" => Select { cc: 91, addr: 32 + 91, ..def() },
         "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
+        // pedals
+        "tweak_param_select" => Select { cc: 108, addr: 32 + 108, ..def() },
+        "pedal_assign" => Select { cc: 65, addr: 32 + 65, ..def() },
+        "pedal_assign_select" => VirtualSelect {},
         // eq
         "eq_1_freq" => RangeControl { cc: 20, addr: 32 + 20,
             format: Format::Interpolate(FormatInterpolate {
@@ -392,6 +420,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
 
         "loop_enable:show" => VirtualSelect {},
         "di:show" => VirtualSelect {},
+        "footswitch_mode:show" => VirtualSelect {},
         "xt_packs" => VirtualSelect {},
     ));
 
@@ -591,6 +620,9 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "mod_note_select",
             "delay_select",
             "delay_note_select",
+            "wah_select",
+            "tweak_param_select",
+            "pedal_assign_select",
             // switches
             "noise_gate_enable",
             "wah_enable",
@@ -606,13 +638,13 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             // show signals
             "loop_enable:show",
             "di:show",
+            "footswitch_mode:show",
             "xt_packs"
         )),
 
-        // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37
-        // 'stomp select' CC 75, 'delay select' CC 88
-        // todo: others?
-        out_cc_edit_buffer_dump_req: vec![ 12, 37, 75, 88 ],
+        // request edit buffer dump after setting `amp select` CC 12, 'reverb select' CC 37,
+        // 'mod select' CC 58, 'stomp select' CC 75, 'delay select' CC 88, 'wah select' CC 91
+        out_cc_edit_buffer_dump_req: vec![ 12, 37, 58, 75, 88, 91 ],
 
         ..pod2_config
     }
@@ -649,9 +681,27 @@ pub static PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
 pub static PODXT_LIVE_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_config = PODXT_CONFIG.clone();
 
+    let podxt_live_controls: HashMap<String, Control> = convert_args!(hashmap!(
+        "footswitch_mode" => SwitchControl { cc: 84, addr: 32 + 84, ..def() }, // 0: amp, 1: comp
+    ));
+    let controls = podxt_config.controls.into_iter()
+        .chain(podxt_live_controls)
+        .collect();
+
+    let podxt_live_init_controls: Vec<String> = convert_args!(vec!(
+        "footswitch_mode"
+    ));
+    let init_controls = podxt_config.init_controls.into_iter()
+        .chain(podxt_live_init_controls)
+        .collect();
+
+
     Config {
         name: "PODxt Live".to_string(),
         member: 0x000a,
+
+        controls,
+        init_controls,
 
         ..podxt_config
     }

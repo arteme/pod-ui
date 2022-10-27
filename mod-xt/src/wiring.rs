@@ -408,4 +408,48 @@ pub fn wire_mics_update(controller: Arc<Mutex<Controller>>, config: &'static Con
     Ok(())
 }
 
+pub fn wire_pedal_assign(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    // Pedal assign is really a range control, but for the sake of showing it
+    // as a select we do this Select <-> VirtualSelect mapping
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    builder
+        .on("pedal_assign")
+        .run(move |value, controller, origin| {
+            let value: u16 = match value {
+                0 ..= 41 => 0,
+                42 ..= 85 => 1,
+                _ => 2
+            };
+            controller.set("pedal_assign_select", value, origin);
+        })
+        .on("pedal_assign_select").from(GUI)
+        .run(move |value, controller, origin| {
+            let value: u16 = match value {
+                0 => 0,
+                1 => 64,
+                _ => 127
+            };
+            controller.set("pedal_assign", value, origin);
+        });
 
+    Ok(())
+}
+
+pub fn resolve_footswitch_mode_show(objs: &ObjectList, config: &Config) -> Result<()> {
+    let show = config.member == config::PODXT_LIVE_CONFIG.member;
+    if show { return Ok(()); }
+
+    // For some reason, hiding these particular controls wia `widget.hide()` leaves
+    // extra space in the gtk::Frame, which I can't get rid of. Instead, we remove
+    // them from the UI altogether.
+    objs.widgets_by_class_match(&|class_name| class_name.starts_with("footswitch_mode:show"))
+        .for_each(|(widget, _)| {
+            let container = widget.parent()
+                .and_then(|w| w.dynamic_cast::<gtk::Container>().ok())
+                .unwrap();
+            container.remove(widget);
+        });
+
+    Ok(())
+
+}

@@ -8,7 +8,6 @@ use gtk::{Builder, Widget};
 use pod_mod_pod2::wiring::*;
 
 use crate::config;
-use crate::config::XtPacks;
 use crate::wiring::{*, init_combo};
 
 pub struct PodXtModule;
@@ -77,6 +76,12 @@ impl Interface for PodXtInterface {
                    &config::DELAY_CONFIG, |c| c.name.as_str())?;
         init_combo(&self.objects, "delay_note_select",
                    &config::NOTE_NAMES, |v| v.as_str())?;
+        init_combo(&self.objects, "wah_select",
+                   &config::WAH_NAMES, |s| s.as_str())?;
+        init_combo(&self.objects, "tweak_param_select",
+                   &config::TWEAK_PARAM_NAMES, |s| s.as_str())?;
+        init_combo(&self.objects, "pedal_assign_select",
+                   &config::PEDAL_ASSIGN_NAMES, |s| s.as_str())?;
 
         wire(controller.clone(), &self.objects, callbacks)?;
 
@@ -92,22 +97,26 @@ impl Interface for PodXtInterface {
         wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
         wire_xt_packs(controller.clone(), &self.objects, callbacks)?;
         wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;
+        wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
+        resolve_footswitch_mode_show(&self.objects, config)?;
 
         Ok(())
     }
 
     fn init(&self, edit: Arc<Mutex<EditBuffer>>) -> anyhow::Result<()> {
         let controller = edit.lock().unwrap().controller();
-        controller.set_full("reverb_type", 0, MIDI, Signal::Force);
 
         controller.set_full("amp_enable", 1, MIDI, Signal::Force);
         controller.set_full("di:show", 0, MIDI, Signal::Force);
         // say we have all packs, unless a real POD tells us otherwise
         controller.set_full("xt_packs", 0xf, MIDI, Signal::Force);
 
-        let show_loop_enable = self.config.member == config::PODXT_PRO_CONFIG.member;
-        controller.set_full("loop_enable:show", show_loop_enable as u16, MIDI, Signal::Force);
+        let show = self.config.member == config::PODXT_PRO_CONFIG.member;
+        controller.set_full("loop_enable:show", show as u16, MIDI, Signal::Force);
+
+        let show = self.config.member == config::PODXT_LIVE_CONFIG.member;
+        controller.set_full("footswitch_mode:show", show as u16, MIDI, Signal::Force);
 
         Ok(())
     }
