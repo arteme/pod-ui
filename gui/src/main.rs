@@ -23,10 +23,10 @@ use std::thread;
 use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
 use std::collections::HashMap;
-use std::option::IntoIter;
+use std::rc::Rc;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use arc_swap::{ArcSwap, ArcSwapOption};
 use clap::{Args, Command, FromArgMatches};
 use dyn_iter::DynIter;
@@ -400,7 +400,7 @@ fn update_ui_from_state(state: &State, ui_controller: &mut Controller) {
 
 static VERSION: Lazy<String> = Lazy::new(|| {
     let version = env!("GIT_VERSION");
-    let mut features: Vec<&str> = vec![
+    let features: Vec<&str> = vec![
         if cfg!(feature = "winrt") { Some("winrt") } else { None }
     ].into_iter().flatten().collect();
 
@@ -410,6 +410,47 @@ static VERSION: Lazy<String> = Lazy::new(|| {
         format!("{} ({})", version, features.join(","))
     }
 });
+
+/// Try very hard to convince a GTK window to resize to something smaller.
+/// It is not enough to do `window.resize(1, 1)` once, you have to do it
+/// at the right time, so we'll try for 2 seconds to do that while also
+/// tracking the window's allocation to see if it actually got smaller...
+fn make_window_smaller(window: gtk::Window) {
+    let start = Instant::now();
+    let mut allocation = Rc::new(window.allocation());
+    let mut already_smaller = Rc::new(false);
+
+    glib::timeout_add_local(
+        Duration::from_millis(100),
+        move || {
+            let elapsed = start.elapsed().as_millis();
+            let mut cont = if elapsed > 2000 { false } else { true };
+
+            let now = window.allocation();
+            //println!("{:?} -> {:?}", allocation, now);
+
+            let w_smaller = now.width() < allocation.width();
+            let h_smaller = now.height() < allocation.height();
+            let smaller = w_smaller || h_smaller;
+
+            let w_same = now.width() == allocation.width();
+            let h_same = now.height() == allocation.height();
+            let same = w_same || h_same;
+
+            if same && *already_smaller {
+                // we're done
+                cont = false;
+            } else {
+                // record progress and try again
+                Rc::get_mut(&mut allocation).map(|v| *v = now);
+                Rc::get_mut(&mut already_smaller).map(|v| *v = smaller);
+                window.resize(1, 1);
+            }
+
+            Continue(cont)
+        });
+}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -1091,8 +1132,7 @@ async fn main() -> Result<()> {
                             channel,
                             family: config.family,
                             member: config.member,
-                            ver: String::from("\x03\x03\x11\x10")
-                            //ver: String::from("0303")
+                            ver: String::from("0303")
                         };
                         midi_out_tx.send(res);
                     }
@@ -1318,13 +1358,7 @@ async fn main() -> Result<()> {
 
                             program_grid.store(Arc::new(g));
 
-                            // magic constant of 200ms! Works For Me (tm)
-                            glib::timeout_add_local_once(Duration::from_millis(200), {
-                                let window = window.clone();
-                                move || {
-                                    window.resize(10, 10);
-                                }
-                            });
+                            make_window_smaller(window.clone());
                         }
                         UIEvent::NewDevice => {
                             // connected to a possibly new  device, perform a new device ping
