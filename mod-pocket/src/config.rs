@@ -4,6 +4,12 @@ use once_cell::sync::Lazy;
 use pod_core::model::*;
 use pod_gtk::*;
 
+#[cfg(all(windows, not(feature = "winrt")))]
+const MIDI_QUIRKS: MidiQuirks = MidiQuirks::MIDI_CLOSE_QUIET_TIMEOUT;
+
+#[cfg(not(all(windows, not(feature = "winrt"))))]
+const MIDI_QUIRKS: MidiQuirks = MidiQuirks::empty();
+
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     let pod2_config = pod_mod_pod2::module().config()[0].clone();
     let exclude = vec!["digiout_show", "vol_pedal_position"];
@@ -36,6 +42,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         controls,
         init_controls,
         toggles: vec![], // PocketPOD doesn't use dynamic toggle positioning
+
+        midi_quirks: MIDI_QUIRKS,
 
         ..pod2_config
     }

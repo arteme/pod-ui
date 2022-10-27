@@ -27,6 +27,16 @@ bitflags! {
     }
 }
 
+bitflags! {
+    pub struct MidiQuirks: u16 {
+        /// To work around buggy PocketPOD drivers for WinMM, we must ensure
+        /// there's a quiet time on the MIDI IN line before it is closed,
+        /// otherwise the close call just hangs.
+        const MIDI_CLOSE_QUIET_TIMEOUT = 0x0001;
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub name: String,
@@ -48,7 +58,8 @@ pub struct Config {
 
     pub program_name_addr: usize,
     pub program_name_length: usize,
-    pub flags: DeviceFlags
+    pub flags: DeviceFlags,
+    pub midi_quirks: MidiQuirks
 }
 
 
@@ -633,7 +644,8 @@ impl Config {
             in_cc_edit_buffer_dump_req: vec![],
             program_name_addr: 0,
             program_name_length: 0,
-            flags: DeviceFlags::empty()
+            flags: DeviceFlags::empty(),
+            midi_quirks: MidiQuirks::empty()
         }
     }
 

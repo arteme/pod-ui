@@ -14,7 +14,7 @@ use pod_core::controller::Controller;
 use pod_core::program;
 use log::*;
 use std::sync::{Arc, atomic, Mutex, RwLock};
-use pod_core::model::{AbstractControl, Button, Config, Control, DeviceFlags, VirtualSelect};
+use pod_core::model::{AbstractControl, Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_core::config::{config_for_id, configs, GUI, MIDI, UNSET};
 use crate::opts::*;
 use pod_core::midi::{Channel, MidiMessage};
@@ -30,9 +30,13 @@ use std::time::{Duration, Instant};
 use arc_swap::{ArcSwap, ArcSwapOption};
 use clap::{Args, Command, FromArgMatches};
 use dyn_iter::DynIter;
+use futures_util::future::{join_all, JoinAll};
+use futures_util::FutureExt;
 use maplit::*;
 use crate::settings::*;
 use result::prelude::*;
+use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use gtk::gdk;
@@ -41,9 +45,9 @@ use crate::registry::{init_module, init_module_controls, InitializedInterface, r
 use crate::util::ToSome;
 use crate::widgets::*;
 
-
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const UI_EVENT_CHANNEL_CAPACITY: usize = 128;
+const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 
 #[derive(Clone, Debug)]
 pub enum UIEvent {
@@ -54,6 +58,7 @@ pub enum UIEvent {
     MidiRx,
     Modified(usize, bool),
     Panic,
+    ShutDown,
     Quit
 }
 
@@ -65,9 +70,11 @@ pub struct DetectedDevVersion {
 pub struct State {
     pub midi_in_name: Option<String>,
     pub midi_in_cancel: Option<oneshot::Sender<()>>,
+    pub midi_in_handle: Option<JoinHandle<()>>,
 
     pub midi_out_name: Option<String>,
     pub midi_out_cancel: Option<oneshot::Sender<()>>,
+    pub midi_out_handle: Option<JoinHandle<()>>,
 
     pub midi_in_tx: mpsc::UnboundedSender<MidiMessage>,
     pub midi_out_tx: broadcast::Sender<MidiMessage>,
@@ -98,11 +105,168 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     ))
 });
 
+fn sentry_set_midi_tags(in_name: Option<&String>, out_name: Option<&String>) {
+    sentry::configure_scope(|scope| {
+        scope.set_tag("midi.in",
+                      in_name.unwrap_or(&"-".to_string()));
+        scope.set_tag("midi.out",
+                      out_name.unwrap_or(&"-".to_string()));
+    })
+}
+
+fn sentry_set_device_tags(detected_name: &String, detected_ver: &String, config_name: &String) {
+    sentry::configure_scope(|scope| {
+        scope.set_tag("device.name", detected_name);
+        scope.set_tag("device.ver", detected_ver);
+        scope.set_tag("device.config", config_name);
+    })
+}
+
+pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
+    state.midi_in_cancel.take().map(|cancel| cancel.send(()));
+    state.midi_out_cancel.take().map(|cancel| cancel.send(()));
+
+    /* TODO: this should one day be 'async fn midi_in_out_stop' so that we
+             can wait on the MIDI in/out threads stopping, but for now,
+             State is not Send, so we can't really schedule this in a
+             separate thread. For now we assume that MIDI in/out threads stop
+             "very soon after cancel is signalled", which should be good
+             enough around the settings dialog user interaction...
+    */
+
+    let handles = state.midi_in_handle.take().into_iter()
+        .chain(state.midi_out_handle.take().into_iter());
+    join_all(handles)
+}
+
+pub fn midi_in_out_start(state: &mut State,
+                         midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
+                         midi_channel: u8, quirks: MidiQuirks) {
+    if midi_in.is_none() || midi_out.is_none() {
+        warn!("Not starting MIDI because in/out is None");
+        state.midi_in_name = None;
+        state.midi_in_cancel = None;
+        state.midi_out_name = None;
+        state.midi_out_cancel = None;
+        state.midi_channel_num = 0;
+        state.ui_event_tx.send(UIEvent::NewMidiConnection)
+            .map_err(|err| warn!("Cannot send UIEvent: {}", err))
+            .unwrap();
+        sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
+        return;
+    }
+
+    let mut midi_in = midi_in.unwrap();
+    let mut midi_out = midi_out.unwrap();
+
+    let (in_cancel_tx, mut in_cancel_rx) = oneshot::channel::<()>();
+    let (out_cancel_tx, mut out_cancel_rx) = oneshot::channel::<()>();
+
+    state.midi_in_name = Some(midi_in.name.clone());
+    state.midi_in_cancel = Some(in_cancel_tx);
+
+    state.midi_out_name = Some(midi_out.name.clone());
+    state.midi_out_cancel = Some(out_cancel_tx);
+
+    state.midi_channel_num = midi_channel;
+    state.ui_event_tx.send(UIEvent::NewMidiConnection)
+        .map_err(|err| warn!("Cannot send UIEvent: {}", err))
+        .unwrap();
+    sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
+
+    // midi in
+    let midi_in_handle =
+        tokio::spawn({
+            let midi_in_tx = state.midi_in_tx.clone();
+            let ui_event_tx = state.ui_event_tx.clone();
+            let mut in_cancel_rx = in_cancel_rx.fuse();
+
+            async move {
+                let id = thread::current().id();
+                let mut close_quiet_duration: Option<Duration> = None;
+
+                info!("MIDI in thread {:?} start", id);
+                loop {
+                    tokio::select! {
+                        msg  = midi_in.recv() => {
+                            match msg {
+                                Some(bytes) => {
+                                    match MidiMessage::from_bytes(bytes) {
+                                        Ok(msg) => { midi_in_tx.send(msg); () },
+                                        Err(err) => error!("Error deserializing MIDI message: {}", err)
+                                    }
+                                    ui_event_tx.send(UIEvent::MidiRx);
+                                }
+                                _ => {}
+                            }
+                        }
+                        _ = &mut in_cancel_rx => {
+                            if quirks.contains(MidiQuirks::MIDI_CLOSE_QUIET_TIMEOUT) {
+                                debug!("close_quiet_duration set!");
+                                close_quiet_duration = Some(Duration::from_millis(CLOSE_QUIET_DURATION_MS));
+                            } else {
+                                break;
+                            }
+                        }
+                        _ = async {
+                            if let Some(d) = close_quiet_duration {
+                                sleep(d).await
+                            } else {
+                                std::future::pending::<()>().await
+                            }
+                        } => {
+                            break;
+                        }
+                    }
+                }
+                midi_in.close();
+                info!("MIDI in thread {:?} finish", id);
+            }
+        });
+
+    // midi out
+    let midi_out_handle =
+        tokio::spawn({
+            let mut midi_out_rx = state.midi_out_tx.subscribe();
+            let ui_event_tx = state.ui_event_tx.clone();
+            let mut out_cancel_rx = out_cancel_rx.fuse();
+
+            async move {
+                let id = thread::current().id();
+                info!("MIDI out thread {:?} start", id);
+                loop {
+                    tokio::select! {
+                        msg = midi_out_rx.recv() => {
+                            match msg {
+                                Ok(msg) => {
+                                    let bytes = msg.to_bytes();
+                                    midi_out.send(&bytes)
+                                    .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
+                                    ui_event_tx.send(UIEvent::MidiTx);
+                                }
+                                Err(err) => {
+                                    error!("MIDI OUT thread rx error: {:?}", err);
+                                }
+                            }
+                        }
+                        _ = &mut out_cancel_rx => {
+                            midi_out.close();
+                            break;
+                        }
+                    }
+                }
+                midi_out.close();
+                info!("MIDI out thread {:?} finish", id);
+            }
+        });
+
+    state.midi_in_handle = Some(midi_in_handle);
+    state.midi_out_handle = Some(midi_out_handle);
+}
 
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
                        midi_channel: u8, config: Option<&'static Config>) -> bool {
-    state.midi_in_cancel.take().map(|cancel| cancel.send(()));
-    state.midi_out_cancel.take().map(|cancel| cancel.send(()));
+    midi_in_out_stop(state);
 
     let config_changed = match (config, *state.config.read().unwrap()) {
         (Some(a), b) => { *a != *b }
@@ -128,83 +292,8 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.ui_event_tx.send(UIEvent::NewEditBuffer);
     }
 
-    if midi_in.is_none() || midi_out.is_none() {
-        warn!("Not starting MIDI because in/out is None");
-        state.midi_in_name = None;
-        state.midi_in_cancel = None;
-        state.midi_out_name = None;
-        state.midi_out_cancel = None;
-        state.ui_event_tx.send(UIEvent::NewMidiConnection);
-        state.midi_channel_num = 0;
-        return config_changed;
-    }
-
-    let mut midi_in = midi_in.unwrap();
-    let mut midi_out = midi_out.unwrap();
-
-    let (in_cancel_tx, mut in_cancel_rx) = tokio::sync::oneshot::channel::<()>();
-    let (out_cancel_tx, mut out_cancel_rx) = tokio::sync::oneshot::channel::<()>();
-
-    state.midi_in_name = Some(midi_in.name.clone());
-    state.midi_in_cancel = Some(in_cancel_tx);
-
-    state.midi_out_name = Some(midi_out.name.clone());
-    state.midi_out_cancel = Some(out_cancel_tx);
-
-    state.midi_channel_num = midi_channel;
-    state.ui_event_tx.send(UIEvent::NewMidiConnection);
-
-    // midi in
-    {
-        let midi_in_tx = state.midi_in_tx.clone();
-        let ui_event_tx = state.ui_event_tx.clone();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(bytes) = midi_in.recv() => {
-                        match MidiMessage::from_bytes(bytes) {
-                            Ok(msg) => { midi_in_tx.send(msg); () },
-                            Err(err) => error!("Error deserializing MIDI message: {}", err)
-                        }
-                        ui_event_tx.send(UIEvent::MidiRx);
-                    }
-                    _ = &mut in_cancel_rx => {
-                        return;
-                    }
-                }
-            }
-        });
-    }
-
-    // midi out
-    {
-        let mut midi_out_rx = state.midi_out_tx.subscribe();
-        let ui_event_tx = state.ui_event_tx.clone();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    msg = midi_out_rx.recv() => {
-                        match msg {
-                            Ok(msg) => {
-                                let bytes = msg.to_bytes();
-                                midi_out.send(&bytes)
-                                .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
-                                ui_event_tx.send(UIEvent::MidiTx);
-                            }
-                            Err(err) => {
-                                error!("MIDI OUT thread rx error: {:?}", err);
-                            }
-                        }
-                    }
-                    _ = &mut out_cancel_rx => {
-                        return;
-                    }
-                }
-            }
-        });
-    }
+    let quirks = state.config.read().unwrap().midi_quirks;
+    midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks);
 
     // we assume that something changed -- either the config or the midi settings
     // so signal a new device ping!
@@ -499,8 +588,10 @@ async fn main() -> Result<()> {
         Arc::new(Mutex::new(State {
             midi_in_name: None,
             midi_in_cancel: None,
+            midi_in_handle: None,
             midi_out_name: None,
             midi_out_cancel: None,
+            midi_out_handle: None,
             midi_in_tx,
             midi_out_tx,
             ui_event_tx: ui_event_tx.clone(),
@@ -565,10 +656,13 @@ async fn main() -> Result<()> {
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
-    window.connect_delete_event(move |_, _| {
-        info!("Quitting");
-        ui_event_tx.send(UIEvent::Quit);
-        Inhibit(true)
+    window.connect_delete_event({
+        let ui_event_tx = ui_event_tx.clone();
+        move |_, _| {
+            info!("Shutting down...");
+            ui_event_tx.send(UIEvent::ShutDown);
+            Inhibit(true)
+        }
     });
     let transfer_icon_up: gtk::Label = ui.object("transfer_icon_up").unwrap();
     let transfer_icon_down: gtk::Label = ui.object("transfer_icon_down").unwrap();
@@ -1043,6 +1137,7 @@ async fn main() -> Result<()> {
                             .map(|c| c.name.clone())
                             .unwrap_or_else(|| format!("Unknown ({:04x}:{:04x})", family, member));
 
+                        sentry_set_device_tags(&name, &ver, &config.name);
                         detected.store(Some(Arc::new(DetectedDevVersion {
                             name,
                             ver
@@ -1153,6 +1248,7 @@ async fn main() -> Result<()> {
         let edit_buffer = edit_buffer.clone();
         let ui_controller = ui_controller.clone();
         let window = window.clone();
+        let state = state.clone();
 
         let mut objects = ObjectList::default();
         let mut callbacks = Callbacks::new();
@@ -1165,6 +1261,8 @@ async fn main() -> Result<()> {
 
         // This is a cache of the current page number of the whole of the glib idle callback
         let mut current_page = 0usize;
+
+        let mut shutting_down = false;
 
         glib::idle_add_local(move || {
             if rx.is_none() {
@@ -1263,6 +1361,7 @@ async fn main() -> Result<()> {
                                     .as_ref()
                                     .map(|d| (d.name.clone(), d.ver.clone()))
                                     .unwrap_or_else(|| (String::new(), String::new()));
+
                                 match (&detected_name, config_name) {
                                     (a, b) if a.is_empty() => {
                                         b.clone()
@@ -1386,7 +1485,25 @@ async fn main() -> Result<()> {
                                     }
                                 });
                         },
+                        UIEvent::ShutDown if !shutting_down => {
+                            header_bar.set_subtitle(Some("Shutting down..."));
+                            shutting_down = true;
+
+                            let mut state = state.lock().unwrap();
+                            let handle = midi_in_out_stop(&mut state);
+                            let ui_event_tx = ui_event_tx.clone();
+                            tokio::spawn(async move {
+                                handle.await;
+                                ui_event_tx.send(UIEvent::Quit);
+                            });
+                        }
+                        UIEvent::ShutDown => {
+                            // for the impatient ones that press the "close" button
+                            // again while shut down is in progress...
+                            header_bar.set_subtitle(Some("SHUTTING DOWN. PLEASE WAIT..."));
+                        }
                         UIEvent::Quit => {
+                            info!("Quitting...");
                             // application is being closed, perform clean-up
                             // that needs to happen inside the GTK thread...
 
@@ -1433,6 +1550,7 @@ async fn main() -> Result<()> {
 
     debug!("starting gtk main loop");
     gtk::main();
+    debug!("end of gtk main loop");
 
     Ok(())
 }

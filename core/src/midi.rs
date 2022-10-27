@@ -8,7 +8,7 @@ impl Channel {
     pub const fn all() -> u8 { 0x7f }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MidiMessage {
     UniversalDeviceInquiry { channel: u8 },
     UniversalDeviceInquiryResponse { channel: u8, family: u16, member: u16, ver: String },
@@ -131,96 +131,140 @@ impl MidiMessage {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
         let mut len = bytes.len();
         if len < 1 {
-            return Err(anyhow!("Zero-size MIDI message"))
+            bail!("Zero-size MIDI message")
         }
 
-        if bytes[0] == 0xf0 {
+        return match bytes.as_slice() {
             // sysex message
-            let (canceled, len) = Self::sysex_length(&bytes);
-            if canceled {
-                return Err(anyhow!("Sysex message ({} bytes) cancelled", len));
-            }
-
-            if bytes[1] == 0x7e && len == 17 {
-                // universal device inquiry response
-
-                let id = array_ref!(bytes, 5, 3);
-                if id != &[0x00, 0x01, 0x0c] {
-                    bail!("Not a Line6 manufacturer id: {:x?}", id);
+            [0xf0, ..] => {
+                let (canceled, len) = Self::sysex_length(&bytes);
+                if canceled {
+                    bail!("Sysex message ({} bytes) cancelled", len);
                 }
+                let bytes = &bytes[1 .. len - 1];
 
-                return Ok(MidiMessage::UniversalDeviceInquiryResponse {
-                    channel: bytes[2],
-                    family: u16::from_le_bytes(array_ref!(bytes, 8, 2).clone()),
-                    member: u16::from_le_bytes(array_ref!(bytes, 10, 2).clone()),
-                    ver: String::from_utf8(array_ref!(bytes, 12, 4).to_vec())
-                        .context("Error converting bytes to UTF-8 string")?
-                })
-            }
-            if bytes[1] == 0x7e && len == 6 && array_ref!(bytes, 3, 2) == &[0x06, 0x01] {
-                // universal device inquiry
-                return Ok(MidiMessage::UniversalDeviceInquiry {
-                    channel: bytes[2],
-                })
-            }
+                match bytes {
+                    // universal device inquiry
+                    [0x7e, c, 0x06, 0x01] => {
+                        Ok(MidiMessage::UniversalDeviceInquiry { channel: *c })
+                    }
+                    // line6-specific universal device inquiry response
+                    [0x7e, c, 0x06, 0x02, 0x00, 0x01, 0x0c, payload @ ..] if payload.len() == 8 => {
+                        Ok(MidiMessage::UniversalDeviceInquiryResponse {
+                            channel: *c,
+                            family: u16::from_le_bytes(array_ref!(payload, 0, 2).clone()),
+                            member: u16::from_le_bytes(array_ref!(payload, 2, 2).clone()),
+                            ver: String::from_utf8(array_ref!(payload, 4, 4).to_vec())
+                                .context("Error converting bytes to UTF-8 string")?
+                        })
+                    }
+                    // line6-specific sysex message
+                    [0x00, 0x01, 0x0c, payload @ ..] => {
+                        match payload {
+                            [0x01, 0x00, 0x00, p] => Ok(MidiMessage::ProgramPatchDumpRequest {
+                                patch: *p
+                            }),
+                            [0x01, 0x00, 0x01] => Ok(MidiMessage::ProgramEditBufferDumpRequest {}),
+                            [0x01, 0x00, 0x02] => Ok(MidiMessage::AllProgramsDumpRequest {}),
+                            [0x01, 0x01, 0x00, p, v, data @ ..] if data.len() >= 2 =>
+                                Ok(MidiMessage::ProgramPatchDump {
+                                    patch: *p,
+                                    ver: *v,
+                                    data: nibbles_to_u8_vec(&data)
+                                }),
+                            [0x01, 0x01, 0x01, v, data @ ..] if data.len() >= 2 =>
+                                Ok(MidiMessage::ProgramEditBufferDump {
+                                    ver: *v,
+                                    data: nibbles_to_u8_vec(&data)
+                                }),
+                            [0x01, 0x01, 0x02, v, data @ ..] if data.len() >= 2 =>
+                                Ok(MidiMessage::AllProgramsDump {
+                                    ver: *v,
+                                    data: nibbles_to_u8_vec(&data)
+                                }),
+                            [0x03, 0x75] => Ok(MidiMessage::XtEditBufferDumpRequest),
+                            [0x03, 0x74, i, data @ ..] =>
+                                Ok(MidiMessage::XtEditBufferDump {
+                                    id: *i,
+                                    data: data.to_vec()
+                                }),
+                            [0x03, 0x73, p1, p2, 0x00, 0x00] =>
+                                Ok(MidiMessage::XtPatchDumpRequest {
+                                    patch: u16_from_2_u7(*p1, *p2)
+                                }),
+                            [0x03, 0x72] => Ok(MidiMessage::XtPatchDumpEnd),
+                            [0x03, 0x71, i, p1, p2, data @ ..] =>
+                                Ok(MidiMessage::XtPatchDump {
+                                    id: *i,
+                                    patch: u16_from_2_u7(*p1, *p2),
+                                    data: data.to_vec()
+                                }),
 
-            let id = array_ref!(bytes, 1, 3);
-            if id == &[0x00, 0x01, 0x0c] {
-                // program dump response
-                match array_ref!(bytes, 4, 3) {
-                    &[0x01, 0x00, 0x00] => return Ok(MidiMessage::ProgramPatchDumpRequest {
-                        patch: bytes[7]
-                    }),
-                    &[0x01, 0x00, 0x01] => return Ok(MidiMessage::ProgramEditBufferDumpRequest {}),
-                    &[0x01, 0x00, 0x02] => return Ok(MidiMessage::AllProgramsDumpRequest {}),
-                    &[0x01, 0x01, 0x00] => return Ok(MidiMessage::ProgramPatchDump {
-                        patch: bytes[7],
-                        ver: bytes[8],
-                        data: nibbles_to_u8_vec(&bytes[9..len - 1])
-                    }),
-                    &[0x01, 0x01, 0x01] => return Ok(MidiMessage::ProgramEditBufferDump {
-                        ver: bytes[7],
-                        data: nibbles_to_u8_vec(&bytes[8..len - 1])
-                    }),
-                    &[0x01, 0x01, 0x02] => return Ok(MidiMessage::AllProgramsDump {
-                        ver: bytes[7],
-                        data: nibbles_to_u8_vec(&bytes[8..len - 1])
-                    }),
-                    &[0x03, 0x0e, 0x00] => return Ok(MidiMessage::XtInstalledPacksRequest),
-                    _ => {}
+                            _ => bail!("Unknown sysex message")
+                        }
+                    },
+                    _ => bail!("Unknown sysex message")
                 }
-                match array_ref!(bytes, 4, 2) {
-                    &[0x03, 0x75] => return Ok(MidiMessage::XtEditBufferDumpRequest),
-                    &[0x03, 0x74] => return Ok(MidiMessage::XtEditBufferDump {
-                        id: bytes[6],
-                        data: bytes[7..len-1].to_vec()
-                    }),
-                    &[0x03, 0x73] => return Ok(MidiMessage::XtPatchDumpRequest {
-                        patch: u16_from_2_u7(bytes[6], bytes[7])
-                    }),
-                    &[0x03, 0x72] => return Ok(MidiMessage::XtPatchDumpEnd),
-                    &[0x03, 0x71] => return Ok(MidiMessage::XtPatchDump {
-                        id: bytes[6],
-                        patch: u16_from_2_u7(bytes[7], bytes[8]),
-                        data: bytes[9..len-1].to_vec()
-                    }),
-                    _ => {}
-                }
-
-                return Err(anyhow!("Unknown program dump message"))
             }
-
-            return Err(anyhow!("Failed to parse SysEx message!"))
-        }
-        if (bytes[0] & 0xf0) == 0xb0 {
             // control change
-            return Ok(MidiMessage::ControlChange { channel: bytes[0] & 0x0f, control: bytes[1], value: bytes[2] })
-        }
-        if (bytes[0] & 0xf0) == 0xc0 {
+            [b0, b1, b2] if b0 & 0xf0 == 0xb0 => {
+                Ok(MidiMessage::ControlChange { channel: *b0 & 0x0f, control: *b1, value: *b2 })
+            }
             // program change
-            return Ok(MidiMessage::ProgramChange { channel: bytes[0] & 0x0f, program: bytes[1] })
-        }
-
-        Err(anyhow!("Failed to parse MIDI message"))
+            [b0, b1] if b0 & 0xf0 == 0xc0 => {
+                Ok(MidiMessage::ProgramChange { channel: *b0 & 0x0f, program: *b1 })
+            }
+            _ => bail!("Unknown MIDI message")
+        };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::midi::MidiMessage;
+
+    #[test]
+    fn message_parsing_should_not_crash() {
+        let messages: Vec<MidiMessage> = vec![
+            MidiMessage::UniversalDeviceInquiry { channel: 1 },
+            MidiMessage::UniversalDeviceInquiryResponse { channel: 1, family: 1, member: 1, ver: "0304".into() },
+            MidiMessage::AllProgramsDumpRequest,
+            MidiMessage::AllProgramsDump { ver: 0, data: vec![1] },
+            MidiMessage::ProgramPatchDumpRequest { patch: 7 },
+            MidiMessage::ProgramPatchDump { patch: 7, ver: 0, data: vec![1] },
+            MidiMessage::ProgramEditBufferDumpRequest,
+            MidiMessage::ProgramEditBufferDump { ver: 0, data: vec![1] },
+            MidiMessage::ControlChange { channel: 2, control: 64, value: 127 },
+            MidiMessage::ProgramChange { channel: 3, program: 32 }
+        ];
+
+        for msg in messages.iter() {
+            let bytes = msg.to_bytes();
+            println!("{:?}", msg);
+            println!("{:x?} len={}", bytes, bytes.len());
+
+            let is_sysex = bytes[0] == 0xf0;
+            // we add an extra terminator character to test malformed sysex parsing,
+            // so the run-to length in case of sysex is shorter
+            let run_to_len = if is_sysex { bytes.len() - 1 } else { bytes.len() };
+            for i in 1 ..= run_to_len {
+                let mut part = bytes[0 .. i].to_vec();
+
+                // terminate a sysex message
+                if is_sysex { part.push(0xf7) }
+                
+                let result = MidiMessage::from_bytes(part);
+                print!("{:?} ", result);
+                let result = result.ok();
+                if i < run_to_len {
+                    println!("neq?");
+                    assert!(result.is_none());
+                } else {
+                    println!("eq?");
+                    assert_eq!(result.as_ref(), Some(msg));
+                }
+            }
+        }
+    }
+}
+

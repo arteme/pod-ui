@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
+use anyhow::anyhow;
 use pod_core::midi_io::*;
-use crate::{set_midi_in_out, State};
 use pod_gtk::prelude::*;
 use gtk::{IconSize, ResponseType};
+use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
 use crate::util::ManualPoll;
 
 use log::*;
@@ -19,7 +20,9 @@ struct SettingsDialog {
     autodetect_button: gtk::Button,
     test_button: gtk::Button,
     message_label: gtk::Label,
-    message_image: gtk::Image
+    message_image: gtk::Image,
+
+    spinner: Option<gtk::Spinner>
 }
 
 impl SettingsDialog {
@@ -33,7 +36,8 @@ impl SettingsDialog {
             autodetect_button: ui.object("settings_autodetect_button").unwrap(),
             test_button: ui.object("settings_test_button").unwrap(),
             message_label: ui.object("settings_message_label").unwrap(),
-            message_image: ui.object("settings_message_image").unwrap()
+            message_image: ui.object("settings_message_image").unwrap(),
+            spinner: None
         }
     }
 
@@ -48,13 +52,35 @@ impl SettingsDialog {
     }
 
     fn set_message(&self, icon: &str, message: &str) {
-        self.message_image.set_from_icon_name(Some(icon), IconSize::Dialog);
+        let icon = if icon.is_empty() { None } else { Some(icon) };
+        self.message_image.set_from_icon_name(icon, IconSize::Dialog);
         self.message_label.set_label(message);
     }
 
     fn clear_message(&self) {
-        self.message_image.set_from_icon_name(None, IconSize::Dialog);
-        self.message_label.set_label(&"");
+        self.set_message("", "");
+    }
+
+    fn work_start(&mut self, button: Option<&gtk::Button>) {
+        if let Some(button) = button {
+            let spinner = gtk::Spinner::new();
+            (*button).set_image(Some(&spinner));
+            spinner.start();
+
+            self.spinner = Some(spinner);
+        }
+
+        self.clear_message();
+        self.set_interactive(false);
+    }
+
+    fn work_finish(&mut self, icon: &str, message: &str) {
+        self.set_message(icon, message);
+        self.set_interactive(true);
+
+        if let Some(spinner) = self.spinner.take() {
+            spinner.stop();
+        }
     }
 }
 
@@ -116,7 +142,7 @@ fn populate_midi_combos(settings: &SettingsDialog,
     };
 }
 
-fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
+fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
     settings.model_combo.remove_all();
 
     let mut names = configs().iter().map(|c| &c.name).collect::<Vec<_>>();
@@ -126,7 +152,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
     }
 
     let selected =
-        selected.and_then(|selected| {
+        selected.as_ref().and_then(|selected| {
             names.iter().enumerate()
                 .find(|(_, &n)| *n == *selected)
                 .map(|(i, _)| i as u32)
@@ -135,40 +161,32 @@ fn populate_model_combo(settings: &SettingsDialog, selected: Option<&String>) {
 }
 
 fn wire_autodetect_button(settings: &SettingsDialog) {
-    let settings = settings.clone();
+    let mut settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
         let mut autodetect = tokio::spawn(pod_core::midi_io::autodetect());
 
-        let spinner = gtk::Spinner::new();
-        (*button).set_image(Some(&spinner));
-        spinner.start();
+        let mut settings = settings.clone();
+        settings.work_start(Some(button));
 
-        settings.set_interactive(false);
-
-        let settings = settings.clone();
         glib::idle_add_local(move || {
             let cont = match autodetect.poll() {
                 None => { true }
                 Some(Ok((in_, out_, channel, config))) => {
                     let msg = format!("Autodetect successful!");
-                    settings.set_message("dialog-ok", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-ok", &msg);
 
                     // update in/out port selection, channel, device
                     populate_midi_combos(&settings,
                                          &Some(in_.name.clone()), &Some(out_.name.clone()));
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
-                    populate_model_combo(&settings, Some(&config.name));
+                    populate_model_combo(&settings, &Some(config.name.clone()));
                     false
                 }
                 Some(Err(e)) => {
                     error!("Settings MIDI autodetect failed: {}", e);
                     let msg = format!("Autodetect failed:\n{}", e);
-                    settings.set_message("dialog-error", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-error", &msg);
 
                     false
                 }
@@ -206,22 +224,15 @@ fn wire_test_button(settings: &SettingsDialog) {
             pod_core::midi_io::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
         });
 
-        let spinner = gtk::Spinner::new();
-        (*button).set_image(Some(&spinner));
-        spinner.start();
+        let mut settings = settings.clone();
+        settings.work_start(Some(button));
 
-        settings.clear_message();
-        settings.set_interactive(false);
-
-        let settings = settings.clone();
         glib::idle_add_local(move || {
             let cont = match test.poll() {
                 None => { true }
                 Some(Ok((in_, out_, _))) => {
                     let msg = format!("Test successful!");
-                    settings.set_message("dialog-ok", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-ok", &msg);
 
                     // update in/out port selection
                     // TODO: do we need to update the combo here at all?
@@ -232,9 +243,7 @@ fn wire_test_button(settings: &SettingsDialog) {
                 Some(Err(e)) => {
                     error!("Settings MIDI test failed: {}", e);
                     let msg = format!("Test failed:\n{}", e);
-                    settings.set_message("dialog-error", &msg);
-                    settings.set_interactive(true);
-                    spinner.stop();
+                    settings.work_finish("dialog-error", &msg);
 
                     false
                 }
@@ -257,17 +266,54 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         settings.clear_message();
 
         // update in/out port selection, channel, model
-        {
-            let state = state.lock().unwrap();
+        let midi_io_stop_handle = {
+            let mut state = state.lock().unwrap();
             populate_midi_combos(&settings,
                                  &state.midi_in_name, &state.midi_out_name);
 
             let index = midi_channel_to_combo_index(state.midi_channel_num);
             settings.midi_channel_combo.set_active(index);
 
-            let config = state.config.read().unwrap();
-            populate_model_combo(&settings,
-                                 Some(&config.name));
+            let config_name = state.config.read().unwrap().name.clone();
+            populate_model_combo(&settings, &Some(config_name));
+
+            // stop the midi thread during test
+            midi_in_out_stop(&mut state)
+        };
+
+        settings.set_message("", "Waiting for MIDI...");
+        settings.set_interactive(false);
+
+        let mut midi_io_stop_wait = tokio::spawn(async {
+            let results = midi_io_stop_handle.await;
+            let errors = results.into_iter()
+                .filter(|r| r.is_err())
+                .map(|r| r.unwrap_err())
+                .collect::<Vec<_>>();
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(anyhow!("Failed to stop {} MIDI threads", errors.len()))
+            }
+        });
+
+        {
+            let mut settings = settings.clone();
+            glib::idle_add_local(move || {
+                let cont = match midi_io_stop_wait.poll() {
+                    None => { true }
+                    Some(Ok(_)) => {
+                        settings.work_finish("", "");
+                        false
+                    }
+                    Some(Err(e)) => {
+                        let msg = format!("Failed to stop MIDI threads:\n{}", e);
+                        settings.work_finish("dialog-error", &msg);
+                        false
+                    }
+                };
+                Continue(cont)
+            });
         }
 
         match settings.dialog.run() {
@@ -303,7 +349,27 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                 let midi_channel = midi_channel_from_combo_index(midi_channel);
                 set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, config);
             }
-            _ => {}
+            _ => {
+                let mut state = state.lock().unwrap();
+                let names = state.midi_in_name.as_ref().and_then(|in_name| {
+                    state.midi_out_name.as_ref().map(|out_name| (in_name.clone(), out_name.clone()))
+                });
+
+                // restart midi thread after test
+                if let Some((in_name, out_name)) = names {
+                    let midi_in = MidiIn::new_for_name(in_name.as_str())
+                        .map_err(|err| {
+                        error!("Unable to restart MIDI input thread for {:?}: {}", in_name, err)
+                    }).ok();
+                    let midi_out = MidiOut::new_for_name(out_name.as_str())
+                        .map_err(|err| {
+                            error!("Unable to restart MIDI output thread for {:?}: {}", out_name, err)
+                        }).ok();
+                    let midi_channel_num = state.midi_channel_num;
+                    let quirks = state.config.read().unwrap().midi_quirks;
+                    midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num, quirks);
+                }
+            }
         }
 
         settings.dialog.hide();

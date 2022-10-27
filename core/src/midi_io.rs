@@ -57,12 +57,20 @@ impl MidiIn {
     {
         self.rx.recv().await
     }
+
+    pub fn close(&mut self) {
+        self.conn.take().map(|conn| {
+            debug!("closing in");
+            conn.close();
+            debug!("closed in");
+        });
+        self.rx.close();
+    }
 }
 
 impl Drop for MidiIn {
     fn drop(&mut self) {
-        self.conn.take().map(|conn| conn.close());
-        self.rx.close();
+        self.close();
     }
 }
 
@@ -101,11 +109,19 @@ impl MidiOut {
             Err(anyhow!("Send error: connection already closed"))
         }
     }
+
+    pub fn close(&mut self) {
+        self.conn.take().map(|conn| {
+            debug!("closing out");
+            conn.close();
+            debug!("closed out");
+        });
+    }
 }
 
 impl Drop for MidiOut {
     fn drop(&mut self) {
-        self.conn.take().map(|conn| conn.close());
+        self.close()
     }
 }
 
