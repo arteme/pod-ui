@@ -22,7 +22,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use std::thread;
 use pod_core::store::{Event, Signal, Store};
 use core::result::Result::Ok;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -85,7 +85,8 @@ pub struct State {
     pub interface: InitializedInterface,
     pub edit_buffer: Arc<ArcSwap<Mutex<EditBuffer>>>,
     pub dump: Arc<ArcSwap<Mutex<ProgramsDump>>>,
-    pub detected: Arc<ArcSwapOption<DetectedDevVersion>>
+    pub midi_message_queue: Arc<Mutex<VecDeque<MidiMessage>>>,
+    pub detected: Arc<ArcSwapOption<DetectedDevVersion>>,
 }
 
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
@@ -469,8 +470,30 @@ fn new_device_ping(state: &State) {
     // Request device id from the POD device
     state.midi_out_tx
         .send(MidiMessage::UniversalDeviceInquiry { channel: state.midi_channel_num }).unwrap();
-    // Request all programs dump from the POD device
-    state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
+
+
+    // TODO: This will go to module-specific `new_device_ping`
+    let config = state.config.read().unwrap();
+    match config.family {
+        0x0003 => {
+            // PODxt family
+
+            let mut midi_message_queue = state.midi_message_queue.lock().unwrap();
+            for i in 0 .. config.program_num {
+                midi_message_queue.push_back(MidiMessage::XtPatchDumpRequest { patch: i as u16 });
+            }
+
+            state.midi_out_tx.send(MidiMessage::XtInstalledPacksRequest).unwrap();
+            state.midi_out_tx.send(midi_message_queue.get(0).unwrap().clone()).unwrap();
+        }
+        _ => {
+            // Request all programs dump from the POD device
+            state.midi_out_tx.send(MidiMessage::AllProgramsDumpRequest).unwrap();
+
+        }
+
+    }
+
 }
 
 fn update_ui_from_state(state: &State, ui_controller: &mut Controller) {
@@ -571,6 +594,7 @@ async fn main() -> Result<()> {
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
+    let midi_message_queue = Arc::new(Mutex::new(VecDeque::new()));
     let state = {
         // From the start, chose the first registered config (POD 2.0)
         // and initialize it's interface. Later auto-detection may override
@@ -600,6 +624,7 @@ async fn main() -> Result<()> {
             interface,
             edit_buffer: Arc::new(ArcSwap::from(edit_buffer)),
             dump: Arc::new(ArcSwap::from(dump)),
+            midi_message_queue: midi_message_queue.clone(),
             detected: Arc::new(ArcSwapOption::empty())
         }))
     };
@@ -784,6 +809,10 @@ async fn main() -> Result<()> {
                     let program_num = ui_controller.get(&"program_num").unwrap();
                     v = program_num + 1;
                 }
+                // HACK: PODxt PC numbering starts at 0
+                if config.read().unwrap().family == 0x0003 && v > 0 {
+                    v -= 1;
+                }
                 Some(vec![ MidiMessage::ProgramChange { channel, program: v as u8 } ])
             };
             let make_dump_request = |program: Program| {
@@ -884,6 +913,11 @@ async fn main() -> Result<()> {
                             let mut edit_buffer = edit_buffer.lock().unwrap();
                             let mut dump = dump.lock().unwrap();
                             let mut ui_controller = ui_controller.lock().unwrap();
+                            // HACK: PODxt PC numbering starts at 0
+                            let mut program = program;
+                            if config.family == 0x0003 {
+                                program += 1;
+                            }
                             program_change(&mut dump, &mut edit_buffer, &mut ui_controller, program, GUI)
                         }
                         _ => { false }
@@ -1004,6 +1038,11 @@ async fn main() -> Result<()> {
                         let mut edit_buffer = edit_buffer.lock().unwrap();
                         let mut dump = dump.lock().unwrap();
                         let mut ui_controller = ui_controller.lock().unwrap();
+                        // HACK: PODxt PC numbering starts at 0
+                        let mut program = program;
+                        if config.family == 0x0003 {
+                            program += 1;
+                        }
                         program_change(&mut dump, &mut edit_buffer,
                                        &mut ui_controller, program, MIDI);
                     }
@@ -1150,6 +1189,11 @@ async fn main() -> Result<()> {
                         let res = MidiMessage::XtInstalledPacks { packs: 0x0f };
                         midi_out_tx.send(res);
                     }
+                    MidiMessage::XtInstalledPacks { packs } => {
+                        let edit_buffer = edit_buffer.load();
+                        let mut edit_buffer = edit_buffer.lock().unwrap();
+                        edit_buffer.set("xt_packs", packs as u16, MIDI);
+                    }
                     MidiMessage::XtEditBufferDumpRequest => {
                         let edit_buffer = edit_buffer.load();
                         let dump = dump.load();
@@ -1176,8 +1220,31 @@ async fn main() -> Result<()> {
                                   config.program_size, data.len());
                             continue;
                         }
-                        program::load_patch_dump_ctrl(
-                            &mut edit_buffer.load().lock().unwrap(), data.as_slice(), MIDI);
+                        let midi_message_queue = midi_message_queue.lock().unwrap();
+                        match midi_message_queue.get(0) {
+                            Some(MidiMessage::XtEditBufferDumpRequest) => {
+                                // edit buffer
+                                program::load_patch_dump_ctrl(
+                                    &mut edit_buffer.load().lock().unwrap(), data.as_slice(), MIDI);
+                            }
+                            Some(MidiMessage::XtPatchDumpRequest { patch }) => {
+                                let patch = *patch;
+                                let edit_buffer = edit_buffer.load();
+                                let dump = dump.load();
+                                let mut edit_buffer = edit_buffer.lock().unwrap();
+                                let mut dump = dump.lock().unwrap();
+                                let current = ui_controller.get("program").unwrap();
+                                program::load_patch_dump(&mut dump, patch as usize, data.as_slice(), MIDI);
+                                if current > 0 && patch as u16 == (current - 1) {
+                                    // update edit buffer as well
+                                    program::load_patch_dump_ctrl(
+                                        &mut edit_buffer, data.as_slice(), MIDI);
+                                }
+                                ui_event_tx.send(UIEvent::Modified(patch as usize, false));
+                            }
+                            Some(m) => error!("Out-of-order PODxt dump, sent: {:?}", m),
+                            _ => error!("Out-of-order PODxt dump, queue empty")
+                        }
                     },
                     MidiMessage::XtPatchDumpRequest { patch } => {
                         let edit_buffer = edit_buffer.load();
@@ -1212,6 +1279,13 @@ async fn main() -> Result<()> {
                             midi_out_tx.send(m1);
                         }
                         midi_out_tx.send(MidiMessage::XtPatchDumpEnd);
+                    }
+                    MidiMessage::XtPatchDumpEnd => {
+                        let mut midi_message_queue = midi_message_queue.lock().unwrap();
+                        midi_message_queue.pop_front();
+                        if let Some(msg) = midi_message_queue.get(0) {
+                            midi_out_tx.send(msg.clone());
+                        }
                     }
                     // </EXPERIMENTAL> ---------------------------------------------------------
 

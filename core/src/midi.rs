@@ -31,6 +31,37 @@ pub enum MidiMessage {
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
 }
+
+pub struct PodXtPatch;
+impl PodXtPatch {
+    pub fn to_midi(patch: u16) -> u16 {
+        let bank = (patch >> 8) & 0xff;
+        let patch = patch & 0xff;
+        match (bank, patch) {
+            (0, 0 ..= 63) => patch,
+            (0, 64 ..= 127) => patch + 128,
+            (1, 0 ..= 63) => patch + 64,
+            (1, 64 ..= 127) => patch + 192,
+            (2, 0 ..= 63) => patch + 128,
+            (2, 64 ..= 127) => patch + 256,
+            _ => panic!("unsupported patch_to_midi value: {}", patch)
+        }
+    }
+
+    pub fn from_midi(patch: u16) -> u16 {
+        let (bank, patch) = match patch {
+            0 ..= 63 => (0, patch),
+            192 ..= 255 => (0, patch - 128),
+            64 ..= 127 => (1, patch - 64),
+            256 ..= 319 => (1, patch - 192),
+            128 ..= 191 => (2, patch - 128),
+            320 ..= 383 => (2, patch - 256),
+            _ => panic!("unsupported patch_from_midi value: {}", patch)
+        };
+        (bank << 8) | patch
+    }
+}
+
 impl MidiMessage {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
@@ -84,11 +115,13 @@ impl MidiMessage {
                 msg
             }
             MidiMessage::XtPatchDumpRequest { patch } => {
-                let (p1, p2) = u16_to_2_u7(*patch);
+                let patch = PodXtPatch::to_midi(*patch);
+                let (p1, p2) = u16_to_2_u7(patch);
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x73, p1, p2, 0x00, 0x00, 0xf7].to_vec()
             }
             MidiMessage::XtPatchDump { patch, id, data } => {
-                let (p1, p2) = u16_to_2_u7(*patch);
+                let patch = PodXtPatch::to_midi(*patch);
+                let (p1, p2) = u16_to_2_u7(patch);
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x71, *id, p1, p2];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
@@ -182,23 +215,31 @@ impl MidiMessage {
                                     ver: *v,
                                     data: nibbles_to_u8_vec(&data)
                                 }),
+                            [0x03, 0x0e, 0x00] =>
+                                Ok(MidiMessage::XtInstalledPacksRequest),
+                            [0x03, 0x0e, 0x01, p] =>
+                                Ok(MidiMessage::XtInstalledPacks { packs: *p }),
                             [0x03, 0x75] => Ok(MidiMessage::XtEditBufferDumpRequest),
                             [0x03, 0x74, i, data @ ..] =>
                                 Ok(MidiMessage::XtEditBufferDump {
                                     id: *i,
                                     data: data.to_vec()
                                 }),
-                            [0x03, 0x73, p1, p2, 0x00, 0x00] =>
-                                Ok(MidiMessage::XtPatchDumpRequest {
-                                    patch: u16_from_2_u7(*p1, *p2)
-                                }),
+                            [0x03, 0x73, p1, p2, 0x00, 0x00] => {
+                                let patch = u16_from_2_u7(*p1, *p2);
+                                let patch = PodXtPatch::from_midi(patch);
+                                Ok(MidiMessage::XtPatchDumpRequest { patch })
+                            }
                             [0x03, 0x72] => Ok(MidiMessage::XtPatchDumpEnd),
-                            [0x03, 0x71, i, p1, p2, data @ ..] =>
+                            [0x03, 0x71, i, p1, p2, data @ ..] => {
+                                let patch = u16_from_2_u7(*p1, *p2);
+                                let patch = PodXtPatch::from_midi(patch);
                                 Ok(MidiMessage::XtPatchDump {
                                     id: *i,
-                                    patch: u16_from_2_u7(*p1, *p2),
+                                    patch,
                                     data: data.to_vec()
-                                }),
+                                })
+                            }
 
                             _ => bail!("Unknown sysex message")
                         }
