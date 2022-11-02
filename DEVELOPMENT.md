@@ -82,6 +82,14 @@ the cloud, but you need to specifically enable sentry at build-time
 using `SENTRY=1` environment variable or `SENTRY_DSN=...` environment
 variable at run-time.
 
+### Submodules
+
+To package the app, first check out the resources submodule:
+
+```shell
+git submodule update --init --recursive
+```
+
 ### Windows
 
 This will produce a zip-file for windows:

@@ -57,6 +57,7 @@ ICONS=(
  emblem-important-symbolic application-menu-symbolic open-menu-symbolic
  dialog-ok dialog-error dialog-warning
 )
+EXCLUDE_PIXBUF=("*avif*" "*heif*")
 
 # not really the coreutils' realpath, but will do 
 realpath() {
@@ -100,7 +101,31 @@ mkdir -p $DIR/lib
 cp -RL $ROOT/lib/gdk-pixbuf-2.0 $DIR/lib/
 find $DIR/lib/gdk-pixbuf-2.0 -name '*.a' -delete
 
-# update cache with relative paths
-CACHE=$(find $DIR/lib/gdk-pixbuf-2.0 -name 'loaders.cache')
-sed -i.old -E "s,\".*(lib/gdk-pixbuf.*)\",\"$2\\1\"," $CACHE
-rm $CACHE.old
+# remove excluded pixbuf loaders
+args=()
+for arg in "${EXCLUDE_PIXBUF[@]}"; do
+	if [ "${#args}" -ne "0" ]; then
+		args+=(-o)
+	fi
+	args+=(-name "$arg")
+done
+find $DIR/lib/gdk-pixbuf-2.0 \( "${args[@]}" \) -delete
+
+if [ "$COLLECT_GTK_RELATIVE_PATHS" = "y" ]; then
+	# update cache with relative paths
+	CACHE=$(find $DIR/lib/gdk-pixbuf-2.0 -name 'loaders.cache')
+	sed -i.old -E "s,\".*(lib/gdk-pixbuf.*)\",\"$2\\1\"," $CACHE
+	rm $CACHE.old
+fi
+
+echo "6. immodules"
+mkdir -p $DIR/lib/gtk-3.0/3.0.0
+cp -RL $ROOT/lib/gtk-3.0/3.0.0/immodules $DIR/lib/gtk-3.0/3.0.0
+cp $ROOT/lib/gtk-3.0/3.0.0/immodules.cache $DIR/lib/gtk-3.0/3.0.0
+
+if [ "$COLLECT_GTK_RELATIVE_PATHS" = "y" ]; then
+	# update cache with relative paths
+	CACHE=$(find $DIR/lib/gtk-3.0 -name 'immodules.cache')
+	sed -i.old -E "s,\".*(lib/gtk-3.0/.*)\",\"$2\\1\"," $CACHE
+	rm $CACHE.old
+fi

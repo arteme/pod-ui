@@ -15,23 +15,24 @@ cp gui/resources/icon.png target/pod-ui.png
 
 ./build/collect-gtk.sh $DIR/usr
 
+mkdir -p $DIR/apprun-hooks
+cp ./build/linux/linuxdeploy-plugin-gtk.sh $DIR/apprun-hooks
+
 pushd target 
 
-# first pass, deploy gtk things from `linuxdeploy-plugin-gtk`
-export DEPLOY_GTK_VERSION=3
 export VERSION=$V
-$LINUXDEPLOY --appdir ../$DIR --plugin gtk \
-	--desktop-file pod-ui.desktop --icon-file pod-ui.png
 
-# fix linuxdeploy-plugin-gtk deployment
-sed -i.old 's/export GTK_THEME=.*//' ../$DIR/apprun-hooks/linuxdeploy-plugin-gtk.sh
-cat >>../$DIR/apprun-hooks/linuxdeploy-plugin-gtk.sh <<EOF
-export XDG_CONFIG_DIRS="\$APPDIR/usr/etc:\$XDG_CONFIG_DIRS"
-EOF
-rm ../$DIR/apprun-hooks/*.old
-
-# final pass, make appimage
-$LINUXDEPLOY --appdir ../$DIR --output appimage
+# make appimage
+$LINUXDEPLOY --appdir ../$DIR \
+	--library /usr/lib/libharfbuzz.so.0 \
+	--library /usr/lib/libgtk-3.so.0 \
+	--library /usr/lib/libgio-2.0.so.0 \
+	--library /usr/lib/libgobject-2.0.so.0 \
+	--library /usr/lib/libpango-1.0.so.0 \
+	--library /usr/lib/libpangocairo-1.0.so.0 \
+	--library /usr/lib/libpangoft2-1.0.so.0 \
+	--desktop-file pod-ui.desktop --icon-file pod-ui.png \
+       	--output appimage
 
 popd
 

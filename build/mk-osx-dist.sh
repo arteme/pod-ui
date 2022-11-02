@@ -34,7 +34,7 @@ cat >$C/Info.plist <<EOF
 }
 EOF
 
-$TOOLS_DIR/collect-gtk.sh $C/Resources ../Resources/
+COLLECT_GTK_RELATIVE_PATHS=1 $TOOLS_DIR/collect-gtk.sh $C/Resources ../Resources/
 # seems like we must have the Mac keys theme too, otherwise the
 # graphics do not load :(
 cp -R /usr/local/share/themes/Mac $C/Resources/share/themes/

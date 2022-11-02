@@ -15,7 +15,7 @@ rm -rf "$T/$N.zip"
 
 mkdir -p $DIR
 
-$TOOLS_DIR/collect-gtk.sh $DIR
+COLLECT_GTK_RELATIVE_PATHS=1 $TOOLS_DIR/collect-gtk.sh $DIR
 
 cp $T/$DIST/*.exe $DIR
 
