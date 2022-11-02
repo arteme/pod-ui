@@ -24,3 +24,4 @@ pub mod names;
 pub mod dump;
 pub mod edit;
 mod str_encoder;
+mod stacked_controller;
