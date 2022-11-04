@@ -1,9 +1,10 @@
 [package]
 name = "pod-gui"
-version = "0.0.0"
-authors = ["Artem Egorkine <arteme@gmail.com>"]
-edition = "2021"
 build = "build.rs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 clap = { version = "=3.2.14", features = ["derive", "wrap_help"] }
