@@ -89,7 +89,7 @@ impl Store<usize, u8, usize> for Raw {
         value_changed
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<usize>> {
-        self.store.subscribe()
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+        self.store.broadcast(tx)
     }
 }

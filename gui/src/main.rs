@@ -1,4 +1,5 @@
 mod opts;
+mod registry;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -8,83 +9,35 @@ use anyhow::*;
 use clap::{Args, Command, FromArgMatches};
 use core::result::Result::Ok;
 use std::ops::Deref;
-use futures_util::future::{err, join_all, JoinAll};
+use futures_util::future::{join_all, JoinAll};
 use futures_util::FutureExt;
 use log::*;
 use maplit::*;
 use once_cell::sync::Lazy;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, oneshot};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use pod_gtk::prelude::*;
 use pod_core::midi_io::*;
+use pod_core::context::Ctx;
 use pod_core::controller::Controller;
+use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, Origin, ProgramChangeEvent};
+use pod_core::generic::{cc_handler, pc_handler};
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
 use pod_core::store::{Event, Store};
+use pod_core::stack::ControllerStack;
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
 use crate::opts::*;
+use crate::registry::InitializedInterface;
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 
-#[derive(Clone, Debug)]
-pub enum ProgramSelect {
-    ManualMode,
-    Tuner,
-    Program(u16)
-}
 
-impl From<u16> for ProgramSelect {
-    fn from(v: u16) -> Self {
-        match v {
-            999 => ProgramSelect::Tuner,
-            998 => ProgramSelect::ManualMode,
-            v => ProgramSelect::Program(v)
-        }
-    }
-}
 
-impl Into<u16> for ProgramSelect {
-    fn into(self) -> u16 {
-        match self {
-            ProgramSelect::Tuner => 999,
-            ProgramSelect::ManualMode => 998,
-            ProgramSelect::Program(v) => v
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Program {
-    EditBuffer,
-    Current,
-    Number(usize),
-    All
-}
-
-#[derive(Clone, Debug)]
-pub enum AppEvent {
-    /// Data was sent to a MIDI out port
-    MidiTx,
-    /// Data was received from a MIDI in port
-    MidiRx,
-
-    MidiIn(Vec<u8>),
-    MidiOut(Vec<u8>),
-
-    MidiMsgIn(MidiMessage),
-    MidiMsgOut(MidiMessage),
-
-    ProgramChange(ProgramSelect),
-    Load(Program),
-    Store(Program),
-
-    Shutdown,
-    Quit,
-}
 
 pub struct State {
     pub midi_in_name: Option<String>,
@@ -98,6 +51,9 @@ pub struct State {
     pub midi_channel_num: u8,
 
     pub app_event_tx: broadcast::Sender<AppEvent>,
+
+    pub controller: Option<Arc<Mutex<Controller>>>,
+    pub interface: Option<InitializedInterface>,
 }
 
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
@@ -344,31 +300,38 @@ fn wire_ui_controls(
         .data(app_event_tx.clone())
         .on("program")
         .run(move |v, _, _, app_event_tx| {
-            app_event_tx.send(AppEvent::ProgramChange(v.into()));
+            let e = ProgramChangeEvent { program: v.into(), origin: Origin::UI };
+            app_event_tx.send(AppEvent::ProgramChange(e));
         })
         .on("load_button")
         .run(move |_,_,_,app_event_tx| {
-            app_event_tx.send(AppEvent::Load(Program::EditBuffer));
+            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
+            app_event_tx.send(AppEvent::Load(e));
         })
         .on("load_patch_button")
         .run(move |_,_,_,app_event_tx| {
-            app_event_tx.send(AppEvent::Load(Program::Current));
+            let e = BufferLoadEvent { buffer: Buffer::Current, origin: Origin::UI };
+            app_event_tx.send(AppEvent::Load(e));
         })
         .on("load_all_button")
         .run(move |_,_,_,app_event_tx| {
-            app_event_tx.send(AppEvent::Load(Program::All));
+            let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::UI };
+            app_event_tx.send(AppEvent::Load(e));
         })
         .on("store_button")
         .run(move |_,_,_,app_event_tx| {
-            app_event_tx.send(AppEvent::Store(Program::EditBuffer));
+            let e = BufferStoreEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
+            app_event_tx.send(AppEvent::Store(e));
         })
         .on("store_patch_button")
         .run(move |_,_,_,app_event_tx| {
-            app_event_tx.send(AppEvent::Store(Program::Current));
+            let e = BufferStoreEvent { buffer: Buffer::Current, origin: Origin::UI };
+            app_event_tx.send(AppEvent::Store(e));
         })
         .on("store_all_button")
         .run(move |_,_,_,app_event_tx| {
-            app_event_tx.send(AppEvent::Store(Program::All));
+            let e = BufferStoreEvent { buffer: Buffer::All, origin: Origin::UI };
+            app_event_tx.send(AppEvent::Store(e));
         });
 
     Ok(())
@@ -406,6 +369,8 @@ async fn main() -> Result<()> {
         midi_out_handle: None,
         midi_channel_num: 0,
         app_event_tx: app_event_tx.clone(),
+        controller: None,
+        interface: None,
     };
 
     // autodetect
@@ -423,6 +388,11 @@ async fn main() -> Result<()> {
     wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
                      app_event_tx.clone())?;
 
+    let (stack_tx, mut stack_rx) = broadcast::channel::<Event<String>>(MIDI_OUT_CHANNEL_CAPACITY);
+    let mut stack = ControllerStack::with_broadcast(stack_tx);
+    stack.add(ui_controller.clone());
+    let objects = ui_objects.clone();
+    let callbacks = Arc::new(ui_callbacks.clone());
 
     let title = format!("POD UI {}", &*VERSION);
 
@@ -449,32 +419,40 @@ async fn main() -> Result<()> {
     // HERE
     let (ui_tx, ui_rx) = glib::MainContext::channel::<String>(glib::PRIORITY_DEFAULT);
 
-    tokio::spawn(async move {
-        /*
-        tokio::select! {
-            msg = app_event_rx.recv() => {
-                // app event
-                msg.is
-                let msg = match msg {
-                    Ok()
-                }
+    let config =  Box::new(Config::empty());
+    let interface = state.interface.as_ref().unwrap();
+    let ctx = Ctx {
+        config: Box::leak(config),
+        controller: interface.edit_buffer.lock().unwrap().controller(),
+        edit: interface.edit_buffer.clone(),
+        dump: interface.dump.clone(),
+        ui_controller: ui_controller.clone(),
+        app_event_tx: app_event_tx.clone()
+    };
 
-                match msg {
-                    Ok(AppEvent::Shutdown) => {
-                        ui_tx.send("".into());
+
+    tokio::spawn({
+        let app_event_tx = app_event_tx.clone();
+
+        async move {
+            loop {
+                let msg = match app_event_rx.recv().await {
+                    Ok(msg) => { msg }
+                    Err(RecvError::Closed) => {
+                        info!("App event bus closed");
+                        return;
                     }
-                    _ => {}
-                }
+                    Err(RecvError::Lagged(n)) => {
+                        error!("App event bus lagged: {}", n);
+                        continue;
+                    }
+                };
 
-                ui_tx.send("hello".into());
-            }
-        }*/
-        loop {
-            if let Ok(msg) = app_event_rx.recv().await {
-                match msg {
+                match &msg {
                     // message conversion
                     AppEvent::MidiIn(bytes) => {
-                        let msg = MidiMessage::from_bytes(bytes).unwrap();
+                        // todo: do not clone
+                        let msg = MidiMessage::from_bytes(bytes.clone()).unwrap();
                         app_event_tx.send(AppEvent::MidiMsgIn(msg));
                     }
                     AppEvent::MidiMsgOut(msg) => {
@@ -482,42 +460,71 @@ async fn main() -> Result<()> {
                         app_event_tx.send(AppEvent::MidiOut(bytes));
                     }
 
+                    // control change
+                    AppEvent::ControlChange(cc) => {
+                        /*
+                        let Some(controller) = &state.controller else {
+                            warn!("CC event {:?} without a controller", cc);
+                            continue;
+                        };
+                         */
+                        cc_handler(&ctx, cc);
+                    }
+
+                    // program change
+                    AppEvent::ProgramChange(pc) => {
+                        /*
+                        let Some(interface) = &state.interface else {
+                            warn!("PC event {:?} without an interface", pc);
+                            continue;
+                        };
+                         */
+                        pc_handler(&ctx, pc);
+
+                    }
+
+
+
                     _ => {
                         error!("Unhandled app event: {:?}", msg);
                     }
                 }
-
             }
 
         }
-
     });
 
-    //let c = glib::MainContext::default();
-    //c.block_on()
 
-    let mut ui_rx = ui_controller.subscribe();
-
+    // run controller stack callbacks on the GTK thread
     glib::MainContext::default()
         .spawn_local(async move {
             loop {
-                let name = match ui_rx.recv().await {
-                    Ok(Event { key, .. }) => { key }
+                let (name, origin) = match stack_rx.recv().await {
+                    Ok(Event { key, origin, .. }) => { (key, origin) }
                     Err(_) => {
                         continue;
                     }
                 };
                 println!("got {}", name);
 
-                let vec = ui_callbacks.get_vec(&name);
+                let vec = callbacks.get_vec(&name);
                 match vec {
                     None => { warn!("No GUI callback for '{}'", &name); },
                     Some(vec) => for cb in vec {
                         cb()
                     }
                 }
-                let val = ui_controller.get(&name).unwrap();
-                animate(&ui_objects, &name, val);
+                let value = stack.get(&name).unwrap();
+                animate(&objects, &name, value);
+
+                // send app event
+                let origin = match origin {
+                    GUI => Origin::UI,
+                    MIDI => Origin::MIDI,
+                    _ => panic!("Unknown origin!")
+                };
+                let e = ControlChangeEvent { name, value, origin };
+                app_event_tx.send(AppEvent::ControlChange(e));
             }
         });
 

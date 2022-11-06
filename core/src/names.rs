@@ -41,7 +41,7 @@ impl Store<usize, String, usize> for ProgramNames {
         self.names.set_full(idx, val, origin, signal)
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<usize>> {
-        self.names.subscribe()
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+        self.names.broadcast(tx)
     }
 }

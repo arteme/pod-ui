@@ -1,4 +1,3 @@
-use tokio::sync::broadcast::Receiver;
 use crate::model::Config;
 use crate::names::ProgramNames;
 use crate::store::{Event, Store};
@@ -57,10 +56,11 @@ impl ProgramsDump {
         }
     }
 
+    /*
     pub fn subscribe_to_name_updates(&self) -> Receiver<Event<usize>> {
         self.names.subscribe()
-
     }
+     */
 
     pub fn data_mut(&mut self, page: usize) -> Option<&mut [u8]> {
         nth_chunk_mut(&mut self.data, page, self.program_size)

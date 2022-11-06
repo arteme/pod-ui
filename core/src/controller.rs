@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::broadcast;
 use log::*;
 use std::sync::{Mutex, Arc};
-use crate::store::*;
+pub use crate::store::*; // re-export useful things like StoreSetIm
 
 pub struct Controller {
     store: StoreBase<String>,
@@ -82,8 +82,8 @@ impl Store<&str, u16, String> for Controller {
         })
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<String>> {
-        self.store.subscribe()
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<String>>>) {
+        self.store.broadcast(tx)
     }
 }
 

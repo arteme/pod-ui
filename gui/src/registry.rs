@@ -70,8 +70,6 @@ pub fn init_module(config: &'static Config) -> Result<InitializedInterface> {
     drop(controller);
     drop(edit_buffer_guard);
 
-    edit_buffer.lock().unwrap().start_thread();
-
     Ok(InitializedInterface {
         edit_buffer,
         dump,

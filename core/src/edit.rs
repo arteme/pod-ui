@@ -26,6 +26,7 @@ impl EditBuffer {
         Self { controller, raw, encoder, modified: false }
     }
 
+    /*
     pub fn start_thread(&self) -> JoinHandle<()> {
         let controller = self.controller.clone();
         let raw = self.raw.clone();
@@ -51,6 +52,8 @@ impl EditBuffer {
             }
         })
     }
+
+     */
 
     pub fn controller(&self) -> Arc<Mutex<Controller>> {
         self.controller.clone()
@@ -195,7 +198,7 @@ impl Store<&str, u16, String> for EditBuffer {
         self.controller.set_full(name, value, origin, signal)
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<String>> {
-        self.controller.subscribe()
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<String>>>) {
+        self.controller.broadcast(tx)
     }
 }
