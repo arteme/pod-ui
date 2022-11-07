@@ -1,14 +1,19 @@
 mod opts;
 mod registry;
+mod settings;
+mod util;
+mod panic;
+mod widgets;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use anyhow::*;
 use clap::{Args, Command, FromArgMatches};
 use core::result::Result::Ok;
 use std::ops::Deref;
+use std::rc::Rc;
 use futures_util::future::{join_all, JoinAll};
 use futures_util::FutureExt;
 use log::*;
@@ -27,11 +32,14 @@ use pod_core::generic::{cc_handler, pc_handler};
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
 use pod_core::store::{Event, Store};
-use pod_core::stack::ControllerStack;
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
+use pod_gtk::prelude::gtk::gdk::keys::constants::s;
 use crate::opts::*;
-use crate::registry::{init_module, InitializedInterface, register_module};
+use crate::panic::*;
+use crate::registry::*;
+use crate::settings::*;
+use crate::widgets::*;
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const CLOSE_QUIET_DURATION_MS: u64 = 1000;
@@ -40,6 +48,9 @@ const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 #[derive(Clone)]
 pub enum UIEvent {
     NewEditBuffer(Option<Ctx>),
+    Panic,
+    Shutdown,
+    Quit
 }
 
 pub struct State {
@@ -254,8 +265,9 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
                        midi_channel: u8, config: Option<&'static Config>) -> bool {
     midi_in_out_stop(state);
 
-    let config_changed = match (config, state.config.unwrap()) {
-        (Some(a), b) => { *a != *b }
+    let config_changed = match (config, state.config) {
+        (Some(a), Some(b)) => { *a != *b }
+        (Some(_), None) => { true }
         _ => { false }
     };
     if config_changed {
@@ -283,8 +295,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     // so signal a new device ping!
     //state.ui_event_tx.send(UIEvent::NewDevice);
 
-    //config_changed
-    false
+    config_changed
 }
 
 fn wire_ui_controls(
@@ -335,43 +346,6 @@ fn wire_ui_controls(
     Ok(())
 }
 
-/*
-struct StackData {
-    pub stack: ControllerStack,
-    pub objects: ObjectList,
-    pub callbacks: Callbacks,
-    pub n: usize,
-    pub controllers_list: Vec<Arc<Mutex<Controller>>>,
-    pub objects_list: Vec<ObjectList>,
-    pub callbacks_list: Vec<Callbacks>
-}
-
-impl StackData {
-    pub fn new() -> Self {
-        Self {
-            stack: ControllerStack::new(),
-            objects: ObjectList::default(),
-            callbacks: Callbacks::default(),
-            n: 0,
-            controllers_list: vec![],
-            objects_list: vec![],
-            callbacks_list: vec![]
-        }
-    }
-
-    pub fn push(&mut self, controller: Arc<Mutex<Controller>>, obj: ObjectList, cb: Callbacks) {
-        self.controllers_list.push(controller.clone());
-        self.objects_list.push(obj.clone());
-        self.callbacks_list.push(cb.clone());
-        self.n += 1;
-        self.stack.add(controller);
-        self.objects = &self.objects + &obj;
-        self.callbacks = &self.callbacks + &cb;
-    }
-
-}
-*/
-
 async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
                                   controller: &Arc<Mutex<Controller>>,
                                   objs: &ObjectList, callbacks: &Callbacks,
@@ -383,7 +357,7 @@ async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
         Err(RecvError::Closed) => { return true; }
         Err(RecvError::Lagged(_)) => { return false; }
     };
-    println!("got {}", name);
+    //println!("got {}", name);
 
     let vec = callbacks.get_vec(&name);
     match vec {
@@ -423,6 +397,46 @@ fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
         });
 }
 
+/// Try very hard to convince a GTK window to resize to something smaller.
+/// It is not enough to do `window.resize(1, 1)` once, you have to do it
+/// at the right time, so we'll try for 2 seconds to do that while also
+/// tracking the window's allocation to see if it actually got smaller...
+fn make_window_smaller(window: gtk::Window) {
+    let start = Instant::now();
+    let mut allocation = Rc::new(window.allocation());
+    let mut already_smaller = Rc::new(false);
+
+    glib::timeout_add_local(
+        Duration::from_millis(100),
+        move || {
+            let elapsed = start.elapsed().as_millis();
+            let mut cont = if elapsed > 2000 { false } else { true };
+
+            let now = window.allocation();
+            //println!("{:?} -> {:?}", allocation, now);
+
+            let w_smaller = now.width() < allocation.width();
+            let h_smaller = now.height() < allocation.height();
+            let smaller = w_smaller || h_smaller;
+
+            let w_same = now.width() == allocation.width();
+            let h_same = now.height() == allocation.height();
+            let same = w_same || h_same;
+
+            if same && *already_smaller {
+                // we're done
+                cont = false;
+            } else {
+                // record progress and try again
+                Rc::get_mut(&mut allocation).map(|v| *v = now);
+                Rc::get_mut(&mut already_smaller).map(|v| *v = smaller);
+                window.resize(1, 1);
+            }
+
+            Continue(cont)
+        });
+}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -448,7 +462,7 @@ async fn main() -> Result<()> {
 
     let (app_event_tx, mut app_event_rx) = broadcast::channel::<AppEvent>(MIDI_OUT_CHANNEL_CAPACITY);
     let (new_config_tx, mut new_config_rx) = broadcast::channel::<()>(1);
-    let state = State {
+    let state = Arc::new(Mutex::new(State {
         midi_in_name: None,
         midi_in_cancel: None,
         midi_in_handle: None,
@@ -459,7 +473,7 @@ async fn main() -> Result<()> {
         app_event_tx: app_event_tx.clone(),
         config: None,
         interface: None,
-    };
+    }));
 
     // autodetect
     // TODO: here?
@@ -506,6 +520,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn({
         let app_event_tx = app_event_tx.clone();
+        let ui_tx = ui_tx.clone();
 
         async move {
             loop {
@@ -558,6 +573,9 @@ async fn main() -> Result<()> {
                     AppEvent::NewCtx(c) => {
                         ctx.replace(c.clone());
                     }
+                    AppEvent::Shutdown => {
+                        ui_tx.send(UIEvent::Shutdown);
+                    }
 
                     _ => {
                         error!("Unhandled app event: {:?}", msg);
@@ -569,157 +587,171 @@ async fn main() -> Result<()> {
     });
 
     // run UI controller callback on the GTK thread
-    glib::MainContext::default()
-        .spawn_local({
-            let ui_controller = ui_controller.clone();
-            let (ui_tx, mut ui_rx) = broadcast::channel::<Event<String>>(MIDI_OUT_CHANNEL_CAPACITY);
-            ui_controller.broadcast(Some(ui_tx));
-
-            async move {
-                loop {
-                    let stop = controller_rx_handler_nop(
-                        &mut ui_rx, &ui_controller, &ui_objects, &ui_callbacks
-                    ).await;
-                    if stop { break; }
-                }
-            }
-        });
+    start_controller_rx(ui_controller.clone(), ui_objects, ui_callbacks, |_,_,_| {});
 
     // run UI event handling on the GTK thread
-    ui_rx.attach(None, move |event| {
+    ui_rx.attach(None, {
+        let mut program_grid: Option<ProgramGrid> = None;
+        let mut shutting_down = false;
+        let window = window.clone();
+        let header_bar: gtk::HeaderBar = ui.object("header_bar").unwrap();
 
-        match event {
-            UIEvent::NewEditBuffer(ctx) => {
-                if let Some(ctx) = &ctx {
-                    // detach old controller from app events
-                    ctx.controller.broadcast(None);
-                }
+        move |event| {
 
-                let interface = state.interface.as_ref().unwrap();
+            match event {
+                UIEvent::NewEditBuffer(ctx) => {
+                    if let Some(ctx) = &ctx {
+                        // detach old controller from app events
+                        ctx.controller.broadcast(None);
+                    }
 
-                let controller = interface.edit_buffer.lock().unwrap().controller();
-                let objs = interface.objects.clone();
-                let callbacks = interface.callbacks.clone();
+                    let state = state.lock().unwrap();
+                    let interface = state.interface.as_ref().unwrap();
+                    let config = state.config.unwrap();
 
-                {
-                    let app_event_tx = app_event_tx.clone();
-                    start_controller_rx(
-                        controller.clone(), objs, callbacks,
-                        move |name, value, origin| {
-                            let origin = match origin {
-                                pod_core::config::MIDI => Origin::MIDI,
-                                pod_core::config::GUI => Origin::UI,
-                                _ => {
-                                    error!("Unknown origin");
-                                    return;
-                                }
-                            };
+                    let controller = interface.edit_buffer.lock().unwrap().controller();
+                    let objs = interface.objects.clone();
+                    let callbacks = interface.callbacks.clone();
 
-                            let e = ControlChangeEvent { name, value, origin };
-                            app_event_tx.send_or_warn(AppEvent::ControlChange(e));
+                    {
+                        let app_event_tx = app_event_tx.clone();
+                        start_controller_rx(
+                            controller.clone(), objs, callbacks,
+                            move |name, value, origin| {
+                                let origin = match origin {
+                                    pod_core::config::MIDI => Origin::MIDI,
+                                    pod_core::config::GUI => Origin::UI,
+                                    _ => {
+                                        error!("Unknown origin");
+                                        return;
+                                    }
+                                };
+
+                                let e = ControlChangeEvent { name, value, origin };
+                                app_event_tx.send_or_warn(AppEvent::ControlChange(e));
+                            }
+                        );
+                    }
+
+                    let ctx = Ctx {
+                        config,
+                        controller,
+                        edit: interface.edit_buffer.clone(),
+                        dump: interface.dump.clone(),
+                        ui_controller: ui_controller.clone(),
+                        app_event_tx: app_event_tx.clone()
+                    };
+                    ctx.set_midi_channel(state.midi_channel_num);
+                    app_event_tx.send_or_warn(AppEvent::NewCtx(ctx));
+
+                    // attach new device UI
+
+                    let device_box: gtk::Box = ui.object("device_box").unwrap();
+                    device_box.foreach(|w| device_box.remove(w));
+                    device_box.add(&interface.widget);
+
+                    // Another ugly hack: to initialize the UI, it is not enough
+                    // to animate() the init_controls, since the controls do
+                    // emit other (synthetic or otherwise) animate() calls in their
+                    // wiring. So, we both animate() as part of init_module()
+                    // (needed to hide most controls that hide before first show)
+                    // and defer an init_module_controls() call that needs to happen
+                    // after the rx is subscribed to again!
+                    glib::idle_add_local_once({
+                        let config = config.clone();
+                        let edit_buffer = interface.edit_buffer.clone();
+
+                        move || {
+                            let edit_buffer = edit_buffer.lock().unwrap();
+                            init_module_controls(&config, &edit_buffer)
+                                .unwrap_or_else(|err| error!("{}", err));
                         }
-                    );
+                    });
+
+                    // Update UI from state after device change
+                    //update_ui_from_state(&state, &mut ui_controller.lock().unwrap());
+
+                    let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
+                    ObjectList::from_widget(&grid)
+                        .objects_by_type::<ProgramGrid>()
+                        .for_each(|p| {
+                            grid.remove(p);
+                            // This instance of ProgramGrid gets dropped, but the
+                            // ad-hoc signalling using "group-changed" still sees
+                            // its widgets as part of the radio group (not dropped
+                            // immediately?) and there will be no final signal to
+                            // reset the group/signal handlers to remove the ones
+                            // that became invalid.
+                            // TODO: add "on destroy" clean up to wired RadioButtons
+                            //       as a fix? In  the meantime, this hack will do...
+                            p.join_radio_group(Option::<&gtk::RadioButton>::None);
+                        });
+
+                    let program_num = config.program_num;
+                    let g = ProgramGrid::new(program_num);
+                    grid.attach(&g, 0, 1, 2, 18);
+                    g.show_all();
+
+                    // join the main program radio group
+                    let r = ui.object::<gtk::RadioButton>("program").unwrap();
+                    g.join_radio_group(Some(&r));
+                    r.emit_by_name::<()>("group-changed", &[]);
+
+                    // show "open" button in the titlebar?
+                    let open_button = ui.object::<gtk::Button>("open_button").unwrap();
+                    if g.num_pages() > 1 {
+                        open_button.show();
+                    } else {
+                        open_button.hide();
+                    }
+
+                    program_grid.replace(g);
+
+                    make_window_smaller(window.clone());
                 }
+                UIEvent::Shutdown if !shutting_down => {
+                    header_bar.set_subtitle(Some("Shutting down..."));
+                    shutting_down = true;
 
-                let ctx = Ctx {
-                    config: state.config.unwrap(),
-                    controller,
-                    edit: interface.edit_buffer.clone(),
-                    dump: interface.dump.clone(),
-                    ui_controller: ui_controller.clone(),
-                    app_event_tx: app_event_tx.clone()
-                };
-                app_event_tx.send_or_warn(AppEvent::NewCtx(ctx));
+                    let mut state = state.lock().unwrap();
+                    let handle = midi_in_out_stop(&mut state);
+                    let ui_tx = ui_tx.clone();
+                    tokio::spawn(async move {
+                        handle.await;
+                        ui_tx.send(UIEvent::Quit).unwrap_or_default();
+                    });
+                }
+                UIEvent::Panic => todo!(),
+                UIEvent::Shutdown => {
+                    // for the impatient ones that press the "close" button
+                    // again while shut down is in progress...
+                    header_bar.set_subtitle(Some("SHUTTING DOWN. PLEASE WAIT..."));
+                }
+                UIEvent::Quit => {
+                    info!("Quitting...");
+                    // application is being closed, perform clean-up
+                    // that needs to happen inside the GTK thread...
 
-            }
-        }
+                    let window: gtk::Window = ui.object("ui_win").unwrap();
 
+                    // detach the program buttons so that there are no
+                    // "GTK signal handler not found" errors when SignalHandler
+                    // objects are dropped...
+                    let r = ui.object::<gtk::RadioButton>("program").unwrap();
+                    if let Some(g) = &program_grid {
+                        g.join_radio_group(Option::<&gtk::RadioButton>::None);
+                    }
+                    r.emit_by_name::<()>("group-changed", &[]);
 
-
-            //device_box.foreach(|w| device_box.remove(w));
-            //device_box.add(&state.interface.widget);
-
-            /*
-            {
-                // Another ugly hack: to initialize the UI, it is not enough
-                // to animate() the init_controls, since the controls do
-                // emit other (synthetic or otherwise) animate() calls in their
-                // wiring. So, we both animate() as part of init_module()
-                // (needed to hide most controls that hide before first show)
-                // and defer an init_module_controls() call that needs to happen
-                // after the rx is subscribed to again!
-                let config = state.config.clone();
-                let edit_buffer = edit_buffer.load().clone();
-                glib::idle_add_local_once(move || {
-                    let config = config.read().unwrap();
-                    let edit_buffer = edit_buffer.lock().unwrap();
-                    init_module_controls(&config, &edit_buffer)
-                        .unwrap_or_else(|err| error!("{}", err));
-                });
-            }
-
-            // Update UI from state after device change
-            update_ui_from_state(&state, &mut ui_controller.lock().unwrap());
-
-            let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
-            ObjectList::from_widget(&grid)
-                .objects_by_type::<ProgramGrid>()
-                .for_each(|p| {
-                    grid.remove(p);
-                    // This instance of ProgramGrid gets dropped, but the
-                    // ad-hoc signalling using "group-changed" still sees
-                    // its widgets as part of the radio group (not dropped
-                    // immediately?) and there will be no final signal to
-                    // reset the group/signal handlers to remove the ones
-                    // that became invalid.
-                    // TODO: add "on destroy" clean up to wired RadioButtons
-                    //       as a fix? In  the meantime, this hack will do...
-                    p.join_radio_group(Option::<&gtk::RadioButton>::None);
-                });
-
-            let program_num = state.config.read().unwrap().program_num;
-            let g = ProgramGrid::new(program_num);
-            grid.attach(&g, 0, 1, 2, 18);
-            g.show_all();
-
-            // join the main program radio group
-            let r = ui.object::<gtk::RadioButton>("program").unwrap();
-            g.join_radio_group(Some(&r));
-            r.emit_by_name::<()>("group-changed", &[]);
-
-            // show "open" button in the titlebar?
-            let open_button = ui.object::<gtk::Button>("open_button").unwrap();
-            if g.num_pages() > 1 {
-                open_button.show();
-            } else {
-                open_button.hide();
+                    // quit
+                    gtk::main_quit();
+                }
             }
 
-            program_grid.store(Arc::new(g));
-
-            make_window_smaller(window.clone());
-
-            let s = state.app_event_tx.clone();
-             */
 
             Continue(true)
-        });
-
-
-    // gtk
-    /*
-    ui_rx.attach(None, move |name| {
-        if name.is_empty() {
-            // quit
-            gtk::main_quit();
-            return Continue(false);
         }
-
-
-        Continue(true)
     });
-
-     */
 
     glib::timeout_add_local_once(
         Duration::from_millis(5000),

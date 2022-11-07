@@ -9,6 +9,7 @@ use crate::util::ManualPoll;
 use log::*;
 use pod_core::config::configs;
 use pod_core::midi::Channel;
+use pod_core::model::MidiQuirks;
 
 #[derive(Clone)]
 struct SettingsDialog {
@@ -274,8 +275,8 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
             let index = midi_channel_to_combo_index(state.midi_channel_num);
             settings.midi_channel_combo.set_active(index);
 
-            let config_name = state.config.read().unwrap().name.clone();
-            populate_model_combo(&settings, &Some(config_name));
+            let config_name = state.config.map(|c| c.name.clone());
+            populate_model_combo(&settings, &config_name);
 
             // stop the midi thread during test
             midi_in_out_stop(&mut state)
@@ -366,7 +367,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                             error!("Unable to restart MIDI output thread for {:?}: {}", out_name, err)
                         }).ok();
                     let midi_channel_num = state.midi_channel_num;
-                    let quirks = state.config.read().unwrap().midi_quirks;
+                    let quirks = state.config.map(|c| c.midi_quirks).unwrap();
                     midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num, quirks);
                 }
             }

@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
+use crate::config::UNSET;
 use crate::controller::*;
 use crate::dump::ProgramsDump;
 use crate::edit::EditBuffer;
@@ -22,6 +23,10 @@ pub struct Ctx {
 impl Ctx {
     pub fn midi_channel(&self) -> u8 {
         self.ui_controller.get("midi_channel").unwrap() as u8
+    }
+
+    pub fn set_midi_channel(&self, midi_channel: u8) {
+        self.ui_controller.set("midi_channel", midi_channel as u16, UNSET);
     }
 }
 
