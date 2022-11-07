@@ -1,5 +1,6 @@
 use log::warn;
 use tokio::sync::broadcast;
+use crate::context::Ctx;
 use crate::midi::MidiMessage;
 
 #[derive(Clone, Debug)]
@@ -88,6 +89,9 @@ pub enum AppEvent {
     ProgramChange(ProgramChangeEvent),
     Load(BufferLoadEvent),
     Store(BufferStoreEvent),
+
+    NewConfig,
+    NewCtx(Ctx),
 
     Shutdown,
     Quit,

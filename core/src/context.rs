@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 use crate::controller::*;
 use crate::dump::ProgramsDump;
@@ -21,5 +22,11 @@ pub struct Ctx {
 impl Ctx {
     pub fn midi_channel(&self) -> u8 {
         self.ui_controller.get("midi_channel").unwrap() as u8
+    }
+}
+
+impl Debug for Ctx {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<Ctx>")
     }
 }
