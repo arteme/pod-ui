@@ -6,7 +6,7 @@ mod panic;
 mod widgets;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, atomic, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use anyhow::*;
@@ -27,14 +27,13 @@ use pod_gtk::prelude::*;
 use pod_core::midi_io::*;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
-use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, EventSenderExt, Origin, ProgramChangeEvent};
-use pod_core::generic::{cc_handler, pc_handler};
+use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, EventSenderExt, is_system_app_event, Origin, ProgramChangeEvent};
+use pod_core::generic::*;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
 use pod_core::store::{Event, Store};
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
-use pod_gtk::prelude::gtk::gdk::keys::constants::s;
 use crate::opts::*;
 use crate::panic::*;
 use crate::registry::*;
@@ -47,10 +46,18 @@ const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 
 #[derive(Clone)]
 pub enum UIEvent {
+    NewMidiConnection,
     NewEditBuffer(Option<Ctx>),
+    MidiTx,
+    MidiRx,
     Panic,
     Shutdown,
     Quit
+}
+
+pub struct DetectedDevVersion {
+    name: String,
+    ver: String
 }
 
 pub struct State {
@@ -65,16 +72,20 @@ pub struct State {
     pub midi_channel_num: u8,
 
     pub app_event_tx: broadcast::Sender<AppEvent>,
+    pub ui_event_tx: glib::Sender<UIEvent>,
 
     pub config: Option<&'static Config>,
     pub interface: Option<InitializedInterface>,
+    pub detected: Option<DetectedDevVersion>,
 }
 
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
     convert_args!(hashmap!(
+        "midi_channel" => VirtualSelect::default(),
         "program" => VirtualSelect::default(),
         "program:prev" => VirtualSelect::default(),
         "program_num" => VirtualSelect::default(),
+
         "load_button" => Button::default(),
         "load_patch_button" => Button::default(),
         "load_all_button" => Button::default(),
@@ -145,11 +156,7 @@ pub fn midi_in_out_start(state: &mut State,
         state.midi_out_name = None;
         state.midi_out_cancel = None;
         state.midi_channel_num = 0;
-        /*state.ui_event_tx.send(UIEvent::NewMidiConnection)
-            .map_err(|err| warn!("Cannot send UIEvent: {}", err))
-            .unwrap();
-
-         */
+        state.ui_event_tx.send(UIEvent::NewMidiConnection).unwrap();
         sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
         return;
     }
@@ -167,18 +174,15 @@ pub fn midi_in_out_start(state: &mut State,
     state.midi_out_cancel = Some(out_cancel_tx);
 
     state.midi_channel_num = midi_channel;
-    /*
-    state.ui_event_tx.send(UIEvent::NewMidiConnection)
-        .map_err(|err| warn!("Cannot send UIEvent: {}", err))
-        .unwrap();
+    state.ui_event_tx.send(UIEvent::NewMidiConnection).unwrap();
 
-     */
     sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
 
     // midi in
     let midi_in_handle =
         tokio::spawn({
             let app_event_tx = state.app_event_tx.clone();
+            let ui_event_tx = state.ui_event_tx.clone();
             let mut in_cancel_rx = in_cancel_rx.fuse();
 
             async move {
@@ -192,7 +196,7 @@ pub fn midi_in_out_start(state: &mut State,
                             match msg {
                                 Some(bytes) => {
                                     app_event_tx.send(AppEvent::MidiIn(bytes));
-                                    app_event_tx.send(AppEvent::MidiRx);
+                                    ui_event_tx.send(UIEvent::MidiRx);
                                 }
                                 _ => {}
                             }
@@ -224,7 +228,7 @@ pub fn midi_in_out_start(state: &mut State,
     // midi out
     let midi_out_handle =
         tokio::spawn({
-            let app_event_tx = state.app_event_tx.clone();
+            let ui_event_tx = state.ui_event_tx.clone();
             let mut app_event_rx = state.app_event_tx.subscribe();
             let mut out_cancel_rx = out_cancel_rx.fuse();
 
@@ -238,7 +242,7 @@ pub fn midi_in_out_start(state: &mut State,
                                 Ok(AppEvent::MidiOut(bytes)) => {
                                     midi_out.send(&bytes)
                                     .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
-                                    app_event_tx.send(AppEvent::MidiTx);
+                                    ui_event_tx.send(UIEvent::MidiTx);
                                 }
                                 Err(err) => {
                                     error!("MIDI OUT thread rx error: {:?}", err);
@@ -461,7 +465,7 @@ async fn main() -> Result<()> {
     drop(help_text);
 
     let (app_event_tx, mut app_event_rx) = broadcast::channel::<AppEvent>(MIDI_OUT_CHANNEL_CAPACITY);
-    let (new_config_tx, mut new_config_rx) = broadcast::channel::<()>(1);
+    let (ui_event_tx, ui_event_rx) = glib::MainContext::channel::<UIEvent>(glib::PRIORITY_DEFAULT);
     let state = Arc::new(Mutex::new(State {
         midi_in_name: None,
         midi_in_cancel: None,
@@ -471,8 +475,10 @@ async fn main() -> Result<()> {
         midi_out_handle: None,
         midi_channel_num: 0,
         app_event_tx: app_event_tx.clone(),
+        ui_event_tx: ui_event_tx.clone(),
         config: None,
         interface: None,
+        detected: None,
     }));
 
     // autodetect
@@ -514,13 +520,11 @@ async fn main() -> Result<()> {
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION
     );
 
-    // HERE
-    let (ui_tx, ui_rx) = glib::MainContext::channel::<UIEvent>(glib::PRIORITY_DEFAULT);
-    let mut ctx: Option<Ctx> = None;
-
+    // app event handling in a separate thread
     tokio::spawn({
         let app_event_tx = app_event_tx.clone();
-        let ui_tx = ui_tx.clone();
+        let ui_event_tx = ui_event_tx.clone();
+        let mut ctx: Option<Ctx> = None;
 
         async move {
             loop {
@@ -536,7 +540,67 @@ async fn main() -> Result<()> {
                     }
                 };
 
+                // execute device-specific handlers
+                if let Some(ctx) = &ctx {
+                    match &msg {
+                        // control change
+                        AppEvent::MidiMsgIn(msg @ MidiMessage::ControlChange { .. }) => {
+                            midi_cc_in_handler(ctx, msg);
+                        }
+                        AppEvent::MidiMsgOut(msg @ MidiMessage::ControlChange { .. }) => {
+                            midi_cc_out_handler(ctx, msg);
+                        }
+                        AppEvent::ControlChange(cc) => {
+                            cc_handler(ctx, cc);
+                        }
+
+                        // program change
+                        AppEvent::MidiMsgIn(msg @ MidiMessage::ProgramChange { .. }) => {
+                            midi_pc_in_handler(ctx, msg);
+                        }
+                        AppEvent::MidiMsgOut(msg @ MidiMessage::ProgramChange { .. }) => {
+                            midi_pc_out_handler(ctx, msg);
+                        }
+                        AppEvent::ProgramChange(pc) => {
+                            pc_handler(ctx, pc);
+                        }
+
+                        // other
+                        AppEvent::MidiMsgIn(msg) => {
+                            midi_in_handler(ctx, msg);
+                        }
+                        AppEvent::MidiMsgOut(msg) => {
+                            midi_out_handler(ctx, msg);
+                        }
+
+                        // silently ignoring
+                        AppEvent::MidiIn(_) | AppEvent::MidiOut(_)  => { /* handled in MIDI OUT thread */ }
+                        e if is_system_app_event(e) => {}
+
+                        // error message
+                        _ => {
+                            error!("Unhandled app event: {:?}", msg);
+                        }
+                    }
+                } else {
+                    if !is_system_app_event(&msg) {
+                        warn!("MIDI CC event {:?} without context", msg);
+                    }
+                }
+
+                // execute system handlers
                 match &msg {
+                    // new config & shutdown
+                    AppEvent::NewConfig => {
+                        ui_event_tx.send(UIEvent::NewEditBuffer(ctx.clone()));
+                    }
+                    AppEvent::NewCtx(c) => {
+                        ctx.replace(c.clone());
+                    }
+                    AppEvent::Shutdown => {
+                        ui_event_tx.send(UIEvent::Shutdown);
+                    }
+
                     // message conversion
                     AppEvent::MidiIn(bytes) => {
                         // todo: do not clone
@@ -548,38 +612,8 @@ async fn main() -> Result<()> {
                         app_event_tx.send(AppEvent::MidiOut(bytes));
                     }
 
-                    // control change
-                    AppEvent::ControlChange(cc) => {
-                        let Some(ctx) = &ctx else {
-                            warn!("CC event {:?} without context", cc);
-                            continue;
-                        };
-                        cc_handler(&ctx, cc);
-                    }
-
-                    // program change
-                    AppEvent::ProgramChange(pc) => {
-                        let Some(ctx) = &ctx else {
-                            warn!("CC event {:?} without context", pc);
-                            continue;
-                        };
-                        pc_handler(&ctx, pc);
-
-                    }
-
-                    AppEvent::NewConfig => {
-                        ui_tx.send(UIEvent::NewEditBuffer(ctx.clone()));
-                    }
-                    AppEvent::NewCtx(c) => {
-                        ctx.replace(c.clone());
-                    }
-                    AppEvent::Shutdown => {
-                        ui_tx.send(UIEvent::Shutdown);
-                    }
-
-                    _ => {
-                        error!("Unhandled app event: {:?}", msg);
-                    }
+                    // silently ignore everything else
+                    _ => {}
                 }
             }
 
@@ -590,11 +624,19 @@ async fn main() -> Result<()> {
     start_controller_rx(ui_controller.clone(), ui_objects, ui_callbacks, |_,_,_| {});
 
     // run UI event handling on the GTK thread
-    ui_rx.attach(None, {
+    ui_event_rx.attach(None, {
         let mut program_grid: Option<ProgramGrid> = None;
         let mut shutting_down = false;
         let window = window.clone();
         let header_bar: gtk::HeaderBar = ui.object("header_bar").unwrap();
+
+        let transfer_icon_up: gtk::Label = ui.object("transfer_icon_up").unwrap();
+        let transfer_icon_down: gtk::Label = ui.object("transfer_icon_down").unwrap();
+        transfer_icon_up.set_opacity(0.0);
+        transfer_icon_down.set_opacity(0.0);
+
+        let transfer_up_sem = Arc::new(atomic::AtomicI32::new(0));
+        let transfer_down_sem = Arc::new(atomic::AtomicI32::new(0));
 
         move |event| {
 
@@ -709,13 +751,83 @@ async fn main() -> Result<()> {
 
                     make_window_smaller(window.clone());
                 }
+                UIEvent::MidiTx => {
+                    transfer_icon_up.set_opacity(1.0);
+                    transfer_up_sem.fetch_add(1, atomic::Ordering::SeqCst);
+                    {
+                        let transfer_icon_up = transfer_icon_up.clone();
+                        let transfer_up_sem = Arc::clone(&transfer_up_sem);
+                        glib::timeout_add_local_once(
+                            Duration::from_millis(500),
+                            move || {
+                                let v = transfer_up_sem.fetch_add(-1, atomic::Ordering::SeqCst);
+                                if v <= 1 {
+                                    transfer_icon_up.set_opacity(0.0);
+                                }
+                            });
+                    }
+                }
+                UIEvent::MidiRx => {
+                    transfer_icon_down.set_opacity(1.0);
+                    transfer_down_sem.fetch_add(1, atomic::Ordering::SeqCst);
+                    {
+                        let transfer_icon_down = transfer_icon_down.clone();
+                        let transfer_down_sem = Arc::clone(&transfer_down_sem);
+                        glib::timeout_add_local_once(
+                            Duration::from_millis(500),
+                            move || {
+                                let v = transfer_down_sem.fetch_add(-1, atomic::Ordering::SeqCst);
+                                if v <= 1 {
+                                    transfer_icon_down.set_opacity(0.0);
+                                }
+                            });
+                    }
+                }
+                UIEvent::NewMidiConnection => {
+                    let state = state.lock().unwrap();
+                    let midi_in_name = state.midi_in_name.as_ref();
+                    let midi_out_name = state.midi_out_name.as_ref();
+                    let name = {
+                        let config_name = &state.config.unwrap().name;
+                        let (detected_name, detected_ver) = state.detected
+                            .as_ref()
+                            .map(|d| (d.name.clone(), d.ver.clone()))
+                            .unwrap_or_else(|| (String::new(), String::new()));
+
+                        match (&detected_name, config_name) {
+                            (a, b) if a.is_empty() => {
+                                b.clone()
+                            },
+                            (a, b) if a == b => {
+                                format!("{} {}", detected_name, detected_ver)
+                            },
+                            _ => {
+                                format!("{} {} as {}", detected_name, detected_ver, config_name)
+                            }
+                        }
+                    };
+                    let subtitle = match (midi_in_name, midi_out_name) {
+                        (None, _) | (_, None) => {
+                            "no device connected".to_string()
+                        }
+                        (Some(a), Some(b)) if a == b => {
+                            format!("{}", a)
+                        }
+                        (Some(a), Some(b)) => {
+                            format!("i: {} / o: {}", a, b)
+                        }
+                    };
+                    let subtitle = format!("{} @ {}", name, subtitle);
+
+                    header_bar.set_subtitle(Some(&subtitle));
+                }
                 UIEvent::Shutdown if !shutting_down => {
                     header_bar.set_subtitle(Some("Shutting down..."));
                     shutting_down = true;
 
                     let mut state = state.lock().unwrap();
                     let handle = midi_in_out_stop(&mut state);
-                    let ui_tx = ui_tx.clone();
+                    let ui_tx = ui_event_tx.clone();
                     tokio::spawn(async move {
                         handle.await;
                         ui_tx.send(UIEvent::Quit).unwrap_or_default();

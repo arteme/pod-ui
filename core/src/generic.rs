@@ -3,7 +3,7 @@ use crate::config::{GUI, MIDI};
 use crate::context::Ctx;
 use crate::controller::*;
 use crate::dump::ProgramsDump;
-use crate::event::{AppEvent, ControlChangeEvent, EventSender, EventSenderExt, Origin, Program, ProgramChangeEvent};
+use crate::event::{AppEvent, Buffer, BufferLoadEvent, ControlChangeEvent, EventSender, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
 use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, Config, Control};
 use crate::stack::ControllerStack;
@@ -95,15 +95,21 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
 }
 
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
-    let updated = update_control(ctx, event);
-    if updated {
-        update_dump(ctx, event);
-        send_midi_cc(ctx, event);
+    match event.origin {
+        Origin::MIDI => {
+            let updated = update_control(ctx, event);
+            if updated {
+                update_dump(ctx, event);
+            }
+        }
+        Origin::UI => {
+            send_midi_cc(ctx, event);
+        }
     }
 }
 
-pub fn midi_cc_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ControlChange { channel, control, value } = midi_message else {
+pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+    let MidiMessage::ControlChange { channel, control: cc, value } = midi_message else {
         warn!("Incorrect MIDI message for MIDI CC handler: {:?}", midi_message);
         return;
     };
@@ -114,13 +120,92 @@ pub fn midi_cc_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         return;
     }
 
+    let config = ctx.config;
+    if config.in_cc_edit_buffer_dump_req.contains(cc) {
+        // send an "edit buffer dump request"
+        let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
+        ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+    }
 
+    let Some((name, control)) = ctx.config.cc_to_control(*cc) else {
+        warn!("Control for CC={} not defined!", cc);
+        return;
+    };
 
+    // Map the control address to a control for the value lookup.
+    // For most controls this will the same control as the one
+    // resolved by CC, for multibyte controls this will be the
+    // head control.
+    let (name, value_control) = control.get_addr()
+        .and_then(|(addr, _)| {
+            config.addr_to_control_vec(addr as usize, false).into_iter().next()
+        })
+        .filter(|(name, control)| {
+            let (_, size) = control.get_addr().unwrap();
+            size > 1
+        })
+        // single byte control, or control without address
+        .unwrap_or_else(|| (name, control));
+
+    let mut controller = ctx.controller.lock().unwrap();
+    let control_value = controller.get(name).unwrap();
+    let value = control.value_from_midi(*value, control_value);
+    let modified = controller.set(name, value, MIDI);
+    if modified {
+        // CC from MIDI -> set modified flag
+        // todo: make sure this gets handled
+        let e = ModifiedEvent { buffer: Buffer::Current, modified: true, origin: Origin::MIDI };
+        ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+    }
 }
 
+pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+    let MidiMessage::ControlChange { channel, control: cc, value } = midi_message else {
+        warn!("Incorrect MIDI message for MIDI CC handler: {:?}", midi_message);
+        return;
+    };
 
+    let config = ctx.config;
+    if config.out_cc_edit_buffer_dump_req.contains(cc) {
+        // send an "edit buffer dump request"
+        let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
+        ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+    }
+}
 
+pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+    let MidiMessage::ProgramChange { channel, program } = midi_message else {
+        warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
+        return;
+    };
+
+    let expected_channel = ctx.midi_channel();
+    if expected_channel != Channel::all() && *channel != expected_channel {
+        // Ignore midi messages sent to a different channel
+        return;
+    }
+
+    // todo
+}
+
+pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+    let MidiMessage::ProgramChange { channel, program } = midi_message else {
+        warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
+        return;
+    };
+
+    // todo
+}
 
 pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
-
 }
+
+// other
+
+pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+}
+
+pub fn midi_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+}
+
+

@@ -69,15 +69,17 @@ pub struct BufferStoreEvent {
     pub origin: Origin,
 }
 
+#[derive(Clone, Debug)]
+pub struct ModifiedEvent {
+    pub buffer: Buffer,
+    pub origin: Origin,
+    pub modified: bool
+}
+
 // -------------------------------------------------------------
 
 #[derive(Clone, Debug)]
 pub enum AppEvent {
-    /// Data was sent to a MIDI out port
-    MidiTx,
-    /// Data was received from a MIDI in port
-    MidiRx,
-
     MidiIn(Vec<u8>),
     MidiOut(Vec<u8>),
 
@@ -85,16 +87,21 @@ pub enum AppEvent {
     MidiMsgOut(MidiMessage),
 
     ControlChange(ControlChangeEvent),
-
     ProgramChange(ProgramChangeEvent),
     Load(BufferLoadEvent),
     Store(BufferStoreEvent),
+    Modified(ModifiedEvent),
 
     NewConfig,
     NewCtx(Ctx),
-
     Shutdown,
-    Quit,
+}
+
+pub fn is_system_app_event(event: &AppEvent) -> bool {
+    match event {
+        AppEvent::NewConfig | AppEvent::NewCtx(_) | AppEvent::Shutdown => true,
+        _ => false
+    }
 }
 
 pub type EventSender = broadcast::Sender<AppEvent>;
