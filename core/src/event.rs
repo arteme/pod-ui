@@ -83,6 +83,12 @@ pub struct ModifiedEvent {
     pub modified: bool
 }
 
+#[derive(Clone, Debug)]
+pub struct DeviceDetectedEvent {
+    pub name: String,
+    pub version: String
+}
+
 // -------------------------------------------------------------
 
 #[derive(Clone, Debug)]
@@ -100,6 +106,7 @@ pub enum AppEvent {
     BufferData(BufferDataEvent),
     Modified(ModifiedEvent),
 
+    DeviceDetected(DeviceDetectedEvent),
     NewConfig,
     NewCtx(Ctx),
     Shutdown,
@@ -107,6 +114,7 @@ pub enum AppEvent {
 
 pub fn is_system_app_event(event: &AppEvent) -> bool {
     match event {
+        AppEvent::DeviceDetected(_) |
         AppEvent::NewConfig | AppEvent::NewCtx(_) | AppEvent::Shutdown => true,
         _ => false
     }

@@ -27,7 +27,7 @@ use pod_gtk::prelude::*;
 use pod_core::midi_io::*;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
-use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, EventSenderExt, is_system_app_event, Origin, ProgramChangeEvent};
+use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, is_system_app_event, Origin, ProgramChangeEvent};
 use pod_core::generic::*;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
@@ -46,6 +46,7 @@ const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 
 #[derive(Clone)]
 pub enum UIEvent {
+    DeviceDetected(DeviceDetectedEvent),
     NewMidiConnection,
     NewEditBuffer(Option<Ctx>),
     MidiTx,
@@ -53,11 +54,6 @@ pub enum UIEvent {
     Panic,
     Shutdown,
     Quit
-}
-
-pub struct DetectedDevVersion {
-    name: String,
-    ver: String
 }
 
 pub struct State {
@@ -76,7 +72,7 @@ pub struct State {
 
     pub config: Option<&'static Config>,
     pub interface: Option<InitializedInterface>,
-    pub detected: Option<DetectedDevVersion>,
+    pub detected: Option<DeviceDetectedEvent>,
 }
 
 static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
@@ -544,6 +540,12 @@ async fn main() -> Result<()> {
                 // execute device-specific handlers
                 if let Some(ctx) = &ctx {
                     match &msg {
+                        // device inquiry
+                        AppEvent::MidiMsgIn(msg @ MidiMessage::UniversalDeviceInquiry { .. }) |
+                        AppEvent::MidiMsgIn(msg @ MidiMessage::UniversalDeviceInquiryResponse { .. }) => {
+                            midi_udi_handler(ctx, msg);
+                        }
+
                         // control change
                         AppEvent::MidiMsgIn(msg @ MidiMessage::ControlChange { .. }) => {
                             midi_cc_in_handler(ctx, msg);
@@ -605,6 +607,10 @@ async fn main() -> Result<()> {
 
                 // execute system handlers
                 match &msg {
+                    // device detected
+                    AppEvent::DeviceDetected(event) => {
+                        ui_event_tx.send(UIEvent::DeviceDetected(event.clone()));
+                    }
                     // new config & shutdown
                     AppEvent::NewConfig => {
                         ui_event_tx.send(UIEvent::NewEditBuffer(ctx.clone()));
@@ -800,6 +806,13 @@ async fn main() -> Result<()> {
                             });
                     }
                 }
+                UIEvent::DeviceDetected(event) => {
+                    // TODO: this, strictly speaking, doesn't need to be in State,
+                    //       it can be a local to the UI thread
+                    let mut state = state.lock().unwrap();
+                    state.detected.replace(event);
+                    ui_event_tx.send(UIEvent::NewMidiConnection);
+                }
                 UIEvent::NewMidiConnection => {
                     let state = state.lock().unwrap();
                     let midi_in_name = state.midi_in_name.as_ref();
@@ -808,7 +821,7 @@ async fn main() -> Result<()> {
                         let config_name = &state.config.unwrap().name;
                         let (detected_name, detected_ver) = state.detected
                             .as_ref()
-                            .map(|d| (d.name.clone(), d.ver.clone()))
+                            .map(|d| (d.name.clone(), d.version.clone()))
                             .unwrap_or_else(|| (String::new(), String::new()));
 
                         match (&detected_name, config_name) {

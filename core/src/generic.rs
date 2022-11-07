@@ -2,10 +2,10 @@ use log::{error, warn};
 use crate::config::{GUI, MIDI};
 use crate::context::Ctx;
 use crate::controller::*;
-use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, EventSender, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
+use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSender, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
 use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, Control, DeviceFlags};
-use crate::program;
+use crate::{config, program};
 
 fn update_control(ctx: &Ctx, event: &ControlChangeEvent) -> bool {
     let origin = match event.origin {
@@ -509,8 +509,66 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
             ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
         }
     }
-
 }
+
+pub fn midi_udi_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+    let channel = match midi_message {
+        MidiMessage::UniversalDeviceInquiry { channel } => *channel,
+        MidiMessage::UniversalDeviceInquiryResponse { channel, .. } => *channel,
+        _ => {
+            error!("Incorrect MIDI message for MIDI UDI handler: {:?}", midi_message);
+            return;
+        }
+    };
+
+    let expected_channel = ctx.midi_channel();
+    if expected_channel != Channel::all() && channel != expected_channel {
+        // Ignore midi messages sent to a different channel
+        return;
+    }
+
+    match midi_message {
+        MidiMessage::UniversalDeviceInquiry { channel } => {
+            // Pretend we're the POD model that is currently loaded
+            let msg = MidiMessage::UniversalDeviceInquiryResponse {
+                channel: *channel,
+                family: ctx.config.family,
+                member: ctx.config.member,
+                ver: "0303".to_string()
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
+        MidiMessage::UniversalDeviceInquiryResponse { channel, family, member, ver } => {
+            let c1 = &ver.chars().next().unwrap_or_default();
+            let version = if ('0' ..= '9').contains(c1) {
+                let hi = if *c1 == '0' { &ver[1 ..= 1] } else { &ver[0 ..= 1] };
+                let lo = &ver[2 ..= 3];
+                format!("{}.{}", hi, lo)
+            } else {
+                let mut bytes = ver.bytes();
+                let b1 = bytes.next().unwrap_or_default();
+                let b2 = bytes.next().unwrap_or_default();
+                let b3 = bytes.next().unwrap_or_default();
+                let b4 = bytes.next().unwrap_or_default();
+                if b1 == 0 && b3 == 0 {
+                    format!("{}.{:02}", b2, b4)
+                } else {
+                    error!("Unsupported version string: {:?}", midi_message);
+                    "?.?".to_string()
+                }
+            };
+
+            let name = config::config_for_id(*family, *member)
+                .map(|c| c.name.clone())
+                .unwrap_or_else(|| format!("Unknown ({:04x}:{:04x})", family, member));
+
+            let e = DeviceDetectedEvent { name, version };
+            ctx.app_event_tx.send_or_warn(AppEvent::DeviceDetected(e));
+        }
+        _ => {}
+    }
+}
+
 
 pub fn modified_handler(ctx: &Ctx, event: &ModifiedEvent) {
     match event.buffer {
