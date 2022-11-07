@@ -625,6 +625,8 @@ async fn main() -> Result<()> {
 
     // run UI event handling on the GTK thread
     ui_event_rx.attach(None, {
+        let ui_event_tx = ui_event_tx.clone();
+
         let mut program_grid: Option<ProgramGrid> = None;
         let mut shutting_down = false;
         let window = window.clone();
@@ -833,7 +835,21 @@ async fn main() -> Result<()> {
                         ui_tx.send(UIEvent::Quit).unwrap_or_default();
                     });
                 }
-                UIEvent::Panic => todo!(),
+                UIEvent::Panic => {
+                    let tooltip = if sentry_enabled {
+                        Some("\
+                                Something broke in the app and one of its internal \
+                                processing threads crashed. You can check the logs to see what \
+                                exactly happened. The error has been reported to the cloud.\
+                                ")
+                    } else { None };
+                    if let Some(widget) = ui.object::<gtk::Widget>("panic_indicator") {
+                        widget.set_visible(true);
+                        if tooltip.is_some() {
+                            widget.set_tooltip_text(tooltip);
+                        }
+                    }
+                }
                 UIEvent::Shutdown => {
                     // for the impatient ones that press the "close" button
                     // again while shut down is in progress...
@@ -865,10 +881,16 @@ async fn main() -> Result<()> {
         }
     });
 
-    glib::timeout_add_local_once(
-        Duration::from_millis(5000),
-        || {
-        });
+    // panic indicator testing in debug builds
+    if cfg!(debug_assertions) && option_env!("PANIC").is_some() {
+        info!("Panic indicator testing...");
+        glib::timeout_add_local_once(
+            Duration::from_millis(10000),
+            move || {
+                ui_event_tx.send(UIEvent::Panic).unwrap();
+                info!("Panic indicator set!");
+            });
+    }
 
     // show the window and do init stuff...
     window.show_all();
