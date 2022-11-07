@@ -4,7 +4,7 @@ use crate::config::UNSET;
 use crate::controller::*;
 use crate::dump::ProgramsDump;
 use crate::edit::EditBuffer;
-use crate::event::EventSender;
+use crate::event::{EventSender, Program};
 use crate::model::Config;
 
 #[derive(Clone)]
@@ -27,6 +27,10 @@ impl Ctx {
 
     pub fn set_midi_channel(&self, midi_channel: u8) {
         self.ui_controller.set("midi_channel", midi_channel as u16, UNSET);
+    }
+
+    pub fn program(&self) -> Program {
+        self.ui_controller.get("program").unwrap().into()
     }
 }
 

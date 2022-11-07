@@ -3,7 +3,7 @@ use tokio::sync::broadcast;
 use crate::context::Ctx;
 use crate::midi::MidiMessage;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Program {
     ManualMode,
     Tuner,
@@ -43,7 +43,7 @@ pub struct ControlChangeEvent {
     pub origin: Origin,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Buffer {
     EditBuffer,
     Current,
@@ -70,6 +70,13 @@ pub struct BufferStoreEvent {
 }
 
 #[derive(Clone, Debug)]
+pub struct BufferDataEvent {
+    pub buffer: Buffer,
+    pub origin: Origin,
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
 pub struct ModifiedEvent {
     pub buffer: Buffer,
     pub origin: Origin,
@@ -90,6 +97,7 @@ pub enum AppEvent {
     ProgramChange(ProgramChangeEvent),
     Load(BufferLoadEvent),
     Store(BufferStoreEvent),
+    BufferData(BufferDataEvent),
     Modified(ModifiedEvent),
 
     NewConfig,

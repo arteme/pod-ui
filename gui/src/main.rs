@@ -451,7 +451,8 @@ async fn main() -> Result<()> {
     let sentry_enabled = _guard.is_enabled();
     simple_logger::init()?;
 
-    // TODO: register modules
+    register_module(pod_mod_pod2::module());
+    register_module(pod_mod_pocket::module());
     register_module(pod_mod_xt::module());
 
     let help_text = generate_help_text()?;
@@ -563,6 +564,20 @@ async fn main() -> Result<()> {
                         }
                         AppEvent::ProgramChange(pc) => {
                             pc_handler(ctx, pc);
+                        }
+
+                        // store & load
+                        AppEvent::Load(event) => {
+                            load_handler(ctx, event)
+                        }
+                        AppEvent::Store(event) => {
+                            store_handler(ctx, event)
+                        }
+                        AppEvent::BufferData(event) => {
+                            buffer_handler(ctx, event)
+                        }
+                        AppEvent::Modified(event) => {
+                            modified_handler(ctx, event)
                         }
 
                         // other

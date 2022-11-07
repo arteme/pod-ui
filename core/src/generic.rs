@@ -2,11 +2,10 @@ use log::{error, warn};
 use crate::config::{GUI, MIDI};
 use crate::context::Ctx;
 use crate::controller::*;
-use crate::dump::ProgramsDump;
-use crate::event::{AppEvent, Buffer, BufferLoadEvent, ControlChangeEvent, EventSender, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
+use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, EventSender, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
 use crate::midi::{Channel, MidiMessage};
-use crate::model::{AbstractControl, Config, Control};
-use crate::stack::ControllerStack;
+use crate::model::{AbstractControl, Control, DeviceFlags};
+use crate::program;
 
 fn update_control(ctx: &Ctx, event: &ControlChangeEvent) -> bool {
     let origin = match event.origin {
@@ -203,9 +202,322 @@ pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
 // other
 
 pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
+    match midi_message {
+        MidiMessage::ProgramPatchDumpRequest { patch } => {
+            // TODO: 1-indexed?
+            let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: Origin::MIDI };
+            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+        }
+        MidiMessage::ProgramPatchDump { patch, ver, data } => {
+            if *ver != 0 {
+                error!("Unsupported patch dump version: {}", ver);
+                return;
+            }
+            if data.len() != ctx.config.program_size {
+                error!("Program size mismatch: expected {}, got {}",
+                       ctx.config.program_size, data.len());
+                return;
+            }
+            // TODO: 1-indexed?
+            let e = BufferDataEvent {
+                buffer: Buffer::Program(*patch as usize),
+                origin: Origin::MIDI,
+                data: data.clone()
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+        }
+        MidiMessage::ProgramEditBufferDumpRequest => {
+            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::MIDI };
+            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+        }
+        MidiMessage::ProgramEditBufferDump { ver, data } => {
+            if *ver != 0 {
+                error!("Unsupported patch dump version: {}", ver);
+                return;
+            }
+            if data.len() != ctx.config.program_size {
+                error!("Program size mismatch: expected {}, got {}",
+                       ctx.config.program_size, data.len());
+                return;
+            }
+            let e = BufferDataEvent {
+                buffer: Buffer::EditBuffer,
+                origin: Origin::MIDI,
+                data: data.clone()
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+        }
+        MidiMessage::AllProgramsDumpRequest => {
+            let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::MIDI };
+            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+        }
+        MidiMessage::AllProgramsDump { ver, data } => {
+            if *ver != 0 {
+                error!("Unsupported patch dump version: {}", ver);
+                return;
+            }
+            if data.len() != ctx.config.program_size {
+                error!("Program size mismatch: expected {}, got {}",
+                       ctx.config.program_size, data.len());
+                return;
+            }
+            let e = BufferDataEvent {
+                buffer: Buffer::All,
+                origin: Origin::MIDI,
+                data: data.clone()
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+
+        }
+        // TODO: PODxt messages
+        MidiMessage::XtInstalledPacksRequest => {
+            // when Line6 Edit asks, we report we have all packs
+            let msg = MidiMessage::XtInstalledPacks { packs: 0x0f };
+            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
+        MidiMessage::XtInstalledPacks { packs } => {
+            ctx.controller.set("xt_packs", *packs as u16, MIDI);
+        }
+        MidiMessage::XtEditBufferDumpRequest => {
+            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::MIDI };
+            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+        }
+        MidiMessage::XtEditBufferDump { id, data } => {
+            if *id != (ctx.config.member as u8) {
+                warn!("Buffer dump id mismatch: expected {}, got {}", ctx.config.member, id);
+            }
+            if data.len() != ctx.config.program_size {
+                error!("Program size mismatch: expected {}, got {}",
+                       ctx.config.program_size, data.len());
+                return;
+            }
+            let e = BufferDataEvent {
+                buffer: Buffer::EditBuffer,
+                origin: Origin::MIDI,
+                data: data.clone()
+            };
+        }
+        MidiMessage::XtPatchDumpRequest { patch } => {
+            let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: Origin::MIDI };
+            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+        }
+        MidiMessage::XtPatchDump { patch, id, data } => {
+            if *id != (ctx.config.member as u8) {
+                warn!("Buffer dump id mismatch: expected {}, got {}", ctx.config.member, id);
+            }
+            if data.len() != ctx.config.program_size {
+                error!("Program size mismatch: expected {}, got {}",
+                       ctx.config.program_size, data.len());
+                return;
+            }
+            let e = BufferDataEvent {
+                buffer: Buffer::Program(*patch as usize),
+                origin: Origin::MIDI,
+                data: data.clone()
+            };
+        }
+        MidiMessage::XtPatchDumpEnd => {
+            // TODO!
+        }
+        _ => {}
+    }
 }
 
 pub fn midi_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
+// load & store
 
+pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
+    match event.origin {
+        Origin::MIDI => {
+            // reroute this to the store handler
+            let e = BufferStoreEvent { buffer: event.buffer.clone(), origin: Origin::UI };
+            store_handler(ctx, &e);
+        }
+        Origin::UI => {
+            let msg = match event.buffer {
+                Buffer::EditBuffer => {
+                    Some(MidiMessage::ProgramEditBufferDumpRequest)
+                }
+                Buffer::Current => {
+                    let patch = match ctx.program() {
+                        Program::ManualMode | Program::Tuner => None,
+                        Program::Program(v) => Some(v)
+                    };
+                    patch.map(|v| {
+                        MidiMessage::ProgramPatchDumpRequest { patch: v as u8 }
+                    })
+                }
+                Buffer::Program(v) => {
+                    Some(MidiMessage::ProgramPatchDumpRequest { patch: v as u8 })
+                }
+                Buffer::All => {
+                    Some(MidiMessage::AllProgramsDumpRequest)
+                }
+            };
+            if let Some(msg) = msg {
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg))
+            }
+        }
+    }
+}
+
+pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
+    match event.origin {
+        Origin::MIDI => {
+            // This should never happen!
+            error!("Unsupported event: {:?}", event);
+            return;
+        }
+        Origin::UI => {
+            let dump = ctx.dump.lock().unwrap();
+            match event.buffer {
+                Buffer::EditBuffer => {
+                    let e = BufferDataEvent {
+                        buffer: Buffer::EditBuffer,
+                        origin: Origin::UI,
+                        data: program::store_patch_dump_ctrl(&ctx.edit.lock().unwrap())
+                    };
+                    ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+                }
+                Buffer::Current => {
+                    let program = match ctx.program() {
+                        Program::ManualMode | Program::Tuner => { return; }
+                        Program::Program(v) => { v as usize }
+                    };
+                    let e = BufferDataEvent {
+                        buffer: Buffer::Program(program),
+                        origin: Origin::UI,
+                        data: program::store_patch_dump(&dump, program)
+                    };
+                    ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+                }
+                Buffer::Program(patch) => {
+                    let e = BufferDataEvent {
+                        buffer: Buffer::Program(patch),
+                        origin: Origin::UI,
+                        data: program::store_patch_dump(&dump, patch)
+                    };
+                    ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+                }
+                Buffer::All => {
+                    if ctx.config.flags.contains(DeviceFlags::ALL_PROGRAMS_DUMP) {
+                        // all programs in a single dump message
+                        let e = BufferDataEvent {
+                            buffer: Buffer::All,
+                            origin: Origin::UI,
+                            data: program::store_all_dump(&dump)
+                        };
+                        ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+                    } else {
+                        // individual program dump messages for each program
+                        for patch in 0 .. ctx.config.program_num {
+                            let e = BufferDataEvent {
+                                buffer: Buffer::Program(patch),
+                                origin: Origin::UI,
+                                data: program::store_patch_dump(&dump, patch)
+                            };
+                            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
+    match event.origin {
+        Origin::MIDI => {
+            let update_edit_buffer = match event.buffer {
+                Buffer::EditBuffer => {
+                    program::load_patch_dump_ctrl(
+                        &mut ctx.edit.lock().unwrap(),
+                        event.data.as_slice(),
+                        MIDI
+                    );
+                    false
+                }
+                Buffer::Current => {
+                    // MIDI send "current" buffer dumps, only numbered ones
+                    error!("Unsupported event: {:?}", event);
+                    return;
+                }
+                Buffer::Program(program) => {
+                    program::load_patch_dump(
+                        &mut ctx.dump.lock().unwrap(),
+                        program,
+                        event.data.as_slice(),
+                        MIDI
+                    );
+                    // if the program with the same index is selected, then also
+                    // update the edit buffer
+                    ctx.program() == Program::Program(program as u16)
+                }
+                Buffer::All => {
+                    program::load_all_dump(
+                        &mut ctx.dump.lock().unwrap(),
+                        event.data.as_slice(),
+                        MIDI
+                    );
+                    // update edit buffer
+                    true
+                }
+            };
+            if update_edit_buffer {
+                let current = match ctx.program() {
+                    Program::Program(v) => { v as usize }
+                    _ => {
+                        error!("Update edit buffer flag, but program: {:?}", ctx.program());
+                        return;
+                    }
+                };
+                program::load_patch_dump_ctrl(
+                    &mut ctx.edit.lock().unwrap(),
+                    ctx.dump.lock().unwrap().data(current).unwrap(),
+                    MIDI
+                );
+            }
+        }
+        Origin::UI => {
+            // TODO: modified flag
+            let msg = match event.buffer {
+                Buffer::EditBuffer => {
+                    MidiMessage::ProgramEditBufferDump { ver: 0, data: event.data.clone() }
+                }
+                Buffer::Current => {
+                    // Buffer::Current is already converted into Buffer::Program(_)
+                    // by the store handler!
+                    error!("Unsupported event: {:?}", event);
+                    return;
+                }
+                Buffer::Program(v) => {
+                    MidiMessage::ProgramPatchDump {
+                        patch: v as u8,
+                        ver: 0,
+                        data: event.data.clone()
+                    }
+                }
+                Buffer::All => {
+                    MidiMessage::AllProgramsDump {
+                        ver: 0,
+                        data: event.data.clone()
+                    }
+                }
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
+    }
+
+}
+
+pub fn modified_handler(ctx: &Ctx, event: &ModifiedEvent) {
+    match event.buffer {
+        Buffer::EditBuffer => { /* never touch event buffer */ }
+        Buffer::Current => {}
+        Buffer::Program(v) => {}
+        Buffer::All => {}
+    }
+
+}
