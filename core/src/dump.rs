@@ -35,18 +35,8 @@ impl ProgramsDump {
         nth_chunk(&self.data, page, self.program_size)
     }
 
-    pub fn data_for_program(&self, program: usize) -> Option<&[u8]> {
-        // programs as 1-indexed
-        self.data(program - 1)
-    }
-
     pub fn name(&self, page: usize) -> Option<String> {
         self.names.get(page)
-    }
-
-    pub fn name_for_program(&self, program: usize) -> Option<String> {
-        // programs as 1-indexed
-        self.name(program - 1)
     }
 
     pub fn update_name_from_data(&mut self, page: usize, origin: u8) {
@@ -55,12 +45,6 @@ impl ProgramsDump {
             self.names.update_from_data(page, data, origin)
         }
     }
-
-    /*
-    pub fn subscribe_to_name_updates(&self) -> Receiver<Event<usize>> {
-        self.names.subscribe()
-    }
-     */
 
     pub fn data_mut(&mut self, page: usize) -> Option<&mut [u8]> {
         nth_chunk_mut(&mut self.data, page, self.program_size)

@@ -162,7 +162,7 @@ impl ProgramGridPriv {
 
     fn program_button(&self, program_idx: usize) -> Option<ProgramButton> {
         self.widgets.get()
-            .and_then(|w| w.buttons.get(program_idx - 1))
+            .and_then(|w| w.buttons.get(program_idx))
             .and_then(|b| b.child())
             .and_then(|w| w.dynamic_cast::<ProgramButton>().ok())
     }
@@ -312,7 +312,7 @@ impl ObjectImpl for ProgramGridPriv {
                 // real button
                 let (a, b) = (i / 4, i % 4);
 
-                let name = format!("program:{}", i + 1);
+                let name = format!("program:{}", i);
                 let pb = ProgramButton::new();
                 let program_id = format!("{}{}", a + 1, char::from_u32('A' as u32 + b as u32).unwrap());
                 pb.set_program_id(&program_id);

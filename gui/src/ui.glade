@@ -43,7 +43,7 @@
             <child>
               <object class="GtkRadioButton">
                 <property name="label" translatable="yes">Manual</property>
-                <property name="name">program:0</property>
+                <property name="name">program:998</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">False</property>
