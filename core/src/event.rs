@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use log::warn;
 use tokio::sync::broadcast;
 use crate::context::Ctx;
@@ -93,8 +94,8 @@ pub struct DeviceDetectedEvent {
 
 #[derive(Clone, Debug)]
 pub enum AppEvent {
-    MidiIn(Vec<u8>),
-    MidiOut(Vec<u8>),
+    MidiIn(Bytes),
+    MidiOut(Bytes),
 
     MidiMsgIn(MidiMessage),
     MidiMsgOut(MidiMessage),

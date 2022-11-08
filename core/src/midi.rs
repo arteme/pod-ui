@@ -1,4 +1,5 @@
 use anyhow::{Result, Context};
+use bytes::Bytes;
 use log::warn;
 use crate::util::*;
 
@@ -63,61 +64,61 @@ impl PodXtPatch {
 }
 
 impl MidiMessage {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Bytes {
         match self {
             MidiMessage::UniversalDeviceInquiry { channel } =>
-                [0xf0, 0x7e, *channel, 0x06, 0x01, 0xf7].to_vec(),
+                [0xf0, 0x7e, *channel, 0x06, 0x01, 0xf7].to_bytes(),
             MidiMessage::UniversalDeviceInquiryResponse { channel, family, member, ver } => {
                 let family = u16::to_le_bytes(*family);
                 let member = u16::to_le_bytes(*member);
                 let ver = format!("{:4}", ver).into_bytes();
                 [0xf0, 0x7e, *channel, 0x06, 0x02, 0x00, 0x01, 0x0c, family[0], family[1], member[0], member[1],
-                 ver[0], ver[1], ver[2], ver[3], 0xf7].to_vec()
+                 ver[0], ver[1], ver[2], ver[3], 0xf7].to_bytes()
             },
             MidiMessage::ProgramPatchDumpRequest { patch } =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x00, *patch, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x00, *patch, 0xf7].to_bytes(),
             MidiMessage::ProgramPatchDump { patch, ver, data } => {
                 let data = u8_to_nibbles_vec(data.as_slice());
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x01, 0x01, 0x00, *patch, *ver];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
-                msg
+                msg.into()
             },
             MidiMessage::ProgramEditBufferDumpRequest =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x01, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x01, 0xf7].to_bytes(),
             MidiMessage::ProgramEditBufferDump { ver, data } => {
                 let data = u8_to_nibbles_vec(data.as_slice());
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x01, 0x01, 0x01, *ver];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
-                msg
+                msg.into()
             },
             MidiMessage::AllProgramsDumpRequest =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x02, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x02, 0xf7].to_bytes(),
             MidiMessage::AllProgramsDump { ver, data } => {
                 let data = u8_to_nibbles_vec(data.as_slice());
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x01, 0x01, 0x02, *ver];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
-                msg
+                msg.into()
             },
 
             MidiMessage::XtInstalledPacksRequest =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, 0xf7].to_bytes(),
             MidiMessage::XtInstalledPacks { packs } =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x01, *packs, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x01, *packs, 0xf7].to_bytes(),
             MidiMessage::XtEditBufferDumpRequest =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x75, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x75, 0xf7].to_bytes(),
             MidiMessage::XtEditBufferDump { id,  data } => {
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x74, *id];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
-                msg
+                msg.into()
             }
             MidiMessage::XtPatchDumpRequest { patch } => {
                 let patch = PodXtPatch::to_midi(*patch);
                 let (p1, p2) = u16_to_2_u7(patch);
-                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x73, p1, p2, 0x00, 0x00, 0xf7].to_vec()
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x73, p1, p2, 0x00, 0x00, 0xf7].to_bytes()
             }
             MidiMessage::XtPatchDump { patch, id, data } => {
                 let patch = PodXtPatch::to_midi(*patch);
@@ -125,19 +126,19 @@ impl MidiMessage {
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x71, *id, p1, p2];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
-                msg
+                msg.into()
             }
             MidiMessage::XtPatchDumpEnd =>
-                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x72, 0xf7].to_vec(),
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x72, 0xf7].to_bytes(),
 
             MidiMessage::ControlChange { channel, control, value } =>
-                [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
+                [0xb0 | *channel & 0x0f, *control, *value].to_bytes(),
             MidiMessage::ProgramChange { channel, program } =>
-                [0xc0 | *channel & 0x0f, *program].to_vec(),
+                [0xc0 | *channel & 0x0f, *program].to_bytes(),
         }
     }
 
-    fn sysex_length(bytes: &Vec<u8>) -> (bool, usize) {
+    fn sysex_length(bytes: &Bytes) -> (bool, usize) {
         let mut canceled = true;
         let mut len = bytes.len();
         if len == 0 || bytes[0] != 0xf0 {
@@ -161,13 +162,13 @@ impl MidiMessage {
         return (canceled, len);
     }
 
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
+    pub fn from_bytes(bytes: &Bytes) -> Result<Self> {
         let mut len = bytes.len();
         if len < 1 {
             bail!("Zero-size MIDI message")
         }
 
-        return match bytes.as_slice() {
+        return match **bytes {
             // sysex message
             [0xf0, ..] => {
                 let (canceled, len) = Self::sysex_length(&bytes);
@@ -249,11 +250,11 @@ impl MidiMessage {
             }
             // control change
             [b0, b1, b2] if b0 & 0xf0 == 0xb0 => {
-                Ok(MidiMessage::ControlChange { channel: *b0 & 0x0f, control: *b1, value: *b2 })
+                Ok(MidiMessage::ControlChange { channel: b0 & 0x0f, control: b1, value: b2 })
             }
             // program change
             [b0, b1] if b0 & 0xf0 == 0xc0 => {
-                Ok(MidiMessage::ProgramChange { channel: *b0 & 0x0f, program: *b1 })
+                Ok(MidiMessage::ProgramChange { channel: b0 & 0x0f, program: b1 })
             }
             _ => bail!("Unknown MIDI message")
         };
@@ -262,7 +263,9 @@ impl MidiMessage {
 
 #[cfg(test)]
 mod tests {
+    use bytes::BufMut;
     use crate::midi::MidiMessage;
+    use crate::util::ToBytes;
 
     #[test]
     fn message_parsing_should_not_crash() {
@@ -289,12 +292,12 @@ mod tests {
             // so the run-to length in case of sysex is shorter
             let run_to_len = if is_sysex { bytes.len() - 1 } else { bytes.len() };
             for i in 1 ..= run_to_len {
-                let mut part = bytes[0 .. i].to_vec();
+                let mut part = bytes[0 .. i].to_bytes_mut();
 
                 // terminate a sysex message
-                if is_sysex { part.push(0xf7) }
+                if is_sysex { part.put_u8(0xf7) }
                 
-                let result = MidiMessage::from_bytes(part);
+                let result = MidiMessage::from_bytes(&part.freeze());
                 print!("{:?} ", result);
                 let result = result.ok();
                 if i < run_to_len {

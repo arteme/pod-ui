@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use log::*;
 
 pub fn nibble_to_u8(bytes: &[u8; 2]) -> u8 {
@@ -63,4 +64,34 @@ pub fn u16_from_2_u7(v1: u8, v2: u8) -> u16 {
 /// A shorthand for `Default::default()` while waiting on
 pub fn def<T: Default>() -> T {
     Default::default()
+}
+
+
+pub trait ToBytes {
+    fn to_bytes(&self) -> Bytes;
+    fn to_bytes_mut(&self) -> BytesMut;
+}
+
+impl<const N: usize> ToBytes for [u8; N] {
+    fn to_bytes(&self) -> Bytes {
+        Bytes::copy_from_slice(self.as_slice())
+    }
+
+    fn to_bytes_mut(&self) -> BytesMut {
+        let mut b = BytesMut::with_capacity(self.len());
+        b.extend_from_slice(self.as_slice());
+        b
+    }
+}
+
+impl ToBytes for [u8] {
+    fn to_bytes(&self) -> Bytes {
+        Bytes::copy_from_slice(&self)
+    }
+
+    fn to_bytes_mut(&self) -> BytesMut {
+        let mut b = BytesMut::with_capacity(self.len());
+        b.extend_from_slice(&self);
+        b
+    }
 }

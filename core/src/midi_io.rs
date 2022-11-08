@@ -4,6 +4,7 @@ use regex::Regex;
 use std::str::FromStr;
 use std::time::Duration;
 use async_stream::stream;
+use bytes::Bytes;
 use futures_util::StreamExt;
 use tokio::time::sleep;
 use log::*;
@@ -18,7 +19,7 @@ use unicycle::IndexedStreamsUnordered;
 pub struct MidiIn {
     pub name: String,
     conn: Option<MidiInputConnection<()>>,
-    rx: mpsc::UnboundedReceiver<Vec<u8>>
+    rx: mpsc::UnboundedReceiver<Bytes>
 }
 
 impl MidiIn {
@@ -42,7 +43,7 @@ impl MidiIn {
         let n = name.clone();
         let conn = midi_in.connect(&port, "pod midi in conn", move |ts, data, _| {
             trace!("<< {:02x?} len={} ts={}", data, data.len(), ts);
-            tx.send(Vec::from(data))
+            tx.send(Bytes::copy_from_slice(data))
                 .unwrap_or_else(|e| {
                     error!("midi input ({}): failed to send data to the application", n);
                 });
@@ -53,7 +54,7 @@ impl MidiIn {
         Ok(MidiIn { name, conn: Some(conn), rx })
     }
 
-    pub async fn recv(&mut self) -> Option<Vec<u8>>
+    pub async fn recv(&mut self) -> Option<Bytes>
     {
         self.rx.recv().await
     }
@@ -100,7 +101,7 @@ impl MidiOut {
         Ok(MidiOut { name, conn: Some(conn) })
     }
 
-    pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
+    pub fn send(&mut self, bytes: &Bytes) -> Result<()> {
         trace!(">> {:02x?} len={}", bytes, bytes.len());
         if let Some(conn) = self.conn.as_mut() {
             conn.send(bytes)
@@ -295,7 +296,7 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
     loop {
         tokio::select! {
             Some((i, Some(bytes))) = streams.next() => {
-                let event = MidiMessage::from_bytes(bytes).ok();
+                let event = MidiMessage::from_bytes(&bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, .. }) => {
                         let pod = config_for_id(family, member);
@@ -345,7 +346,7 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
     loop {
         tokio::select! {
             Some(bytes) = input.next() => {
-                let event = MidiMessage::from_bytes(bytes).ok();
+                let event = MidiMessage::from_bytes(&bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, channel, .. }) => {
                         let pod = config_for_id(family, member);

@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use crate::model::Config;
 use crate::names::ProgramNames;
 use crate::store::{Event, Store};
@@ -5,7 +6,7 @@ use crate::store::{Event, Store};
 pub struct ProgramsDump {
     program_num: usize,
     program_size: usize,
-    data: Box<[u8]>,
+    data: BytesMut,
     modified: Box<[bool]>,
     names: ProgramNames
 }
@@ -14,7 +15,7 @@ impl ProgramsDump {
     pub fn new(config: &Config) -> Self {
         let program_num = config.program_num;
         let program_size = config.program_size;
-        let data = vec![0u8; program_num * program_size].into_boxed_slice();
+        let data = BytesMut::zeroed(program_num * program_size);
         let modified = vec![false; program_num * program_size].into_boxed_slice();
         let names = ProgramNames::new(config);
 

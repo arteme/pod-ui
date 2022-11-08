@@ -5,6 +5,7 @@ extern crate midir;
 extern crate anyhow;
 #[macro_use]
 extern crate arrayref;
+extern crate core;
 
 pub mod midi;
 mod util;

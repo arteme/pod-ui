@@ -624,8 +624,7 @@ async fn main() -> Result<()> {
 
                     // message conversion
                     AppEvent::MidiIn(bytes) => {
-                        // todo: do not clone
-                        let msg = MidiMessage::from_bytes(bytes.clone()).unwrap();
+                        let msg = MidiMessage::from_bytes(bytes).unwrap();
                         app_event_tx.send(AppEvent::MidiMsgIn(msg));
                     }
                     AppEvent::MidiMsgOut(msg) => {
