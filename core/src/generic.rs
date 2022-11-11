@@ -7,29 +7,13 @@ use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, Control, DeviceFlags};
 use crate::{config, program};
 
-fn update_control(ctx: &Ctx, event: &ControlChangeEvent) -> bool {
-    let origin = match event.origin {
-        Origin::UI => GUI,
-        Origin::MIDI => MIDI,
-    };
-
-    ctx.controller.set(event.name.as_str(), event.value, origin)
-}
-
 fn update_dump(ctx: &Ctx, event: &ControlChangeEvent) {
     let controller = &ctx.controller.lock().unwrap();
     let dump = &mut ctx.dump.lock().unwrap();
 
-    let program = controller.get("program").unwrap();
-    let program = Program::from(program);
-    let idx = match program {
-        Program::ManualMode => {
-            todo!()
-        }
-        Program::Tuner => {
-            todo!()
-        }
-        Program::Program(v) => { v as usize }
+    let Some(idx) = num_program(ctx.program()) else {
+        // not updating dump in manual mode or tuner
+        return;
     };
 
     let Some(buffer) = dump.data_mut(idx) else {
@@ -41,7 +25,7 @@ fn update_dump(ctx: &Ctx, event: &ControlChangeEvent) {
 }
 
 fn control_value_to_buffer(controller: &Controller, event: &ControlChangeEvent, buffer: &mut [u8]) {
-    todo!()
+    // todo!()
 }
 
 fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
@@ -96,10 +80,7 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
     match event.origin {
         Origin::MIDI => {
-            let updated = update_control(ctx, event);
-            if updated {
-                update_dump(ctx, event);
-            }
+            update_dump(ctx, event);
         }
         Origin::UI => {
             send_midi_cc(ctx, event);
@@ -149,13 +130,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     let mut controller = ctx.controller.lock().unwrap();
     let control_value = controller.get(name).unwrap();
     let value = control.value_from_midi(*value, control_value);
-    let modified = controller.set(name, value, MIDI);
-    if modified {
-        // CC from MIDI -> set modified flag
-        // todo: make sure this gets handled
-        let e = ModifiedEvent { buffer: Buffer::Current, modified: true, origin: Origin::MIDI };
-        ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
-    }
+    controller.set(name, value, MIDI);
 }
 
 pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
@@ -184,7 +159,7 @@ pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         return;
     }
 
-    // todo
+    ctx.set_program(Program::from(*program as u16), MIDI);
 }
 
 pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
@@ -197,6 +172,74 @@ pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
+    match event.origin {
+        Origin::MIDI => {
+            sync_edit_and_dump_buffers(ctx, MIDI);
+        }
+        Origin::UI => {
+            let modified = sync_edit_and_dump_buffers(ctx, GUI);
+            send_midi_pc(ctx, &event.program, modified);
+        }
+    }
+
+}
+
+pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: u8) -> bool {
+    let mut edit = ctx.edit.lock().unwrap();
+    let mut dump = ctx.dump.lock().unwrap();
+
+    let prev_program = num_program(ctx.program_prev());
+    if let Some(page) = prev_program {
+        // store edit buffer to the program dump
+        let data = program::store_patch_dump_ctrl(&edit);
+        program::load_patch_dump(&mut dump, page, data.as_slice(), origin);
+        dump.set_modified(page, edit.modified()); // not needed?
+    }
+
+    let mut modified = false;
+    let program = num_program(ctx.program());
+    if let Some(page) = program {
+        // load data from product dump to edit buffer
+        let data = dump.data(page).unwrap();
+
+        // In case of program change, always send a signal that the data change is coming
+        // from MIDI so that the GUI gets updated, but the MIDI does not
+        program::load_patch_dump_ctrl(&mut edit, data, MIDI);
+        modified = dump.modified(page);
+        edit.set_modified(modified);
+    }
+
+    ctx.set_program_prev(ctx.program(), origin);
+
+    modified
+}
+
+
+pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
+    let send_pc = if modified {
+        // send edit buffer
+        let e = BufferStoreEvent {
+            buffer: Buffer::EditBuffer,
+            origin: Origin::UI
+        };
+        ctx.app_event_tx.send_or_warn(AppEvent::Store(e));
+    } else {
+        // send PC
+
+        // todo
+        let program = match program {
+            Program::ManualMode => { None }
+            Program::Tuner => { None }
+            Program::Program(p) => { Some(*p as u8) }
+        };
+        if let Some(program) = program {
+            let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program };
+            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
+    };
+
+    // todo?
+
 }
 
 // other
@@ -341,10 +384,7 @@ pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
                     Some(MidiMessage::ProgramEditBufferDumpRequest)
                 }
                 Buffer::Current => {
-                    let patch = match ctx.program() {
-                        Program::ManualMode | Program::Tuner => None,
-                        Program::Program(v) => Some(v)
-                    };
+                    let patch = num_program(ctx.program());
                     patch.map(|v| {
                         MidiMessage::ProgramPatchDumpRequest { patch: v as u8 }
                     })
@@ -382,14 +422,12 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
                     ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
                 }
                 Buffer::Current => {
-                    let program = match ctx.program() {
-                        Program::ManualMode | Program::Tuner => { return; }
-                        Program::Program(v) => { v as usize }
-                    };
+                    let patch = num_program(ctx.program());
+                    let Some(patch) = patch else { return };
                     let e = BufferDataEvent {
-                        buffer: Buffer::Program(program),
+                        buffer: Buffer::Program(patch),
                         origin: Origin::UI,
-                        data: program::store_patch_dump(&dump, program)
+                        data: program::store_patch_dump(&dump, patch)
                     };
                     ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
                 }
@@ -571,11 +609,32 @@ pub fn midi_udi_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 
 
 pub fn modified_handler(ctx: &Ctx, event: &ModifiedEvent) {
+    let mut dump = ctx.dump.lock().unwrap();
     match event.buffer {
-        Buffer::EditBuffer => { /* never touch event buffer */ }
-        Buffer::Current => {}
-        Buffer::Program(v) => {}
-        Buffer::All => {}
+        Buffer::EditBuffer => {
+            ctx.edit.lock().unwrap().set_modified(event.modified);
+        }
+        Buffer::Current => {
+            let program = num_program(ctx.program());
+            if let Some(p) = program {
+                dump.set_modified(p, event.modified);
+                ctx.edit.lock().unwrap().set_modified(event.modified);
+            }
+        }
+        Buffer::Program(p) => {
+            dump.set_modified(p, event.modified);
+        }
+        Buffer::All => {
+            dump.set_all_modified(event.modified);
+        }
     }
+}
 
+/// Convert `Program` to an `Option` of a number if a program is
+/// a number program and not a manual mode or tuner
+pub fn num_program(p: Program) -> Option<usize> {
+    match p {
+        Program::ManualMode | Program::Tuner => { None }
+        Program::Program(v) => { Some(v as usize) }
+    }
 }

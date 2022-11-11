@@ -32,6 +32,22 @@ impl Ctx {
     pub fn program(&self) -> Program {
         self.ui_controller.get("program").unwrap().into()
     }
+
+    pub fn set_program(&self, program: Program, origin: u8) {
+        self.ui_controller.set("program", program.into(), origin);
+    }
+
+    pub fn program_prev(&self) -> Program {
+        self.ui_controller.get("program:prev").unwrap().into()
+    }
+
+    pub fn set_program_prev(&self, program: Program, origin: u8) {
+        self.ui_controller.set("program:prev", program.into(), origin);
+    }
+
+    pub fn program_num(&self) -> usize {
+        self.ui_controller.get("program_num").unwrap() as usize
+    }
 }
 
 impl Debug for Ctx {

@@ -27,7 +27,7 @@ use pod_gtk::prelude::*;
 use pod_core::midi_io::*;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
-use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, is_system_app_event, Origin, ProgramChangeEvent};
+use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, is_system_app_event, ModifiedEvent, Origin, Program, ProgramChangeEvent};
 use pod_core::generic::*;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
@@ -52,6 +52,7 @@ pub enum UIEvent {
     MidiTx,
     MidiRx,
     Panic,
+    Modified(usize, bool),
     Shutdown,
     Quit
 }
@@ -304,12 +305,21 @@ fn wire_ui_controls(
 ) -> Result<()> {
     wire(controller.clone(), objs, callbacks)?;
 
+    // set defaults
+    controller.set("program", Program::ManualMode.into(), pod_core::config::MIDI);
+    controller.set("program:prev", Program::ManualMode.into(), pod_core::config::MIDI);
+
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     builder
         .data(app_event_tx.clone())
         .on("program")
-        .run(move |v, _, _, app_event_tx| {
-            let e = ProgramChangeEvent { program: v.into(), origin: Origin::UI };
+        .run(move |v, _, origin, app_event_tx| {
+            let origin = match origin {
+                pod_core::config::GUI => Origin::UI,
+                pod_core::config::MIDI => Origin::MIDI,
+                _ => { panic!("Incorrect origin!") }
+            };
+            let e = ProgramChangeEvent { program: v.into(), origin };
             app_event_tx.send(AppEvent::ProgramChange(e));
         })
         .on("load_button")
@@ -437,6 +447,29 @@ fn make_window_smaller(window: gtk::Window) {
         });
 }
 
+pub fn ui_modified_handler(ctx: &Ctx, event: &ModifiedEvent, ui_event_tx: &glib::Sender<UIEvent>) {
+    match event.buffer {
+        Buffer::EditBuffer => { /* don't touch event buffer */ }
+        Buffer::Current => {
+            let program = match ctx.program() {
+                Program::Program(v) => { v as usize }
+                _ => { return; }
+            };
+            ui_event_tx.send(UIEvent::Modified(program, event.modified))
+                .unwrap();
+        }
+        Buffer::Program(program) => {
+            ui_event_tx.send(UIEvent::Modified(program, event.modified))
+                .unwrap();
+        }
+        Buffer::All => {
+            for program in 0 .. ctx.config.program_num {
+                ui_event_tx.send(UIEvent::Modified(program, event.modified))
+                    .unwrap();
+            }
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -579,7 +612,8 @@ async fn main() -> Result<()> {
                             buffer_handler(ctx, event)
                         }
                         AppEvent::Modified(event) => {
-                            modified_handler(ctx, event)
+                            modified_handler(ctx, event);
+                            ui_modified_handler(ctx, event, &ui_event_tx)
                         }
 
                         // other
@@ -662,7 +696,6 @@ async fn main() -> Result<()> {
         let transfer_down_sem = Arc::new(atomic::AtomicI32::new(0));
 
         move |event| {
-
             match event {
                 UIEvent::NewEditBuffer(ctx) => {
                     if let Some(ctx) = &ctx {
@@ -773,6 +806,11 @@ async fn main() -> Result<()> {
                     program_grid.replace(g);
 
                     make_window_smaller(window.clone());
+                }
+                UIEvent::Modified(page, modified) => {
+                    if let Some(grid) = &program_grid {
+                        grid.set_program_modified(page, modified);
+                    }
                 }
                 UIEvent::MidiTx => {
                     transfer_icon_up.set_opacity(1.0);
