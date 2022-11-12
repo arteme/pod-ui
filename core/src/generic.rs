@@ -83,6 +83,7 @@ pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
             update_dump(ctx, event);
         }
         Origin::UI => {
+            update_dump(ctx, event);
             send_midi_cc(ctx, event);
         }
     }
@@ -629,6 +630,28 @@ pub fn modified_handler(ctx: &Ctx, event: &ModifiedEvent) {
         }
     }
 }
+
+pub fn new_device_handler(ctx: &Ctx) {
+    // Request device id
+    let msg = MidiMessage::UniversalDeviceInquiry { channel: ctx.midi_channel() };
+    ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+
+    // TODO: This will go to module-specific `new_device_ping`
+    match ctx.config.family {
+        0x0003 => {
+            // PODxt family
+            let msg = MidiMessage::XtInstalledPacksRequest;
+            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
+        _ => {
+            let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::UI };
+            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+        }
+    }
+
+
+}
+
 
 /// Convert `Program` to an `Option` of a number if a program is
 /// a number program and not a manual mode or tuner

@@ -651,7 +651,9 @@ async fn main() -> Result<()> {
                         ui_event_tx.send(UIEvent::NewEditBuffer(ctx.clone()));
                     }
                     AppEvent::NewCtx(c) => {
+                        trace!("New context installed...");
                         ctx.replace(c.clone());
+                        new_device_handler(c);
                     }
                     AppEvent::Shutdown => {
                         ui_event_tx.send(UIEvent::Shutdown);
