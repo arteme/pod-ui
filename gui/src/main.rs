@@ -4,6 +4,7 @@ mod settings;
 mod util;
 mod panic;
 mod widgets;
+mod autodetect;
 
 use std::collections::HashMap;
 use std::sync::{Arc, atomic, Mutex};
@@ -511,9 +512,6 @@ async fn main() -> Result<()> {
         detected: None,
     }));
 
-    // autodetect
-    // TODO: here?
-
     // UI
 
     gtk::init()
@@ -549,6 +547,9 @@ async fn main() -> Result<()> {
         &css,
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION
     );
+
+    // autodetect or open devices specified on command line
+    autodetect::detect(state.clone(), opts)?;
 
     // app event handling in a separate thread
     tokio::spawn({
