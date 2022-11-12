@@ -3,6 +3,7 @@ use anyhow::*;
 use pod_core::config::register_config;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
+use pod_core::handler::BoxedHandler;
 use pod_core::model::Config;
 use pod_core::store::{Signal, Store};
 use pod_gtk::prelude::*;
@@ -34,6 +35,7 @@ pub fn module_for_config(config: &Config) -> Option<&Box<dyn Module>> {
 }
 
 pub struct InitializedInterface {
+    pub handler: Arc<BoxedHandler>,
     pub edit_buffer: Arc<Mutex<EditBuffer>>,
     pub dump: Arc<Mutex<ProgramsDump>>,
     pub callbacks: Callbacks,
@@ -44,6 +46,7 @@ pub struct InitializedInterface {
 pub fn init_module(config: &'static Config) -> Result<InitializedInterface> {
     let module = module_for_config(config).unwrap();
     let interface = module.init(config);
+    let handler = Arc::new(module.handler(config));
 
     let edit_buffer = Arc::new(Mutex::new(EditBuffer::new(config)));
     let dump = Arc::new(Mutex::new(ProgramsDump::new(config)));
@@ -71,6 +74,7 @@ pub fn init_module(config: &'static Config) -> Result<InitializedInterface> {
     drop(edit_buffer_guard);
 
     Ok(InitializedInterface {
+        handler,
         edit_buffer,
         dump,
         callbacks,

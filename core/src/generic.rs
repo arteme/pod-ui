@@ -2,7 +2,7 @@ use log::{error, warn};
 use crate::config::{GUI, MIDI};
 use crate::context::Ctx;
 use crate::controller::*;
-use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSender, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
+use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
 use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, Control, DeviceFlags};
 use crate::{config, program};
@@ -11,7 +11,7 @@ fn update_dump(ctx: &Ctx, event: &ControlChangeEvent) {
     let controller = &ctx.controller.lock().unwrap();
     let dump = &mut ctx.dump.lock().unwrap();
 
-    let Some(idx) = num_program(ctx.program()) else {
+    let Some(idx) = num_program(&ctx.program()) else {
         // not updating dump in manual mode or tuner
         return;
     };
@@ -90,16 +90,10 @@ pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
 }
 
 pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ControlChange { channel, control: cc, value } = midi_message else {
+    let MidiMessage::ControlChange { control: cc, value, .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI CC handler: {:?}", midi_message);
         return;
     };
-
-    let expected_channel = ctx.midi_channel();
-    if expected_channel != Channel::all() && *channel != expected_channel {
-        // Ignore midi messages sent to a different channel
-        return;
-    }
 
     let config = ctx.config;
     if config.in_cc_edit_buffer_dump_req.contains(cc) {
@@ -135,7 +129,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ControlChange { channel, control: cc, value } = midi_message else {
+    let MidiMessage::ControlChange { control: cc, value, .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI CC handler: {:?}", midi_message);
         return;
     };
@@ -149,22 +143,16 @@ pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ProgramChange { channel, program } = midi_message else {
+    let MidiMessage::ProgramChange { program, .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
         return;
     };
-
-    let expected_channel = ctx.midi_channel();
-    if expected_channel != Channel::all() && *channel != expected_channel {
-        // Ignore midi messages sent to a different channel
-        return;
-    }
 
     ctx.set_program(Program::from(*program as u16), MIDI);
 }
 
 pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ProgramChange { channel, program } = midi_message else {
+    let MidiMessage::ProgramChange { program, .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
         return;
     };
@@ -189,7 +177,7 @@ pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: u8) -> bool {
     let mut edit = ctx.edit.lock().unwrap();
     let mut dump = ctx.dump.lock().unwrap();
 
-    let prev_program = num_program(ctx.program_prev());
+    let prev_program = num_program(&ctx.program_prev());
     if let Some(page) = prev_program {
         // store edit buffer to the program dump
         let data = program::store_patch_dump_ctrl(&edit);
@@ -198,7 +186,7 @@ pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: u8) -> bool {
     }
 
     let mut modified = false;
-    let program = num_program(ctx.program());
+    let program = num_program(&ctx.program());
     if let Some(page) = program {
         // load data from product dump to edit buffer
         let data = dump.data(page).unwrap();
@@ -217,7 +205,7 @@ pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: u8) -> bool {
 
 
 pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
-    let send_pc = if modified {
+    if modified {
         // send edit buffer
         let e = BufferStoreEvent {
             buffer: Buffer::EditBuffer,
@@ -226,15 +214,9 @@ pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
         ctx.app_event_tx.send_or_warn(AppEvent::Store(e));
     } else {
         // send PC
-
-        // todo
-        let program = match program {
-            Program::ManualMode => { None }
-            Program::Tuner => { None }
-            Program::Program(p) => { Some(*p as u8) }
-        };
+        let program = num_program(&program);
         if let Some(program) = program {
-            let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program };
+            let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program: program as u8 };
             ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
         }
     };
@@ -385,7 +367,7 @@ pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
                     Some(MidiMessage::ProgramEditBufferDumpRequest)
                 }
                 Buffer::Current => {
-                    let patch = num_program(ctx.program());
+                    let patch = num_program(&ctx.program());
                     patch.map(|v| {
                         MidiMessage::ProgramPatchDumpRequest { patch: v as u8 }
                     })
@@ -423,7 +405,7 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
                     ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
                 }
                 Buffer::Current => {
-                    let patch = num_program(ctx.program());
+                    let patch = num_program(&ctx.program());
                     let Some(patch) = patch else { return };
                     let e = BufferDataEvent {
                         buffer: Buffer::Program(patch),
@@ -551,21 +533,6 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
 }
 
 pub fn midi_udi_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let channel = match midi_message {
-        MidiMessage::UniversalDeviceInquiry { channel } => *channel,
-        MidiMessage::UniversalDeviceInquiryResponse { channel, .. } => *channel,
-        _ => {
-            error!("Incorrect MIDI message for MIDI UDI handler: {:?}", midi_message);
-            return;
-        }
-    };
-
-    let expected_channel = ctx.midi_channel();
-    if expected_channel != Channel::all() && channel != expected_channel {
-        // Ignore midi messages sent to a different channel
-        return;
-    }
-
     match midi_message {
         MidiMessage::UniversalDeviceInquiry { channel } => {
             // Pretend we're the POD model that is currently loaded
@@ -616,7 +583,7 @@ pub fn modified_handler(ctx: &Ctx, event: &ModifiedEvent) {
             ctx.edit.lock().unwrap().set_modified(event.modified);
         }
         Buffer::Current => {
-            let program = num_program(ctx.program());
+            let program = num_program(&ctx.program());
             if let Some(p) = program {
                 dump.set_modified(p, event.modified);
                 ctx.edit.lock().unwrap().set_modified(event.modified);
@@ -648,16 +615,14 @@ pub fn new_device_handler(ctx: &Ctx) {
             ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
         }
     }
-
-
 }
 
 
 /// Convert `Program` to an `Option` of a number if a program is
 /// a number program and not a manual mode or tuner
-pub fn num_program(p: Program) -> Option<usize> {
+pub fn num_program(p: &Program) -> Option<usize> {
     match p {
         Program::ManualMode | Program::Tuner => { None }
-        Program::Program(v) => { Some(v as usize) }
+        Program::Program(v) => { Some(*v as usize) }
     }
 }

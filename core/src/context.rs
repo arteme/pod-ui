@@ -5,12 +5,14 @@ use crate::controller::*;
 use crate::dump::ProgramsDump;
 use crate::edit::EditBuffer;
 use crate::event::{EventSender, Program};
+use crate::handler::BoxedHandler;
 use crate::model::Config;
 
 #[derive(Clone)]
 pub struct Ctx {
     pub config: &'static Config,
 
+    pub handler: Arc<BoxedHandler>,
     pub controller: Arc<Mutex<Controller>>,
     pub edit: Arc<Mutex<EditBuffer>>,
     pub dump: Arc<Mutex<ProgramsDump>>,

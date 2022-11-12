@@ -29,7 +29,8 @@ use pod_core::midi_io::*;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
 use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, is_system_app_event, ModifiedEvent, Origin, Program, ProgramChangeEvent};
-use pod_core::generic::*;
+use pod_core::dispatch::*;
+use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
 use pod_core::store::{Event, Store};
@@ -710,6 +711,7 @@ async fn main() -> Result<()> {
                     let interface = state.interface.as_ref().unwrap();
                     let config = state.config.unwrap();
 
+                    let handler = interface.handler.clone();
                     let controller = interface.edit_buffer.lock().unwrap().controller();
                     let objs = interface.objects.clone();
                     let callbacks = interface.callbacks.clone();
@@ -737,6 +739,7 @@ async fn main() -> Result<()> {
                     let ctx = Ctx {
                         config,
                         controller,
+                        handler,
                         edit: interface.edit_buffer.clone(),
                         dump: interface.dump.clone(),
                         ui_controller: ui_controller.clone(),
