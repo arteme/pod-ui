@@ -295,53 +295,6 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
 
         }
-        // TODO: PODxt messages
-        MidiMessage::XtInstalledPacksRequest => {
-            // when Line6 Edit asks, we report we have all packs
-            let msg = MidiMessage::XtInstalledPacks { packs: 0x0f };
-            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
-        }
-        MidiMessage::XtInstalledPacks { packs } => {
-            ctx.controller.set("xt_packs", *packs as u16, MIDI);
-        }
-        MidiMessage::XtEditBufferDumpRequest => {
-            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::MIDI };
-            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
-        }
-        MidiMessage::XtEditBufferDump { id, data } => {
-            if *id != (ctx.config.member as u8) {
-                warn!("Buffer dump id mismatch: expected {}, got {}", ctx.config.member, id);
-            }
-            if data.len() != ctx.config.program_size {
-                error!("Program size mismatch: expected {}, got {}",
-                       ctx.config.program_size, data.len());
-                return;
-            }
-            let e = BufferDataEvent {
-                buffer: Buffer::EditBuffer,
-                origin: Origin::MIDI,
-                data: data.clone()
-            };
-        }
-        MidiMessage::XtPatchDumpRequest { patch } => {
-            let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: Origin::MIDI };
-            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
-        }
-        MidiMessage::XtPatchDump { patch, id, data } => {
-            if *id != (ctx.config.member as u8) {
-                warn!("Buffer dump id mismatch: expected {}, got {}", ctx.config.member, id);
-            }
-            if data.len() != ctx.config.program_size {
-                error!("Program size mismatch: expected {}, got {}",
-                       ctx.config.program_size, data.len());
-                return;
-            }
-            let e = BufferDataEvent {
-                buffer: Buffer::Program(*patch as usize),
-                origin: Origin::MIDI,
-                data: data.clone()
-            };
-        }
         _ => {}
     }
 }

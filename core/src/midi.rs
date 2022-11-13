@@ -23,7 +23,7 @@ pub enum MidiMessage {
     XtInstalledPacksRequest,
     XtInstalledPacks { packs: u8 },
     XtEditBufferDumpRequest,
-    XtEditBufferDump { id: u8, data: Vec<u8> },
+    XtBufferDump { id: u8, data: Vec<u8> },
     XtPatchDumpRequest { patch: u16 },
     XtPatchDump { patch: u16, id: u8, data: Vec<u8> },
     XtPatchDumpEnd,
@@ -108,7 +108,7 @@ impl MidiMessage {
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x01, *packs, 0xf7].to_vec(),
             MidiMessage::XtEditBufferDumpRequest =>
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x75, 0xf7].to_vec(),
-            MidiMessage::XtEditBufferDump { id,  data } => {
+            MidiMessage::XtBufferDump { id,  data } => {
                 let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x74, *id];
                 msg.extend(data);
                 msg.extend_from_slice(&[0xf7]);
@@ -221,7 +221,7 @@ impl MidiMessage {
                                 Ok(MidiMessage::XtInstalledPacks { packs: *p }),
                             [0x03, 0x75] => Ok(MidiMessage::XtEditBufferDumpRequest),
                             [0x03, 0x74, i, data @ ..] =>
-                                Ok(MidiMessage::XtEditBufferDump {
+                                Ok(MidiMessage::XtBufferDump {
                                     id: *i,
                                     data: data.to_vec()
                                 }),
