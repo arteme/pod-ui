@@ -8,7 +8,6 @@ mod autodetect;
 
 use std::collections::HashMap;
 use std::sync::{Arc, atomic, Mutex};
-use std::thread;
 use std::time::{Duration, Instant};
 use anyhow::*;
 use clap::{Args, Command, FromArgMatches};
@@ -30,6 +29,7 @@ use pod_core::context::Ctx;
 use pod_core::controller::*;
 use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, is_system_app_event, ModifiedEvent, Origin, Program, ProgramChangeEvent};
 use pod_core::dispatch::*;
+use pod_core::dump::ProgramsDump;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
@@ -40,6 +40,7 @@ use crate::opts::*;
 use crate::panic::*;
 use crate::registry::*;
 use crate::settings::*;
+use crate::util::next_thread_id;
 use crate::widgets::*;
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
@@ -55,6 +56,7 @@ pub enum UIEvent {
     MidiRx,
     Panic,
     Modified(usize, bool),
+    Name(usize, String),
     Shutdown,
     Quit
 }
@@ -184,7 +186,7 @@ pub fn midi_in_out_start(state: &mut State,
             let mut in_cancel_rx = in_cancel_rx.fuse();
 
             async move {
-                let id = thread::current().id();
+                let id = next_thread_id();
                 let mut close_quiet_duration: Option<Duration> = None;
 
                 info!("MIDI in thread {:?} start", id);
@@ -231,7 +233,7 @@ pub fn midi_in_out_start(state: &mut State,
             let mut out_cancel_rx = out_cancel_rx.fuse();
 
             async move {
-                let id = thread::current().id();
+                let id = next_thread_id();
                 info!("MIDI out thread {:?} start", id);
                 loop {
                     tokio::select! {
@@ -397,12 +399,51 @@ fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
         .spawn_local_with_priority(
             glib::PRIORITY_HIGH,
             async move {
+                let id = next_thread_id();
+                info!("Controller RX thread {:?} start", id);
                 loop {
                     let stop = controller_rx_handler(&mut rx, &controller, &objs, &callbacks, &f).await;
                     if stop { break; }
                 }
+                info!("Controller RX thread {:?} stop", id);
             });
 }
+
+async fn names_rx_handler(rx: &mut broadcast::Receiver<Event<usize>>,
+                          ui_tx: &glib::Sender<UIEvent>,
+                          dump: &Arc<Mutex<ProgramsDump>>) -> bool
+{
+    let idx = match rx.recv().await {
+        Ok(Event { key, .. }) => { key }
+        Err(RecvError::Closed) => { return true; }
+        Err(RecvError::Lagged(_)) => { return false; }
+    };
+
+    let name = dump.lock().unwrap().name(idx).unwrap();
+    ui_tx.send(UIEvent::Name(idx, name)).unwrap();
+
+    false
+}
+
+fn start_names_rx(ui_tx: glib::Sender<UIEvent>,
+                  names: Arc<Mutex<ProgramsDump>>)
+{
+    let dump = names.clone();
+    let (tx, mut rx) = broadcast::channel::<Event<usize>>(MIDI_OUT_CHANNEL_CAPACITY);
+    dump.lock().unwrap().broadcast_names(Some(tx));
+
+    tokio::spawn(async move {
+        let id = next_thread_id();
+        info!("Program names RX thread {:?} start", id);
+        loop {
+            let stop = names_rx_handler(&mut rx, &ui_tx, &dump).await;
+            if stop { break; }
+        }
+        info!("Program names RX thread {:?} stop", id);
+
+    });
+}
+
 
 /// Try very hard to convince a GTK window to resize to something smaller.
 /// It is not enough to do `window.resize(1, 1)` once, you have to do it
@@ -568,6 +609,7 @@ async fn main() -> Result<()> {
                         continue;
                     }
                 };
+                debug!("== {:?}", msg);
 
                 // execute device-specific handlers
                 if let Some(ctx) = &ctx {
@@ -718,8 +760,9 @@ async fn main() -> Result<()> {
                     };
 
                     if let Some(ctx) = &*ctx_share.lock().unwrap() {
-                        // detach old controller from app events
+                        // close channels
                         ctx.controller.broadcast(None);
+                        ctx.dump.lock().unwrap().broadcast_names(None);
                     }
 
                     let handler = interface.handler;
@@ -728,6 +771,7 @@ async fn main() -> Result<()> {
                     let callbacks = interface.callbacks;
 
                     {
+                        // start event handlers
                         let app_event_tx = app_event_tx.clone();
                         start_controller_rx(
                             controller.clone(), objs, callbacks,
@@ -745,6 +789,8 @@ async fn main() -> Result<()> {
                                 app_event_tx.send_or_warn(AppEvent::ControlChange(e));
                             }
                         );
+
+                        start_names_rx(ui_event_tx.clone(), interface.dump.clone());
                     }
 
                     let ctx = Ctx {
@@ -827,6 +873,11 @@ async fn main() -> Result<()> {
                 UIEvent::Modified(page, modified) => {
                     if let Some(grid) = &program_grid {
                         grid.set_program_modified(page, modified);
+                    }
+                }
+                UIEvent::Name(page, name) => {
+                    if let Some(grid) = &program_grid {
+                        grid.set_program_name(page, &name);
                     }
                 }
                 UIEvent::MidiTx => {

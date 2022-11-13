@@ -1,3 +1,4 @@
+use tokio::sync::broadcast;
 use crate::model::Config;
 use crate::names::ProgramNames;
 use crate::store::{Event, Store};
@@ -19,6 +20,10 @@ impl ProgramsDump {
         let names = ProgramNames::new(config);
 
         Self { program_num, program_size, data, modified, names }
+    }
+
+    pub fn broadcast_names(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+        self.names.broadcast(tx)
     }
 
     pub fn program_num(&self) -> usize {
