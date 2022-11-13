@@ -342,9 +342,6 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
                 data: data.clone()
             };
         }
-        MidiMessage::XtPatchDumpEnd => {
-            // TODO!
-        }
         _ => {}
     }
 }
@@ -603,18 +600,9 @@ pub fn new_device_handler(ctx: &Ctx) {
     let msg = MidiMessage::UniversalDeviceInquiry { channel: ctx.midi_channel() };
     ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
 
-    // TODO: This will go to module-specific `new_device_ping`
-    match ctx.config.family {
-        0x0003 => {
-            // PODxt family
-            let msg = MidiMessage::XtInstalledPacksRequest;
-            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
-        }
-        _ => {
-            let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::UI };
-            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
-        }
-    }
+    // Request all buffers load
+    let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::UI };
+    ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
 }
 
 

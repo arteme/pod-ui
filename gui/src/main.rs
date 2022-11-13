@@ -394,12 +394,14 @@ fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
     controller.broadcast(Some(tx));
 
     glib::MainContext::default()
-        .spawn_local(async move {
-            loop {
-                let stop = controller_rx_handler(&mut rx, &controller, &objs, &callbacks, &f).await;
-                if stop { break; }
-            }
-        });
+        .spawn_local_with_priority(
+            glib::PRIORITY_HIGH,
+            async move {
+                loop {
+                    let stop = controller_rx_handler(&mut rx, &controller, &objs, &callbacks, &f).await;
+                    if stop { break; }
+                }
+            });
 }
 
 /// Try very hard to convince a GTK window to resize to something smaller.
