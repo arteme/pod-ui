@@ -50,7 +50,7 @@ const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 pub enum UIEvent {
     DeviceDetected(DeviceDetectedEvent),
     NewMidiConnection,
-    NewEditBuffer(Option<Ctx>),
+    NewConfig,
     MidiTx,
     MidiRx,
     Panic,
@@ -74,7 +74,6 @@ pub struct State {
     pub ui_event_tx: glib::Sender<UIEvent>,
 
     pub config: Option<&'static Config>,
-    pub interface: Option<InitializedInterface>,
     pub detected: Option<DeviceDetectedEvent>,
 }
 
@@ -277,12 +276,6 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         // config changed, update config & edit buffer
         let config = config.unwrap();
         state.config.replace(config);
-
-        info!("Initiating module for config {:?}", &config.name);
-
-        state.interface = init_module(config)
-            .map_err(|err| error!("Failed to initialize config {:?}: {}", config.name, err))
-            .ok();
 
         info!("Installing config {:?}", &config.name);
 
@@ -509,9 +502,9 @@ async fn main() -> Result<()> {
         app_event_tx: app_event_tx.clone(),
         ui_event_tx: ui_event_tx.clone(),
         config: None,
-        interface: None,
         detected: None,
     }));
+    let ctx_share = Arc::new(Mutex::new(Option::<Ctx>::None));
 
     // UI
 
@@ -556,9 +549,11 @@ async fn main() -> Result<()> {
     tokio::spawn({
         let app_event_tx = app_event_tx.clone();
         let ui_event_tx = ui_event_tx.clone();
-        let mut ctx: Option<Ctx> = None;
+        let ctx_share = ctx_share.clone();
 
         async move {
+            let mut ctx: Option<Ctx> = None;
+
             loop {
                 let msg = match app_event_rx.recv().await {
                     Ok(msg) => { msg }
@@ -649,12 +644,18 @@ async fn main() -> Result<()> {
                     }
                     // new config & shutdown
                     AppEvent::NewConfig => {
-                        ui_event_tx.send(UIEvent::NewEditBuffer(ctx.clone()));
+                        // transfer Ctx ownership to the UI thread and
+                        // ask it to initialize a new Ctx
+                        let mut ctx_share = ctx_share.lock().unwrap();
+                        *ctx_share = ctx.take();
+
+                        ui_event_tx.send(UIEvent::NewConfig);
                     }
-                    AppEvent::NewCtx(c) => {
+                    AppEvent::NewCtx => {
                         trace!("New context installed...");
-                        ctx.replace(c.clone());
-                        new_device_handler(c);
+                        let mut ctx_share = ctx_share.lock().unwrap();
+                        ctx.replace(ctx_share.take().unwrap());
+                        new_device_handler(ctx.as_ref().unwrap());
                     }
                     AppEvent::Shutdown => {
                         ui_event_tx.send(UIEvent::Shutdown);
@@ -701,20 +702,28 @@ async fn main() -> Result<()> {
 
         move |event| {
             match event {
-                UIEvent::NewEditBuffer(ctx) => {
-                    if let Some(ctx) = &ctx {
+                UIEvent::NewConfig => {
+                    let state = state.lock().unwrap();
+                    let config = state.config.unwrap();
+
+                    info!("Initiating module for config {:?}", &config.name);
+                    let interface = init_module(config)
+                        .map_err(|err| error!("Failed to initialize config {:?}: {}", config.name, err))
+                        .ok();
+                    let Some(interface) = interface else {
+                        // Failed to initialize the interface, so skip the rest
+                        return Continue(true);
+                    };
+
+                    if let Some(ctx) = &*ctx_share.lock().unwrap() {
                         // detach old controller from app events
                         ctx.controller.broadcast(None);
                     }
 
-                    let state = state.lock().unwrap();
-                    let interface = state.interface.as_ref().unwrap();
-                    let config = state.config.unwrap();
-
-                    let handler = interface.handler.clone();
+                    let handler = interface.handler;
                     let controller = interface.edit_buffer.lock().unwrap().controller();
-                    let objs = interface.objects.clone();
-                    let callbacks = interface.callbacks.clone();
+                    let objs = interface.objects;
+                    let callbacks = interface.callbacks;
 
                     {
                         let app_event_tx = app_event_tx.clone();
@@ -745,8 +754,8 @@ async fn main() -> Result<()> {
                         ui_controller: ui_controller.clone(),
                         app_event_tx: app_event_tx.clone()
                     };
-                    ctx.set_midi_channel(state.midi_channel_num);
-                    app_event_tx.send_or_warn(AppEvent::NewCtx(ctx));
+                    ctx_share.lock().unwrap().replace(ctx);
+                    app_event_tx.send_or_warn(AppEvent::NewCtx);
 
                     // attach new device UI
 

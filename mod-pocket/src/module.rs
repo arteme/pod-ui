@@ -5,7 +5,7 @@ use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
 use pod_gtk::prelude::*;
 use gtk::{Builder, Widget};
-use pod_core::handler::Handler;
+use pod_core::handler::BoxedHandler;
 use pod_mod_pod2::Pod2Handler;
 use pod_mod_pod2::wiring::*;
 
@@ -22,7 +22,7 @@ impl Module for PocketPodModule {
         Box::new(PocketPodInterface::new(config))
     }
 
-    fn handler(&self, config: &'static Config) -> Box<dyn Handler + 'static + Sync + Send> {
+    fn handler(&self, config: &'static Config) -> BoxedHandler {
         Box::new(Pod2Handler)
     }
 }

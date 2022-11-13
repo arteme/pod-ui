@@ -35,7 +35,7 @@ pub fn module_for_config(config: &Config) -> Option<&Box<dyn Module>> {
 }
 
 pub struct InitializedInterface {
-    pub handler: Arc<BoxedHandler>,
+    pub handler: BoxedHandler,
     pub edit_buffer: Arc<Mutex<EditBuffer>>,
     pub dump: Arc<Mutex<ProgramsDump>>,
     pub callbacks: Callbacks,
@@ -46,7 +46,7 @@ pub struct InitializedInterface {
 pub fn init_module(config: &'static Config) -> Result<InitializedInterface> {
     let module = module_for_config(config).unwrap();
     let interface = module.init(config);
-    let handler = Arc::new(module.handler(config));
+    let handler = module.handler(config);
 
     let edit_buffer = Arc::new(Mutex::new(EditBuffer::new(config)));
     let dump = Arc::new(Mutex::new(ProgramsDump::new(config)));

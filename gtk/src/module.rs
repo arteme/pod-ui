@@ -4,7 +4,7 @@ use pod_core::model::Config;
 use anyhow::Result;
 use multimap::MultiMap;
 use pod_core::edit::EditBuffer;
-use pod_core::handler::Handler;
+use pod_core::handler::BoxedHandler;
 
 use crate::ObjectList;
 
@@ -13,7 +13,7 @@ pub type Callbacks = MultiMap<String, Rc<dyn Fn() -> ()>>;
 pub trait Module {
     fn config(&self) -> Box<[Config]>;
     fn init(&self, config: &'static Config) -> Box<dyn Interface>;
-    fn handler(&self, config: &'static Config) -> Box<dyn Handler + 'static + Sync + Send>;
+    fn handler(&self, config: &'static Config) -> BoxedHandler;
 }
 
 pub trait Interface {

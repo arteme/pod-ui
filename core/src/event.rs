@@ -108,14 +108,14 @@ pub enum AppEvent {
 
     DeviceDetected(DeviceDetectedEvent),
     NewConfig,
-    NewCtx(Ctx),
+    NewCtx,
     Shutdown,
 }
 
 pub fn is_system_app_event(event: &AppEvent) -> bool {
     match event {
         AppEvent::DeviceDetected(_) |
-        AppEvent::NewConfig | AppEvent::NewCtx(_) | AppEvent::Shutdown => true,
+        AppEvent::NewConfig | AppEvent::NewCtx | AppEvent::Shutdown => true,
         _ => false
     }
 }
