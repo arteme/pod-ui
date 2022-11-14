@@ -1,23 +1,45 @@
 use std::sync::{Arc, Mutex};
 use anyhow::*;
+use log::error;
 use pod_core::config::register_config;
 use pod_core::dump::ProgramsDump;
 use pod_core::edit::EditBuffer;
 use pod_core::handler::BoxedHandler;
-use pod_core::model::Config;
+use pod_core::model::{AbstractControl, Config};
 use pod_core::store::{Signal, Store};
 use pod_gtk::prelude::*;
 
 static mut MODULES: Vec<Box<dyn Module>> = vec![];
 
-pub fn register_module(module: impl Module + 'static) {
+fn validate_unique_cc(config: &Config) -> bool {
+    let mut seen_cc = vec![];
+    let mut ok = true;
+    for (k, v) in config.controls.iter() {
+        if let Some(cc) = v.get_cc() {
+            if seen_cc.contains(&cc) {
+                error!("Config {:?} contains multiple controls for CC={}", config.name, cc);
+                ok = false;
+            }
+            seen_cc.push(cc);
+        }
+    }
+
+    ok
+}
+
+pub fn register_module(module: impl Module + 'static) -> Result<()> {
     for config in module.config().iter() {
+        if !validate_unique_cc(config) {
+            bail!("Config {:?} failed unique CC validation!", config.name);
+        }
         register_config(config);
     }
 
     unsafe {
         MODULES.push(Box::new(module))
     }
+
+    Ok(())
 }
 
 pub fn module_for_config(config: &Config) -> Option<&Box<dyn Module>> {

@@ -518,9 +518,9 @@ async fn main() -> Result<()> {
     let sentry_enabled = _guard.is_enabled();
     simple_logger::init()?;
 
-    register_module(pod_mod_pod2::module());
-    register_module(pod_mod_pocket::module());
-    register_module(pod_mod_xt::module());
+    register_module(pod_mod_pod2::module())?;
+    register_module(pod_mod_pocket::module())?;
+    register_module(pod_mod_xt::module())?;
 
     let help_text = generate_help_text()?;
     let cli = Command::new("Pod UI")
