@@ -1,10 +1,12 @@
 # POD UI
 
-A GTK+ application for controlling Line6 [POD 2.0](https://www.musikhaus-korn.de/en/line6-pod-20/pd/15909)
-guitar modelling amp via MIDI. The app is written in Rust and is as much a
-project of learning Rust as actually doing what the app is supposed to do.
+A modern GTK+ application for controlling Line6 [POD family](https://en.wikipedia.org/wiki/Pod_(amp_modeler))
+of guitar modelling amps via MIDI. Currently, POD 2.0, POD Pro and Pocket
+POD are supported; PODxt support is in the work.
 
-The UI is inspired by [qtpod](https://llg.cubic.org/tools/qtpod/). 
+The app is written in Rust and is as much a project of learning Rust as
+actually doing what the app is supposed to do. The UI is inspired by
+[qtpod](https://llg.cubic.org/tools/qtpod/). 
 
 The aim is to get feature parity with *Line6 Edit* on things like:
 
@@ -12,6 +14,8 @@ The aim is to get feature parity with *Line6 Edit* on things like:
  - [x] up-/downloading individual patches;
  - [x] up-/downloading patch libraries;
  - [ ] loading .l6t and .lib files;
+ - [x] support for POD 2.0, POD Pro device;
+ - [x] support for Pocket POD device;
  - [x] support for POD 2.0 device;
  - [ ] support for PODxt/Bass POD/other Line6 devices;
 
@@ -41,5 +45,5 @@ cargo run
 ```
 
 Windows and MacOS users may require additional toolchains installed, please
-check the [Development doc](DEVELOPMENT.md).
-
+check the [development documentation](DEVELOPMENT.md) for more information
+about dependencies and platform-specific issues.

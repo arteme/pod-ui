@@ -9,22 +9,26 @@ required for making release packages.
 
 ### Linux
 
-Refer to your distribution documentation on getting `git`, `rust` and
-Gtk+ 3.x installed.
-
-For packaging `pod-ui` AppImage you'll need
-[linuxdeploy](https://github.com/linuxdeploy/linuxdeploy) and [linuxdeploy
-gtk plugin](https://github.com/linuxdeploy/linuxdeploy-plugin-gtk):
+In Linux, beside `rust`, you will need build essentials like `binutils`,
+`gcc`, as well as development libraries for ALSA, OpenSSL and Gtk+ 3.0
+libraries. For example, in Ubuntu, install the following:
 
 ```shell
-mkdir -p ~/apps/appimage
-cd ~/apps/appimage
-wget -c "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
+apt-get install -y binutils gcc pkg-config git \
+        libasound2-dev libssl-dev libgtk-3-dev
+```
+
+For packaging `pod-ui` AppImage, [linuxdeploy](https://github.com/linuxdeploy/linuxdeploy)
+is used inside a Docker container.
+
+```shell
+cd ./build/linux/
 wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
 ```
 
-**NOTE:** Both of these are continuous releases, which means that care must
-be taken to ensure that `pod-ui` is compatible with updated linuxdeploy.
+**NOTE:** Linuxdeploy uses continuous releases, so it is difficult to
+guarantee that `pod-ui` will be packaged correctly. Currently, version
+1-alpha (git commit ID 4c5b9c5) is used.
 
 ### Windows
 
@@ -84,7 +88,7 @@ variable at run-time.
 
 ### Submodules
 
-To package the app, first check out the resources submodule:
+To package the app, first check out the `resources` submodule:
 
 ```shell
 git submodule update --init --recursive
