@@ -3,7 +3,7 @@ N=pod-ui-$V
 DIST=debug
 DIR=target/appdir
 TOOLS_DIR=$(dirname $0)
-LINUXDEPLOY=~/apps/appimage/linuxdeploy-x86_64.AppImage
+LINUXDEPLOY=../build/linux/linuxdeploy-x86_64.AppImage
 
 rm -rf $DIR
 
@@ -15,8 +15,9 @@ cp gui/resources/icon.png target/pod-ui.png
 
 ./build/collect-gtk.sh $DIR/usr
 
+LIBDIR=$(pkg-config --variable=libdir gtk+-3.0)
 mkdir -p $DIR/apprun-hooks
-cp ./build/linux/linuxdeploy-plugin-gtk.sh $DIR/apprun-hooks
+sed "s|@LIBDIR@|$LIBDIR|g" < ./build/linux/linuxdeploy-plugin-gtk.sh > $DIR/apprun-hooks/linuxdeploy-plugin-gtk.sh
 
 pushd target 
 
@@ -24,13 +25,13 @@ export VERSION=$V
 
 # make appimage
 $LINUXDEPLOY --appdir ../$DIR \
-	--library /usr/lib/libharfbuzz.so.0 \
-	--library /usr/lib/libgtk-3.so.0 \
-	--library /usr/lib/libgio-2.0.so.0 \
-	--library /usr/lib/libgobject-2.0.so.0 \
-	--library /usr/lib/libpango-1.0.so.0 \
-	--library /usr/lib/libpangocairo-1.0.so.0 \
-	--library /usr/lib/libpangoft2-1.0.so.0 \
+	--library $LIBDIR/libharfbuzz.so.0 \
+	--library $LIBDIR/libgtk-3.so.0 \
+	--library $LIBDIR/libgio-2.0.so.0 \
+	--library $LIBDIR/libgobject-2.0.so.0 \
+	--library $LIBDIR/libpango-1.0.so.0 \
+	--library $LIBDIR/libpangocairo-1.0.so.0 \
+	--library $LIBDIR/libpangoft2-1.0.so.0 \
 	--desktop-file pod-ui.desktop --icon-file pod-ui.png \
        	--output appimage
 

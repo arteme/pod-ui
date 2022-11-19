@@ -69,6 +69,8 @@ UPDATE_ICON_CACHE=$(which gtk3-update-icon-cache gtk-update-icon-cache-3.0 gtk-u
 echo "update-icon-cache: $UPDATE_ICON_CACHE"
 ROOT=$(realpath $(dirname $UPDATE_ICON_CACHE)/..)
 echo "root: $ROOT"
+LIBDIR=$(pkg-config --variable=libdir gtk+-3.0)
+echo "libdir: $LIBDIR"
 
 echo "1. theme"
 mkdir -p $DIR/share/themes
@@ -98,7 +100,7 @@ glib-compile-schemas $DIR/share/glib-2.0/schemas/
 
 echo "5. gdkpixbuf loaders"
 mkdir -p $DIR/lib
-cp -RL $ROOT/lib/gdk-pixbuf-2.0 $DIR/lib/
+cp -RL $LIBDIR/gdk-pixbuf-2.0 $DIR/lib/
 find $DIR/lib/gdk-pixbuf-2.0 -name '*.a' -delete
 
 # remove excluded pixbuf loaders
@@ -120,8 +122,8 @@ fi
 
 echo "6. immodules"
 mkdir -p $DIR/lib/gtk-3.0/3.0.0
-cp -RL $ROOT/lib/gtk-3.0/3.0.0/immodules $DIR/lib/gtk-3.0/3.0.0
-cp $ROOT/lib/gtk-3.0/3.0.0/immodules.cache $DIR/lib/gtk-3.0/3.0.0
+cp -RL $LIBDIR/gtk-3.0/3.0.0/immodules $DIR/lib/gtk-3.0/3.0.0
+cp $LIBDIR/gtk-3.0/3.0.0/immodules.cache $DIR/lib/gtk-3.0/3.0.0
 
 if [ "$COLLECT_GTK_RELATIVE_PATHS" = "y" ]; then
 	# update cache with relative paths
