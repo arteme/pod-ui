@@ -1,3 +1,4 @@
+#!/bin/bash
 V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V
 DIST=debug
