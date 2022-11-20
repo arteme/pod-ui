@@ -6,9 +6,14 @@ use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferSto
 use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, Control, DeviceFlags};
 use crate::{config, program};
+use crate::cc_values::*;
 
-fn update_dump(ctx: &Ctx, event: &ControlChangeEvent) {
+fn update_edit_buffer(ctx: &Ctx, event: &ControlChangeEvent) {
     let controller = &ctx.controller.lock().unwrap();
+    let edit = ctx.edit.lock().unwrap();
+    let mut raw = edit.raw_locked();
+    ctx.handler.control_value_to_buffer(controller, event.name.as_str(), &mut raw);
+    /*
     let dump = &mut ctx.dump.lock().unwrap();
 
     let Some(idx) = num_program(&ctx.program()) else {
@@ -22,10 +27,8 @@ fn update_dump(ctx: &Ctx, event: &ControlChangeEvent) {
     };
 
     control_value_to_buffer(controller, event, buffer);
-}
+     */
 
-fn control_value_to_buffer(controller: &Controller, event: &ControlChangeEvent, buffer: &mut [u8]) {
-    // todo!()
 }
 
 fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
@@ -80,10 +83,10 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
     match event.origin {
         Origin::MIDI => {
-            update_dump(ctx, event);
+            update_edit_buffer(ctx, event);
         }
         Origin::UI => {
-            update_dump(ctx, event);
+            update_edit_buffer(ctx, event);
             send_midi_cc(ctx, event);
         }
     }
@@ -107,6 +110,11 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         return;
     };
 
+    let mut controller = ctx.controller.lock().unwrap();
+
+    // save raw CC value to the controller
+    controller.set_cc_value(*cc, *value, MIDI);
+
     // Map the control address to a control for the value lookup.
     // For most controls this will the same control as the one
     // resolved by CC, for multibyte controls this will be the
@@ -122,7 +130,6 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         // single byte control, or control without address
         .unwrap_or_else(|| (name, control));
 
-    let mut controller = ctx.controller.lock().unwrap();
     let control_value = controller.get(name).unwrap();
     let value = control.value_from_midi(*value, control_value);
     controller.set(name, value, MIDI);
@@ -140,6 +147,9 @@ pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
         ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
     }
+
+    // save raw CC value to the controller
+    ctx.controller.lock().unwrap().set_cc_value(*cc, *value, GUI);
 }
 
 pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
@@ -193,7 +203,9 @@ pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: u8) -> bool {
 
         // In case of program change, always send a signal that the data change is coming
         // from MIDI so that the GUI gets updated, but the MIDI does not
-        program::load_patch_dump_ctrl(&mut edit, data, MIDI);
+        let value_fn = |controller: &mut Controller, name: &str, buffer: &[u8]|
+            ctx.handler.control_value_from_buffer(controller, name, buffer);
+        program::load_patch_dump_ctrl(&mut edit, data, value_fn);
         modified = dump.modified(page);
         edit.set_modified(modified);
     }
@@ -399,6 +411,9 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
 }
 
 pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
+    let value_fn = |controller: &mut Controller, name: &str, buffer: &[u8]| {
+        ctx.handler.control_value_from_buffer(controller, name, buffer)
+    };
     match event.origin {
         Origin::MIDI => {
             let update_edit_buffer = match event.buffer {
@@ -406,7 +421,7 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
                     program::load_patch_dump_ctrl(
                         &mut ctx.edit.lock().unwrap(),
                         event.data.as_slice(),
-                        MIDI
+                        value_fn
                     );
                     false
                 }
@@ -447,7 +462,7 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
                 program::load_patch_dump_ctrl(
                     &mut ctx.edit.lock().unwrap(),
                     ctx.dump.lock().unwrap().data(current).unwrap(),
-                    MIDI
+                    value_fn
                 );
             }
         }

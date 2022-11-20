@@ -1,10 +1,12 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use crate::controller::Controller;
 use crate::model::{AbstractControl, Config, Control};
 use crate::store::{Event, Signal, Store, StoreSetIm};
 use log::*;
 use tokio::sync::broadcast;
-use tokio::task::JoinHandle;
+use crate::cc_values::CCValues;
+use crate::config::MIDI;
 use crate::str_encoder::StrEncoder;
 
 pub struct EditBuffer {
@@ -14,9 +16,17 @@ pub struct EditBuffer {
     encoder: StrEncoder
 }
 
+pub type ControlFromBufferFn = fn(&mut Controller, &str, &[u8]);
+pub type ControlToBufferFn = fn(&mut Controller, &str, &[u8]);
+
 impl EditBuffer {
     pub fn new(config: &Config) -> Self {
-        let controller = Controller::new(config.controls.clone());
+
+        let controls = config.controls.clone().into_iter()
+            .chain(CCValues::generate_cc_controls(config).into_iter())
+            .collect::<HashMap<_,_>>();
+
+        let controller = Controller::new(controls);
         let raw = vec![0u8; config.program_size].into_boxed_slice();
 
         let controller = Arc::new(Mutex::new(controller));
@@ -67,13 +77,15 @@ impl EditBuffer {
         self.raw.lock().unwrap()
     }
 
-    pub fn load_from_raw(&mut self, origin: u8) {
+    pub fn load_from_raw<F>(&mut self, control_value_from_buffer: F)
+        where F: Fn(&mut Controller, &str, &[u8])
+    {
         let mut controller = self.controller.lock().unwrap();
         let raw = self.raw.lock().unwrap();
         for (name, _) in ordered_controls(&controller) {
-            control_value_from_buffer(&mut controller, &name, &raw, origin);
+            control_value_from_buffer(&mut controller, &name, &raw);
         }
-        controller.set_full("name_change", 1, origin, Signal::Force);
+        controller.set_full("name_change", 1, MIDI, Signal::Force);
     }
 
     pub fn name(&self) -> String {

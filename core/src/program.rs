@@ -1,5 +1,7 @@
+use crate::config::MIDI;
+use crate::controller::Controller;
 use crate::dump::ProgramsDump;
-use crate::edit::EditBuffer;
+use crate::edit::*;
 
 
 pub fn store_patch_dump_ctrl_buf(edit: &EditBuffer, buffer: &mut [u8]) {
@@ -7,9 +9,11 @@ pub fn store_patch_dump_ctrl_buf(edit: &EditBuffer, buffer: &mut [u8]) {
     buffer.copy_from_slice(&raw);
 }
 
-pub fn load_patch_dump_ctrl(edit: &mut EditBuffer, buffer: &[u8], origin: u8) {
+pub fn load_patch_dump_ctrl<F>(edit: &mut EditBuffer, buffer: &[u8], control_value_from_buffer: F)
+    where F: Fn(&mut Controller, &str, &[u8])
+{
     edit.raw_locked().copy_from_slice(buffer);
-    edit.load_from_raw(origin);
+    edit.load_from_raw(control_value_from_buffer);
 }
 
 pub fn store_patch_dump_ctrl(edit: &EditBuffer) -> Vec<u8> {

@@ -1,4 +1,5 @@
 use crate::context::Ctx;
+use crate::controller::Controller;
 use crate::event::*;
 use crate::generic;
 use crate::midi::MidiMessage;
@@ -77,6 +78,9 @@ pub trait Handler {
     fn new_device_handler(&self, ctx: &Ctx) {
         generic::new_device_handler(ctx);
     }
+
+    fn control_value_from_buffer(&self, controller: &mut Controller, name: &str, buffer: &[u8]) {}
+    fn control_value_to_buffer(&self, controller: &Controller, name: &str, buffer: &mut [u8]) {}
 }
 
 pub type BoxedHandler = Box<dyn Handler + 'static + Send>;

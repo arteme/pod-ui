@@ -1,15 +1,17 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use log::{error, warn};
+use log::{debug, error, warn};
 use pod_core::config::MIDI;
 use pod_core::context::Ctx;
-use pod_core::controller::StoreSetIm;
+use pod_core::controller::*;
+use pod_core::cc_values::*;
 use pod_core::event::*;
-use pod_core::generic;
+use pod_core::{controller, generic};
 use pod_core::generic::num_program;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
+use pod_core::model::AbstractControl;
 
 struct Inner {
     midi_out_queue: VecDeque<MidiMessage>,
@@ -154,7 +156,6 @@ impl Handler for PodXtHandler {
                 ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
             }
 
-
             MidiMessage::XtPatchDumpEnd => {
                 // send next message
                 self.queue_pop();
@@ -172,5 +173,58 @@ impl Handler for PodXtHandler {
         ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
     }
 
+    fn control_value_from_buffer(&self, controller: &mut Controller, name: &str, buffer: &[u8]) {
+        let Some(control) = controller.get_config(name) else {
+            return;
+        };
+        let Some(cc) = control.get_cc() else {
+            // skip virtual controls
+            return;
+        };
+        let addr = match control.get_addr() {
+            Some((addr, len)) if len == 1 => addr,
+            Some((_, len)) => {
+                error!("PODxt control_value_to_buffer: len={} for control {:?} not supported!", len, name);
+                return;
+            }
+            None => {
+                debug!("MIDI-only control {:?} skipped", name);
+                return;
+            }
+        };
 
+        let value = buffer[addr as usize];
+        let control_value = controller.get(name).unwrap();
+        let value = control.value_from_midi(value, control_value);
+        controller.set(name, value, MIDI);
+    }
+
+
+    // PODxt writes raw MIDI data to the buffer
+    fn control_value_to_buffer(&self, controller: &Controller, name: &str, buffer: &mut [u8]) {
+        let Some(control) = controller.get_config(name) else {
+            return;
+        };
+        let Some(cc) = control.get_cc() else {
+            // skip virtual controls
+            return;
+        };
+        let addr = match control.get_addr() {
+            Some((addr, len)) if len == 1 => addr,
+            Some((_, len)) => {
+                error!("PODxt control_value_to_buffer: len={} for control {:?} not supported!", len, name);
+                return;
+            }
+            None => {
+                debug!("MIDI-only control {:?} skipped", name);
+                return;
+            }
+        };
+
+        let Some(value) = controller.get_cc_value(cc) else {
+            error!("No raw CC value for CC={}", cc);
+            return;
+        };
+        buffer[addr as usize] = value;
+    }
 }
