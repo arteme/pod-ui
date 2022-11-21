@@ -708,12 +708,15 @@ async fn main() -> Result<()> {
                     // message conversion
                     AppEvent::MidiIn(bytes) => {
                         // todo: do not clone
-                        let msg = MidiMessage::from_bytes(bytes.clone()).unwrap();
-                        app_event_tx.send(AppEvent::MidiMsgIn(msg));
+                        // todo: report to sentry if message conversion failed?
+                        if let Some(msg) = MidiMessage::from_bytes(bytes.clone())
+                            .map_err(|e| error!("{}", e)).ok() {
+                            app_event_tx.send_or_warn(AppEvent::MidiMsgIn(msg));
+                        }
                     }
                     AppEvent::MidiMsgOut(msg) => {
                         let bytes = MidiMessage::to_bytes(&msg);
-                        app_event_tx.send(AppEvent::MidiOut(bytes));
+                        app_event_tx.send_or_warn(AppEvent::MidiOut(bytes));
                     }
 
                     // silently ignore everything else
