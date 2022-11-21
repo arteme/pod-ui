@@ -4,6 +4,7 @@ use core::result::Result::Ok;
 use log::*;
 use result::*;
 use pod_core::config::configs;
+use pod_core::midi::Channel;
 use pod_core::midi_io::*;
 use pod_core::model::Config;
 use pod_gtk::prelude::{Continue, glib};
@@ -61,6 +62,11 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts) -> Result<()> {
                 }
                 Some(Err(e)) => {
                     error!("MIDI autodetect failed: {}", e);
+                    let config = opts.model.as_ref()
+                        .and_then(|str| config_for_str(&str).ok())
+                        .or_else(|| configs().iter().next());
+                    set_midi_in_out(&mut state.lock().unwrap(),
+                                    None, None, Channel::all(), config);
                     false
                 }
             };
