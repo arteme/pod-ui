@@ -103,7 +103,7 @@ pub fn midi_udi_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     };
 
     let expected_channel = ctx.midi_channel();
-    if expected_channel != Channel::all() && channel != expected_channel {
+    if channel != Channel::all() && channel != expected_channel {
         // Ignore midi messages sent to a different channel
         return;
     }
