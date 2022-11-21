@@ -28,6 +28,7 @@ pub enum MidiMessage {
     XtPatchDump { patch: u16, id: u8, data: Vec<u8> },
     XtPatchDumpEnd,
     XtSaved { patch: u16 },
+    XtStoreStatus { success: bool },
 
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
@@ -159,6 +160,10 @@ impl MidiMessage {
                 let (p1, p2) = u16_to_2_u7(patch);
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x24, p1, p2, 0xf7].to_vec()
             },
+            MidiMessage::XtStoreStatus { success } => {
+                let f = !success as u8;
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x50 | f, 0xf7].to_vec()
+            }
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
@@ -275,6 +280,8 @@ impl MidiMessage {
                                 let patch = PodXtSaved::from_midi(patch);
                                 Ok(MidiMessage::XtSaved { patch })
                             }
+                            [0x03, 0x50] => Ok(MidiMessage::XtStoreStatus { success: true }),
+                            [0x03, 0x51] => Ok(MidiMessage::XtStoreStatus { success: false }),
 
                             _ => bail!("Unknown sysex message")
                         }

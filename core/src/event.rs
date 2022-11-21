@@ -73,6 +73,7 @@ pub struct BufferStoreEvent {
 pub struct BufferDataEvent {
     pub buffer: Buffer,
     pub origin: Origin,
+    pub request: Origin,
     pub data: Vec<u8>,
 }
 

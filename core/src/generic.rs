@@ -260,6 +260,7 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             let e = BufferDataEvent {
                 buffer: Buffer::Program(*patch as usize),
                 origin: Origin::MIDI,
+                request: Origin::MIDI,
                 data: data.clone()
             };
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -281,6 +282,7 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             let e = BufferDataEvent {
                 buffer: Buffer::EditBuffer,
                 origin: Origin::MIDI,
+                request: Origin::MIDI,
                 data: data.clone()
             };
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -302,6 +304,7 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             let e = BufferDataEvent {
                 buffer: Buffer::All,
                 origin: Origin::MIDI,
+                request: Origin::MIDI,
                 data: data.clone()
             };
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -320,7 +323,7 @@ pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
     match event.origin {
         Origin::MIDI => {
             // reroute this to the store handler
-            let e = BufferStoreEvent { buffer: event.buffer.clone(), origin: Origin::UI };
+            let e = BufferStoreEvent { buffer: event.buffer.clone(), origin: Origin::MIDI };
             store_handler(ctx, &e);
         }
         Origin::UI => {
@@ -349,61 +352,61 @@ pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
 }
 
 pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
-    match event.origin {
-        Origin::MIDI => {
-            // This should never happen!
-            error!("Unsupported event: {:?}", event);
-            return;
+    // Store request origin
+    let request = event.origin.clone();
+    let origin = Origin::UI;
+
+    let dump = ctx.dump.lock().unwrap();
+    match event.buffer {
+        Buffer::EditBuffer => {
+            let e = BufferDataEvent {
+                request,
+                origin,
+                buffer: Buffer::EditBuffer,
+                data: program::store_patch_dump_ctrl(&ctx.edit.lock().unwrap())
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
         }
-        Origin::UI => {
-            let dump = ctx.dump.lock().unwrap();
-            match event.buffer {
-                Buffer::EditBuffer => {
+        Buffer::Current => {
+            let patch = num_program(&ctx.program());
+            let Some(patch) = patch else { return };
+            let e = BufferDataEvent {
+                request,
+                origin,
+                buffer: Buffer::Program(patch),
+                data: program::store_patch_dump(&dump, patch)
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+        }
+        Buffer::Program(patch) => {
+            let e = BufferDataEvent {
+                request,
+                origin,
+                buffer: Buffer::Program(patch),
+                data: program::store_patch_dump(&dump, patch)
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+        }
+        Buffer::All => {
+            if ctx.config.flags.contains(DeviceFlags::ALL_PROGRAMS_DUMP) {
+                // all programs in a single dump message
+                let e = BufferDataEvent {
+                    request,
+                    origin,
+                    buffer: Buffer::All,
+                    data: program::store_all_dump(&dump)
+                };
+                ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
+            } else {
+                // individual program dump messages for each program
+                for patch in 0 .. ctx.config.program_num {
                     let e = BufferDataEvent {
-                        buffer: Buffer::EditBuffer,
-                        origin: Origin::UI,
-                        data: program::store_patch_dump_ctrl(&ctx.edit.lock().unwrap())
-                    };
-                    ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-                }
-                Buffer::Current => {
-                    let patch = num_program(&ctx.program());
-                    let Some(patch) = patch else { return };
-                    let e = BufferDataEvent {
+                        request: request.clone(),
+                        origin: origin.clone(),
                         buffer: Buffer::Program(patch),
-                        origin: Origin::UI,
                         data: program::store_patch_dump(&dump, patch)
                     };
                     ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-                }
-                Buffer::Program(patch) => {
-                    let e = BufferDataEvent {
-                        buffer: Buffer::Program(patch),
-                        origin: Origin::UI,
-                        data: program::store_patch_dump(&dump, patch)
-                    };
-                    ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-                }
-                Buffer::All => {
-                    if ctx.config.flags.contains(DeviceFlags::ALL_PROGRAMS_DUMP) {
-                        // all programs in a single dump message
-                        let e = BufferDataEvent {
-                            buffer: Buffer::All,
-                            origin: Origin::UI,
-                            data: program::store_all_dump(&dump)
-                        };
-                        ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-                    } else {
-                        // individual program dump messages for each program
-                        for patch in 0 .. ctx.config.program_num {
-                            let e = BufferDataEvent {
-                                buffer: Buffer::Program(patch),
-                                origin: Origin::UI,
-                                data: program::store_patch_dump(&dump, patch)
-                            };
-                            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-                        }
-                    }
                 }
             }
         }

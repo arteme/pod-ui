@@ -15,7 +15,8 @@ use pod_core::model::AbstractControl;
 
 struct Inner {
     midi_out_queue: VecDeque<MidiMessage>,
-    sent: bool
+    sent: bool,
+    need_store_ack: bool,
 }
 
 pub(crate) struct PodXtHandler {
@@ -26,7 +27,8 @@ impl PodXtHandler {
     pub fn new() -> Self {
         let inner = Inner {
             midi_out_queue: VecDeque::new(),
-            sent: false
+            sent: false,
+            need_store_ack: false
         };
         Self { inner: RefCell::new(inner) }
     }
@@ -51,6 +53,14 @@ impl PodXtHandler {
 
     pub fn queue_peek(&self) -> Option<MidiMessage> {
         self.inner.borrow_mut().midi_out_queue.get(0).cloned()
+    }
+
+    pub fn need_store_ack(&self) -> bool {
+        self.inner.borrow().need_store_ack
+    }
+
+    pub fn set_need_store_ack(&self, value: bool) {
+        self.inner.borrow_mut().need_store_ack = value
     }
 }
 
@@ -86,6 +96,63 @@ impl Handler for PodXtHandler {
             }
         }
     }
+
+    fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {
+        match event.origin {
+            Origin::MIDI => {
+                generic::buffer_handler(ctx, event);
+                if event.request == Origin::MIDI {
+                    // patch dump `03 71` messages need to be acknowledged
+                    self.set_need_store_ack(true)
+                }
+            }
+            Origin::UI => {
+                if event.request == Origin::UI {
+                    error!("Store events from UI not implemented")
+                }
+                let patch = match event.buffer {
+                    Buffer::Current | Buffer::All => {
+                        // Buffer::Current is already converted into Buffer::Program(_)
+                        // by the store handler!
+                        // Buffer::All is split into single buffers by store handler!
+                        error!("Unsupported event: {:?}", event);
+                        return;
+                    }
+                    Buffer::EditBuffer => {
+                        // edit buffer dump is always sent as a buffer dump
+                        None
+                    }
+                    Buffer::Program(_) if event.request == Origin::MIDI => {
+                        // request from MIDI is answered with a buffer dump
+                        None
+                    }
+                    Buffer::Program(p) /*if event.request == Origin::UI*/ => {
+                        // this is a user action, send a patch dump
+                        Some(p)
+                    }
+                };
+
+                let msg = if let Some(patch) = patch {
+                    // send a patch dump
+                    MidiMessage::XtPatchDump {
+                        patch: patch as u16,
+                        id: ctx.config.member as u8,
+                        data: event.data.clone()
+                    }
+                    // TODO: XtPatchDumpEnd
+                } else {
+                    // send a buffer dump
+                    MidiMessage::XtBufferDump {
+                        id: ctx.config.member as u8,
+                        data: event.data.clone()
+                    }
+                };
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+                // TODO: ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(MidiMessage::XtPatchDumpEnd));
+            }
+        }
+    }
+
 
     fn midi_in_handler(&self, ctx: &Ctx, midi_message: &MidiMessage) {
         generic::midi_in_handler(ctx, midi_message);
@@ -123,14 +190,19 @@ impl Handler for PodXtHandler {
                     Some(MidiMessage::XtPatchDumpRequest { patch }) =>
                         Buffer::Program(patch as usize),
                     msg @ _ => {
-                        error!("Can't determine incoming buffer designation, queue peek = {:?}", msg);
-                        return;
+                        warn!("Can't determine incoming buffer designation, queue peek = {:?}", msg);
+                        // the origin of this buffer dump is likely a "save" button
+                        // pressed on the device, store the dump to the edit buffer
+                        Buffer::EditBuffer
                     }
                 };
-
+                // PODxt buffer dump `03 74` is a reply for an edit buffer dump
+                // request `03 75` or a patch dump request `03 73`, so the request
+                // origin is "UI"
                 let e = BufferDataEvent {
                     buffer,
                     origin: Origin::MIDI,
+                    request: Origin::UI,
                     data: data.clone()
                 };
                 ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -148,18 +220,26 @@ impl Handler for PodXtHandler {
                        ctx.config.program_size, data.len());
                     return;
                 }
+                // PODxt patch dump `03 71` originates is sent by the device
+                // or Line6 Edit, so the request origin is "MIDI"
                 let e = BufferDataEvent {
                     buffer: Buffer::Program(*patch as usize),
                     origin: Origin::MIDI,
+                    request: Origin::MIDI,
                     data: data.clone()
                 };
                 ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
             }
-
             MidiMessage::XtPatchDumpEnd => {
-                // send next message
-                self.queue_pop();
-                self.queue_send(ctx);
+                if self.need_store_ack() {
+                    // send store status message as ack message
+                    let msg = MidiMessage::XtStoreStatus { success: true };
+                    ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+                } else {
+                    // send next message
+                    self.queue_pop();
+                    self.queue_send(ctx);
+                }
             }
             // TODO: handle XtSaved
             _ => {}
