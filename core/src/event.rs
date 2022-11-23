@@ -111,6 +111,8 @@ pub enum AppEvent {
     NewConfig,
     NewCtx,
     Shutdown,
+
+    Marker(u32)
 }
 
 pub fn is_system_app_event(event: &AppEvent) -> bool {

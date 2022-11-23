@@ -664,6 +664,9 @@ async fn main() -> Result<()> {
                         AppEvent::MidiMsgOut(msg) => {
                             midi_out_handler(ctx, msg);
                         }
+                        AppEvent::Marker(marker) => {
+                           marker_handler(ctx, *marker);
+                        }
 
                         // silently ignoring
                         AppEvent::MidiIn(_) | AppEvent::MidiOut(_)  => { /* handled in MIDI OUT thread */ }

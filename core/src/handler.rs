@@ -79,6 +79,9 @@ pub trait Handler {
         generic::new_device_handler(ctx);
     }
 
+    /// Handler for custom markers that this handler sent to itself
+    fn marker_handler(&self, ctx: &Ctx, marker: u32) {}
+
     fn control_value_from_buffer(&self, controller: &mut Controller, name: &str, buffer: &[u8]) {}
     fn control_value_to_buffer(&self, controller: &Controller, name: &str, buffer: &mut [u8]) {}
 }

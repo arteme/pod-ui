@@ -119,3 +119,7 @@ pub fn modified_handler(ctx: &Ctx, event: &ModifiedEvent) {
 pub fn new_device_handler(ctx: &Ctx) {
     ctx.handler.new_device_handler(ctx)
 }
+
+pub fn marker_handler(ctx: &Ctx, marker: u32) {
+    ctx.handler.marker_handler(ctx, marker)
+}

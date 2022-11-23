@@ -13,6 +13,9 @@ use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::AbstractControl;
 
+// A marker to send MidiMessage::XtPatchDumpEnd
+const MARKER_PATCH_DUMP_END: u32 = 0x0001;
+
 struct Inner {
     midi_out_queue: VecDeque<MidiMessage>,
     sent: bool,
@@ -97,6 +100,13 @@ impl Handler for PodXtHandler {
         }
     }
 
+    fn store_handler(&self, ctx: &Ctx, event: &BufferStoreEvent) {
+        generic::store_handler(ctx, event);
+        // The generic handler sends 1..N buffer dump messages.
+        // Send a marker that an XtPatchDumpEnd is needed to be sent.
+        ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
+    }
+
     fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {
         match event.origin {
             Origin::MIDI => {
@@ -139,7 +149,6 @@ impl Handler for PodXtHandler {
                         id: ctx.config.member as u8,
                         data: event.data.clone()
                     }
-                    // TODO: XtPatchDumpEnd
                 } else {
                     // send a buffer dump
                     MidiMessage::XtBufferDump {
@@ -148,7 +157,6 @@ impl Handler for PodXtHandler {
                     }
                 };
                 ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
-                // TODO: ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(MidiMessage::XtPatchDumpEnd));
             }
         }
     }
@@ -253,6 +261,17 @@ impl Handler for PodXtHandler {
         let msg = MidiMessage::XtInstalledPacksRequest;
         ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
     }
+
+    fn marker_handler(&self, ctx: &Ctx, marker: u32) {
+        match marker {
+            MARKER_PATCH_DUMP_END => {
+                let msg = MidiMessage::XtPatchDumpEnd;
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+            }
+            _ => {}
+        }
+    }
+
 
     fn control_value_from_buffer(&self, controller: &mut Controller, name: &str, buffer: &[u8]) {
         let Some(control) = controller.get_config(name) else {
