@@ -1,25 +1,37 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::time::Duration;
+use hibitset::{BitSet, BitSetLike, DrainableBitSet};
 use log::{debug, error, warn};
 use pod_core::config::MIDI;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
 use pod_core::cc_values::*;
 use pod_core::event::*;
-use pod_core::{controller, generic};
+use pod_core::generic;
 use pod_core::generic::num_program;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::AbstractControl;
 
-// A marker to send MidiMessage::XtPatchDumpEnd
+/// A marker to send MidiMessage::XtPatchDumpEnd
 const MARKER_PATCH_DUMP_END: u32 = 0x0001;
+/// A marker that store status hasn't been received (timed out)
+const MARKER_STORE_STATUS_TIMEOUT: u32 = 0x0002;
 
 struct Inner {
     midi_out_queue: VecDeque<MidiMessage>,
     sent: bool,
+    /// Send XtStoreStatus ack message when the XtPatchDump message is
+    /// received (from Line6 Edit)
     need_store_ack: bool,
+    /// Programs that were sent as `03 71` messages that need to be ack'ed
+    /// with an XtStoreStatus message
+    store_programs: BitSet,
+    /// A JoinHandle for the currently running thread waiting for the
+    /// timeout of the XtStoreStatus message
+    store_status_timeout_handler: Option<tokio::task::JoinHandle<()>>
 }
 
 pub(crate) struct PodXtHandler {
@@ -31,7 +43,9 @@ impl PodXtHandler {
         let inner = Inner {
             midi_out_queue: VecDeque::new(),
             sent: false,
-            need_store_ack: false
+            need_store_ack: false,
+            store_programs: BitSet::with_capacity(128),
+            store_status_timeout_handler: None
         };
         Self { inner: RefCell::new(inner) }
     }
@@ -101,10 +115,12 @@ impl Handler for PodXtHandler {
     }
 
     fn store_handler(&self, ctx: &Ctx, event: &BufferStoreEvent) {
-        generic::store_handler(ctx, event);
-        // The generic handler sends 1..N buffer dump messages.
-        // Send a marker that an XtPatchDumpEnd is needed to be sent.
-        ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
+        if self.inner.borrow().store_status_timeout_handler.is_none() {
+            generic::store_handler(ctx, event);
+            // The generic handler sends 1..N buffer dump messages.
+            // Send a marker that an XtPatchDumpEnd is needed to be sent.
+            ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
+        }
     }
 
     fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {
@@ -143,6 +159,8 @@ impl Handler for PodXtHandler {
                 };
 
                 let msg = if let Some(patch) = patch {
+                    // record that store (patch dump) was senta for patch
+                    self.inner.borrow_mut().store_programs.add(patch as u32);
                     // send a patch dump
                     MidiMessage::XtPatchDump {
                         patch: patch as u16,
@@ -249,6 +267,28 @@ impl Handler for PodXtHandler {
                     self.queue_send(ctx);
                 }
             }
+            MidiMessage::XtStoreStatus { success } => {
+                let mut inner = self.inner.borrow_mut();
+                inner.store_status_timeout_handler.take()
+                    .map(|h| h.abort());
+
+                if *success {
+                    for patch in inner.store_programs.drain() {
+                        let e = ModifiedEvent {
+                            buffer: Buffer::Program(patch as usize),
+                            origin: Origin::MIDI,
+                            modified: false
+                        };
+                        ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+                    }
+                } else {
+                    error!("Store of the programs failed!");
+                    // TODO: show error in UI?
+
+                    inner.store_programs.clear();
+                }
+
+            }
             // TODO: handle XtSaved
             _ => {}
         }
@@ -267,6 +307,25 @@ impl Handler for PodXtHandler {
             MARKER_PATCH_DUMP_END => {
                 let msg = MidiMessage::XtPatchDumpEnd;
                 ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+
+                if !self.inner.borrow().store_programs.is_empty() {
+                    let handler = tokio::spawn({
+                        let app_event_tx = ctx.app_event_tx.clone();
+                        async move {
+                            tokio::time::sleep(Duration::from_millis(5000)).await;
+                            app_event_tx.send_or_warn(AppEvent::Marker(MARKER_STORE_STATUS_TIMEOUT));
+                            ()
+                        }
+                    });
+                    self.inner.borrow_mut().store_status_timeout_handler.replace(handler);
+                }
+            }
+            MARKER_STORE_STATUS_TIMEOUT => {
+                // We've not received a store status message, empty the programs bitset
+                let mut inner = self.inner.borrow_mut();
+                inner.store_programs.clear();
+                inner.store_status_timeout_handler.take();
+                // TODO: show error in UI?
             }
             _ => {}
         }
