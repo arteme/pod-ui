@@ -90,6 +90,12 @@ pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
             send_midi_cc(ctx, event);
         }
     }
+    let e = ModifiedEvent {
+        buffer: Buffer::Current,
+        origin: event.origin.clone(),
+        modified: true,
+    };
+    ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
 }
 
 pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
