@@ -27,13 +27,12 @@ use pod_gtk::prelude::*;
 use pod_core::midi_io::*;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
-use pod_core::event::{AppEvent, Buffer, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, is_system_app_event, ModifiedEvent, Origin, Program, ProgramChangeEvent};
+use pod_core::event::*;
 use pod_core::dispatch::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
-use pod_core::store::{Event, Store};
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
 use crate::opts::*;
@@ -303,18 +302,20 @@ fn wire_ui_controls(
     wire(controller.clone(), objs, callbacks)?;
 
     // set defaults
-    controller.set("program", Program::ManualMode.into(), pod_core::config::MIDI);
-    controller.set("program:prev", Program::ManualMode.into(), pod_core::config::MIDI);
+    controller.set("program", Program::ManualMode.into(), StoreOrigin::NONE);
+    controller.set("program:prev", Program::ManualMode.into(), StoreOrigin::NONE);
 
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     builder
         .data(app_event_tx.clone())
         .on("program")
         .run(move |v, _, origin, app_event_tx| {
-            let origin = match origin {
-                pod_core::config::GUI => Origin::UI,
-                pod_core::config::MIDI => Origin::MIDI,
-                _ => { panic!("Incorrect origin!") }
+            let origin = match Origin::try_from(origin) {
+                Ok(v) => v,
+                Err(err) => {
+                    error!("Program signal handler: {}", err);
+                    return;
+                }
             };
             let e = ProgramChangeEvent { program: v.into(), origin };
             app_event_tx.send(AppEvent::ProgramChange(e));
@@ -357,7 +358,7 @@ async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
                                   controller: &Arc<Mutex<Controller>>,
                                   objs: &ObjectList, callbacks: &Callbacks,
                                   f: F) -> bool
-    where F: Fn(String, u16, u8) -> ()
+    where F: Fn(String, u16, StoreOrigin) -> ()
 {
     let (name, origin) = match rx.recv().await {
         Ok(Event { key, origin, .. }) => { (key, origin) }
@@ -389,7 +390,7 @@ async fn controller_rx_handler_nop(rx: &mut broadcast::Receiver<Event<String>>,
 fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
                           objs: ObjectList, callbacks: Callbacks,
                           f: F)
-    where F: Fn(String, u16, u8) -> () + 'static
+    where F: Fn(String, u16, StoreOrigin) -> () + 'static
 {
     let controller = controller.clone();
     let (tx, mut rx) = broadcast::channel::<Event<String>>(MIDI_OUT_CHANNEL_CAPACITY);
@@ -782,15 +783,6 @@ async fn main() -> Result<()> {
                         start_controller_rx(
                             controller.clone(), objs, callbacks,
                             move |name, value, origin| {
-                                let origin = match origin {
-                                    pod_core::config::MIDI => Origin::MIDI,
-                                    pod_core::config::GUI => Origin::UI,
-                                    _ => {
-                                        error!("Unknown origin");
-                                        return;
-                                    }
-                                };
-
                                 let e = ControlChangeEvent { name, value, origin };
                                 app_event_tx.send_or_warn(AppEvent::ControlChange(e));
                             }

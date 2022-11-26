@@ -4,11 +4,11 @@ use std::collections::VecDeque;
 use std::time::Duration;
 use hibitset::{BitSet, BitSetLike, DrainableBitSet};
 use log::{debug, error, warn};
-use pod_core::config::MIDI;
 use pod_core::context::Ctx;
 use pod_core::controller::*;
 use pod_core::cc_values::*;
 use pod_core::event::*;
+use pod_core::event::Origin::MIDI;
 use pod_core::generic;
 use pod_core::generic::num_program;
 use pod_core::handler::Handler;
@@ -84,7 +84,7 @@ impl PodXtHandler {
 impl Handler for PodXtHandler {
     fn load_handler(&self, ctx: &Ctx, event: &BufferLoadEvent) {
         match event.origin {
-            Origin::MIDI => {
+            MIDI => {
                 generic::load_handler(ctx, event)
             }
             Origin::UI => {
@@ -125,9 +125,9 @@ impl Handler for PodXtHandler {
 
     fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {
         match event.origin {
-            Origin::MIDI => {
+            MIDI => {
                 generic::buffer_handler(ctx, event);
-                if event.request == Origin::MIDI {
+                if event.request == MIDI {
                     // patch dump `03 71` messages need to be acknowledged
                     self.set_need_store_ack(true)
                 }
@@ -148,7 +148,7 @@ impl Handler for PodXtHandler {
                         // edit buffer dump is always sent as a buffer dump
                         None
                     }
-                    Buffer::Program(_) if event.request == Origin::MIDI => {
+                    Buffer::Program(_) if event.request == MIDI => {
                         // request from MIDI is answered with a buffer dump
                         None
                     }
@@ -190,11 +190,11 @@ impl Handler for PodXtHandler {
                 ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
             }
             MidiMessage::XtInstalledPacks { packs } => {
-                ctx.controller.set("xt_packs", *packs as u16, MIDI);
+                ctx.controller.set("xt_packs", *packs as u16, MIDI.into());
             }
 
             MidiMessage::XtEditBufferDumpRequest => {
-                let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::MIDI };
+                let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: MIDI };
                 ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
             }
             MidiMessage::XtBufferDump { id, data } => {
@@ -227,14 +227,14 @@ impl Handler for PodXtHandler {
                 // origin is "UI"
                 let e = BufferDataEvent {
                     buffer,
-                    origin: Origin::MIDI,
+                    origin: MIDI,
                     request: Origin::UI,
                     data: data.clone()
                 };
                 ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
             }
             MidiMessage::XtPatchDumpRequest { patch } => {
-                let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: Origin::MIDI };
+                let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: MIDI };
                 ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
             }
             MidiMessage::XtPatchDump { patch, id, data } => {
@@ -250,8 +250,8 @@ impl Handler for PodXtHandler {
                 // or Line6 Edit, so the request origin is "MIDI"
                 let e = BufferDataEvent {
                     buffer: Buffer::Program(*patch as usize),
-                    origin: Origin::MIDI,
-                    request: Origin::MIDI,
+                    origin: MIDI,
+                    request: MIDI,
                     data: data.clone()
                 };
                 ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -276,7 +276,7 @@ impl Handler for PodXtHandler {
                     for patch in inner.store_programs.drain() {
                         let e = ModifiedEvent {
                             buffer: Buffer::Program(patch as usize),
-                            origin: Origin::MIDI,
+                            origin: MIDI,
                             modified: false
                         };
                         ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
@@ -356,8 +356,8 @@ impl Handler for PodXtHandler {
         let control_value = controller.get(name).unwrap();
         let control_value = control.value_from_midi(value, control_value);
 
-        controller.set_cc_value(cc, value, MIDI);
-        controller.set(name, control_value, MIDI);
+        controller.set_cc_value(cc, value, StoreOrigin::NONE);
+        controller.set(name, control_value, StoreOrigin::NONE);
     }
 
 

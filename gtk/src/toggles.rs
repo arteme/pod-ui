@@ -1,8 +1,7 @@
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use anyhow::*;
-use pod_core::controller::Controller;
-use pod_core::config::GUI;
+use pod_core::controller::*;
 use pod_core::model::Toggle;
 use pod_core::store::Store;
 use gtk::prelude::*;
@@ -61,7 +60,7 @@ pub fn wire_toggles(container_name: &str,
                 }
                 let v = v.unwrap() > 0;
                 let v = !v; // toggling
-                controller.set(&name, v as u16, GUI);
+                controller.set(&name, v as u16, StoreOrigin::UI);
             });
         }
 

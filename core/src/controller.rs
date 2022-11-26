@@ -3,30 +3,34 @@ use std::collections::HashMap;
 use tokio::sync::broadcast;
 use log::*;
 use std::sync::{Mutex, Arc};
-pub use crate::store::*; // re-export useful things like StoreSetIm
+use crate::store::{Origin, StoreBase};
+
+// re-export useful things from store
+pub use crate::store::{Store, StoreSetIm, Signal, Event};
+pub use crate::store::{Origin as StoreOrigin};
 
 pub struct Controller {
     store: StoreBase<String>,
     pub controls: HashMap<String, Control>,
-    values: HashMap<String, (u16, u8)>,
+    values: HashMap<String, (u16, Origin)>,
 }
 
 pub trait ControllerStoreExt {
-    fn get_origin(&self, name: &str) -> Option<(u16,u8)>;
+    fn get_origin(&self, name: &str) -> Option<(u16, Origin)>;
     fn get_config(&self, name: &str) -> Option<Control>;
 }
 
 impl Controller {
     pub fn new(controls: HashMap<String, Control>) -> Self {
-        let mut values: HashMap<String, (u16, u8)> = HashMap::new();
+        let mut values: HashMap<String, (u16, Origin)> = HashMap::new();
         for (name, _) in controls.iter() {
-            values.insert(name.clone(), (0, 0));
+            values.insert(name.clone(), (0, Origin::NONE));
         }
 
         Controller { store: StoreBase::new(), controls, values }
     }
 
-    pub fn get_origin(&self, name: &str) -> Option<(u16, u8)> {
+    pub fn get_origin(&self, name: &str) -> Option<(u16, Origin)> {
         self.values.get(name).cloned()
     }
 
@@ -63,8 +67,8 @@ impl Store<&str, u16, String> for Controller {
         self.values.get(name).map(|v| v.0)
     }
 
-    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> bool {
-        info!("set {:?} = {} <{}>", name, value, origin);
+    fn set_full(&mut self, name: &str, value: u16, origin: Origin, signal: Signal) -> bool {
+        info!("set {:?} = {} <{:?}>", name, value, origin);
         let store = &self.store;
         self.values.get_mut(name).map(|v| {
             let value_changed = v.0 != value;
@@ -88,7 +92,7 @@ impl Store<&str, u16, String> for Controller {
 }
 
 impl ControllerStoreExt for Arc<Mutex<Controller>> {
-    fn get_origin(&self, name: &str) -> Option<(u16, u8)> {
+    fn get_origin(&self, name: &str) -> Option<(u16, Origin)> {
         let c = self.lock().unwrap();
         c.get_origin(name)
     }

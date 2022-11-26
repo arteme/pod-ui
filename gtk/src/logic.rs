@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use pod_core::controller::Controller;
-use pod_core::store::Store;
+use pod_core::controller::*;
+use pod_core::store::Origin;
 use crate::{Callbacks, ObjectList};
 
 pub struct LogicBuilder<'c> {
@@ -27,16 +27,16 @@ impl <'c> LogicBuilder<'c> {
 pub struct LogicOnBuilder<'c> {
     builder: &'c mut LogicBuilder<'c>,
     name: String,
-    origin: u8
+    origin: Vec<Origin>
 }
 
 impl <'c> LogicOnBuilder<'c> {
     pub fn new(builder: &'c mut LogicBuilder<'c>, name: &str) -> Self {
-        Self { builder, name: name.into(), origin: 0 }
+        Self { builder, name: name.into(), origin: vec![] }
     }
 
-    pub fn from(&mut self, origin: u8) -> &mut Self {
-        self.origin = origin;
+    pub fn from(&mut self, origin: Origin) -> &mut Self {
+        self.origin.push(origin);
         self
     }
 
@@ -44,18 +44,18 @@ impl <'c> LogicOnBuilder<'c> {
     //       so that controller is locked only once (and value extracted)
     //       for all `f` calls?
     pub fn run<F>(&mut self, f: F) -> &mut Self
-        where F: Fn(u16, &mut Controller, u8) -> () + 'static {
+        where F: Fn(u16, &mut Controller, Origin) -> () + 'static {
 
         let controller = self.builder.controller.clone();
         let name = self.name.clone();
-        let origin_filter = self.origin;
+        let origin = self.origin.clone();
         self.builder.callbacks.insert(
             name.clone(),
             Rc::new(move || {
                 let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
-                if origin_filter == 0 || origin == origin_filter {
-                    f(v, &mut controller, origin);
+                let (v, o) = controller.get_origin(&name).unwrap();
+                if origin.is_empty() || origin.contains(&o) {
+                    f(v, &mut controller, o);
                 }
             })
         );
@@ -65,7 +65,7 @@ impl <'c> LogicOnBuilder<'c> {
 
     pub fn on(&mut self, name: &str) -> &mut Self {
         self.name = name.into();
-        self.origin = 0;
+        self.origin = vec![];
         self
     }
 }
@@ -88,21 +88,21 @@ impl <'c, T: Clone + 'static> LogicWithDataBuilder<'c, T> {
 pub struct LogicWithDataOnBuilder<'c, T> {
     builder: &'c mut LogicWithDataBuilder<'c, T>,
     name: String,
-    origin: u8
+    origin: Origin
 }
 
 impl <'c, T: Clone + 'static> LogicWithDataOnBuilder<'c, T> {
     pub fn new(builder: &'c mut LogicWithDataBuilder<'c, T>, name: &str) -> Self {
-        Self { builder, name: name.into(), origin: 0 }
+        Self { builder, name: name.into(), origin: Origin::NONE }
     }
 
-    pub fn from(&mut self, origin: u8) -> &mut Self {
+    pub fn from(&mut self, origin: Origin) -> &mut Self {
         self.origin = origin;
         self
     }
 
     pub fn run<F>(&mut self, f: F) -> &mut Self
-        where F: Fn(u16, &mut Controller, u8, &T) -> () + 'static {
+        where F: Fn(u16, &mut Controller, Origin, &T) -> () + 'static {
 
         let controller = self.builder.builder.controller.clone();
         let name = self.name.clone();
@@ -113,7 +113,7 @@ impl <'c, T: Clone + 'static> LogicWithDataOnBuilder<'c, T> {
             Rc::new(move || {
                 let mut controller = controller.lock().unwrap();
                 let (v, origin) = controller.get_origin(&name).unwrap();
-                if origin_filter == 0 || origin == origin_filter {
+                if origin_filter == Origin::NONE || origin == origin_filter {
                     f(v, &mut controller, origin, &data);
                 }
             })
@@ -124,7 +124,7 @@ impl <'c, T: Clone + 'static> LogicWithDataOnBuilder<'c, T> {
 
     pub fn on(&mut self, name: &str) -> &mut Self {
         self.name = name.into();
-        self.origin = 0;
+        self.origin = Origin::NONE;
         self
     }
 }

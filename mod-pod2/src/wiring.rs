@@ -2,9 +2,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::*;
 use anyhow::*;
-use pod_core::config::{GUI, MIDI};
-use pod_core::store::{Signal, Store};
-use pod_core::controller::Controller;
+use pod_core::controller::*;
+use pod_core::controller::StoreOrigin::{MIDI, UI};
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
 use pod_gtk::prelude::*;
@@ -124,7 +123,7 @@ fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Optio
         (if delay_enable { delay.or(clean) } else { clean.or(delay) })
             .unwrap().clone();
 
-    controller.set("effect_select:raw", entry.id as u16, GUI);
+    controller.set("effect_select:raw", entry.id as u16, UI);
 
     Some(entry)
 }
@@ -133,7 +132,7 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
     for name in &effect.controls {
         controller.get(&name)
             .and_then(|v| {
-                controller.set_full(name, v, GUI, Signal::Force);
+                controller.set_full(name, v, UI, Signal::Force);
                 Some(())
             });
     }
@@ -184,7 +183,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
                 let mut controller = controller.lock().unwrap();
                 let (v, origin) = controller.get_origin(&name).unwrap();
 
-                if v != 0 && origin == GUI {
+                if v != 0 && origin == UI {
                     let effect_select = controller.get("effect_select:raw").unwrap();
                     let (_, delay, idx) =
                         effect_entry_for_value(&config, effect_select).unwrap();
@@ -196,7 +195,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
                         let need_reset = config.effects.get(idx)
                             .map(|e| e.delay.is_none()).unwrap_or(false);
                         if need_reset {
-                            controller.set("effect_select", 0u16, GUI);
+                            controller.set("effect_select", 0u16, UI);
                         }
                     }
                 }

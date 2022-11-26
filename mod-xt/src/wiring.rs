@@ -1,11 +1,10 @@
 use std::sync::{Arc, Mutex};
-use pod_core::store::{Signal, Store};
-use pod_core::controller::Controller;
+use pod_core::controller::*;
 use pod_core::model::{AbstractControl, Config};
 use pod_gtk::prelude::*;
 use anyhow::*;
 use log::*;
-use pod_core::config::{GUI, MIDI};
+use pod_core::controller::StoreOrigin::{MIDI, NONE, UI};
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
@@ -158,22 +157,22 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // controls as a value coming from MIDI, GUI changes from virtual
         // controls will show up on `stamp_param2` as a value coming from GUI
         .on("stomp_param2")
-        .run(move |value, controller, _| {
+        .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param2_wave").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param2_wave", midi, MIDI);
+            controller.set("stomp_param2_wave", midi, origin);
 
             let control = controller.get_config("stomp_param2_octave").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param2_octave", midi, MIDI);
+            controller.set("stomp_param2_octave", midi, origin);
         })
-        .on("stomp_param2_wave").from(GUI)
+        .on("stomp_param2_wave").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param2_wave").unwrap();
             let midi = control.value_to_midi(value);
             controller.set("stomp_param2", midi as u16, origin);
         })
-        .on("stomp_param2_octave").from(GUI)
+        .on("stomp_param2_octave").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param2_octave").unwrap();
             let midi = control.value_to_midi(value);
@@ -183,22 +182,22 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // controls as a value coming from MIDI, GUI changes from virtual
         // controls will show up on `stamp_param3` as a value coming from GUI
         .on("stomp_param3")
-        .run(move |value, controller, _| {
+        .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param3_octave").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param3_octave", midi, MIDI);
+            controller.set("stomp_param3_octave", midi, origin);
 
             let control = controller.get_config("stomp_param3_offset").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param3_offset", midi, MIDI);
+            controller.set("stomp_param3_offset", midi, origin);
         })
-        .on("stomp_param3_octave").from(GUI)
+        .on("stomp_param3_octave").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param3_octave").unwrap();
             let midi = control.value_to_midi(value);
             controller.set("stomp_param3", midi as u16, origin);
         })
-        .on("stomp_param3_offset").from(GUI)
+        .on("stomp_param3_offset").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param3_offset").unwrap();
             let midi = control.value_to_midi(value);
@@ -208,12 +207,12 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // controls as a value coming from MIDI, GUI changes from virtual
         // controls will show up on `stamp_param4` as a value coming from GUI
         .on("stomp_param4")
-        .run(move |value, controller, _| {
+        .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param4_offset").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("stomp_param4_offset", midi, MIDI);
+            controller.set("stomp_param4_offset", midi, origin);
         })
-        .on("stomp_param4_offset").from(GUI)
+        .on("stomp_param4_offset").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param4_offset").unwrap();
             let midi = control.value_to_midi(value);
@@ -287,12 +286,12 @@ pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // controls as a value coming from MIDI, GUI changes from virtual
         // controls will show up on `delay_param3` as a value coming from GUI
         .on("delay_param3")
-        .run(move |value, controller, _| {
+        .run(move |value, controller, origin| {
             let control = controller.get_config("delay_param3_heads").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("delay_param3_heads", midi, MIDI);
+            controller.set("delay_param3_heads", midi, origin);
         })
-        .on("delay_param3_heads").from(GUI)
+        .on("delay_param3_heads").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("delay_param3_heads").unwrap();
             let midi = control.value_to_midi(value);
@@ -302,12 +301,12 @@ pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // controls as a value coming from MIDI, GUI changes from virtual
         // controls will show up on `stamp_param4` as a value coming from GUI
         .on("delay_param4")
-        .run(move |value, controller, _| {
+        .run(move |value, controller, origin| {
             let control = controller.get_config("delay_param4_bits").unwrap();
             let midi = control.value_from_midi(value as u8, 0);
-            controller.set("delay_param4_bits", midi, MIDI);
+            controller.set("delay_param4_bits", midi, origin);
         })
-        .on("delay_param4_bits").from(GUI)
+        .on("delay_param4_bits").from(UI)
         .run(move |value, controller, origin| {
             let control = controller.get_config("delay_param4_bits").unwrap();
             let midi = control.value_to_midi(value);
@@ -332,12 +331,12 @@ pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
                 let lsb = value & 0x7f;
 
                 // Make sure GUI event always generates both MSB and LSB MIDI messages
-                let signal = if origin == GUI { Signal::Force } else { Signal::Change };
+                let signal = if origin == UI { Signal::Force } else { Signal::Change };
                 controller.set_full(&msb_name, msb, origin, signal.clone());
                 controller.set_full(&lsb_name, lsb, origin, signal);
             }
         })
-        .on(msb_name).from(MIDI)
+        .on(msb_name).from(MIDI).from(NONE)
         .run({
             let control_name = control_name.to_string();
 
@@ -348,7 +347,7 @@ pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
                 controller.set(&control_name, control_value, origin);
             }
         })
-        .on(lsb_name).from(MIDI)
+        .on(lsb_name).from(MIDI).from(NONE)
         .run({
             let control_name = control_name.to_string();
 
@@ -422,7 +421,7 @@ pub fn wire_pedal_assign(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
             };
             controller.set("pedal_assign_select", value, origin);
         })
-        .on("pedal_assign_select").from(GUI)
+        .on("pedal_assign_select").from(UI)
         .run(move |value, controller, origin| {
             let value: u16 = match value {
                 0 => 0,

@@ -2,11 +2,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use crate::controller::Controller;
 use crate::model::{AbstractControl, Config, Control};
-use crate::store::{Event, Signal, Store, StoreSetIm};
+use crate::store::*;
 use log::*;
 use tokio::sync::broadcast;
 use crate::cc_values::CCValues;
-use crate::config::MIDI;
 use crate::str_encoder::StrEncoder;
 
 pub struct EditBuffer {
@@ -85,7 +84,7 @@ impl EditBuffer {
         for (name, _) in ordered_controls(&controller) {
             control_value_from_buffer(&mut controller, &name, &raw);
         }
-        controller.set_full("name_change", 1, MIDI, Signal::Force);
+        controller.set_full("name_change", 1, Origin::MIDI, Signal::Force);
     }
 
     pub fn name(&self) -> String {
@@ -158,7 +157,7 @@ fn control_value_to_buffer(controller: &Controller, name: &str, buffer: &mut [u8
         }
     }
 }
-fn control_value_from_buffer(controller: &mut Controller, name: &str, buffer: &[u8], origin: u8) {
+fn control_value_from_buffer(controller: &mut Controller, name: &str, buffer: &[u8], origin: Origin) {
     let control = controller.get_config(name);
     if control.is_none() {
         return;
@@ -206,7 +205,7 @@ impl Store<&str, u16, String> for EditBuffer {
         self.controller.get(name)
     }
 
-    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> bool {
+    fn set_full(&mut self, name: &str, value: u16, origin: Origin, signal: Signal) -> bool {
         self.controller.set_full(name, value, origin, signal)
     }
 

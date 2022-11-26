@@ -24,8 +24,8 @@ impl Store<usize, String, usize> for Strings {
         self.values.get(idx).cloned()
     }
 
-    fn set_full(&mut self, idx: usize, val: String, origin: u8, signal: Signal) -> bool {
-        info!("set {:?} = {:?} <{}>", idx, val, origin);
+    fn set_full(&mut self, idx: usize, val: String, origin: Origin, signal: Signal) -> bool {
+        info!("set {:?} = {:?} <{:?}>", idx, val, origin);
 
         let prev = self.values.get(idx);
         if prev.is_none() {

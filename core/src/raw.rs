@@ -29,7 +29,7 @@ impl Raw {
         Ok(())
     }
 
-    pub fn set_page_signal_full(&mut self, page: usize, origin: u8, signal: Signal) -> Result<()> {
+    pub fn set_page_signal_full(&mut self, page: usize, origin: Origin, signal: Signal) -> Result<()> {
         let prev_page = self.page;
         self.set_page(page)?;
 
@@ -44,7 +44,7 @@ impl Raw {
         Ok(())
     }
 
-    pub fn set_page_signal(&mut self, page: usize, origin: u8) -> Result<()> {
+    pub fn set_page_signal(&mut self, page: usize, origin: Origin) -> Result<()> {
         self.set_page_signal_full(page, origin, Signal::Change)
     }
 
@@ -76,8 +76,8 @@ impl Store<usize, u8, usize> for Raw {
         self.get_page_value(self.page, idx)
     }
 
-    fn set_full(&mut self, idx: usize, val: u8, origin: u8, signal: Signal) -> bool {
-        info!("set {:?} = 0x{:02x} ({}) <{}>", idx, val, val, origin);
+    fn set_full(&mut self, idx: usize, val: u8, origin: Origin, signal: Signal) -> bool {
+        info!("set {:?} = 0x{:02x} ({}) <{:?}>", idx, val, val, origin);
 
         let prev = self.set_page_value(self.page, idx, val);
         if prev.is_none() {

@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use crate::controller::Controller;
-use crate::store::{Event, Signal, Store, StoreSetIm};
+use crate::store::*;
 
 pub struct ControllerStack {
     controllers: Vec<Arc<Mutex<Controller>>>,
@@ -57,7 +57,7 @@ impl Store<&str, u16, String> for ControllerStack {
             .and_then(|c| c.get(key))
     }
 
-    fn set_full(&mut self, key: &str, value: u16, origin: u8, signal: Signal) -> bool {
+    fn set_full(&mut self, key: &str, value: u16, origin: Origin, signal: Signal) -> bool {
         self.controller_for(key)
             .map(|c| c.set_full(key, value, origin, signal))
             .unwrap_or(false)

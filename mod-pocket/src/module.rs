@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
-use pod_core::config::MIDI;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
 use pod_gtk::prelude::*;
 use gtk::{Builder, Widget};
 use pod_core::handler::BoxedHandler;
+use pod_core::store::Origin::MIDI;
 use pod_mod_pod2::Pod2Handler;
 use pod_mod_pod2::wiring::*;
 

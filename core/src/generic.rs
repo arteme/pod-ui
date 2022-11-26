@@ -1,8 +1,8 @@
 use log::{error, warn};
-use crate::config::{GUI, MIDI};
 use crate::context::Ctx;
 use crate::controller::*;
-use crate::event::{AppEvent, Buffer, BufferDataEvent, BufferLoadEvent, BufferStoreEvent, ControlChangeEvent, DeviceDetectedEvent, EventSenderExt, ModifiedEvent, Origin, Program, ProgramChangeEvent};
+use crate::event::*;
+use crate::event::Origin::{MIDI, UI};
 use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, Control, DeviceFlags};
 use crate::{config, program};
@@ -33,7 +33,7 @@ fn update_edit_buffer(ctx: &Ctx, event: &ControlChangeEvent) {
 
 fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
     let ControlChangeEvent { name, value, origin } = event;
-    if *origin != Origin::UI {
+    if *origin != StoreOrigin::UI {
         return;
     }
 
@@ -81,21 +81,26 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
 }
 
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
-    match event.origin {
-        Origin::MIDI => {
+    let modified = match event.origin {
+        StoreOrigin::MIDI => {
             update_edit_buffer(ctx, event);
+            true
         }
-        Origin::UI => {
+        StoreOrigin::UI => {
             update_edit_buffer(ctx, event);
             send_midi_cc(ctx, event);
+            true
         }
-    }
-    let e = ModifiedEvent {
-        buffer: Buffer::Current,
-        origin: event.origin.clone(),
-        modified: true,
+        _ => false
     };
-    ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+    if modified {
+        let e = ModifiedEvent {
+            buffer: Buffer::Current,
+            origin: Origin::try_from(event.origin).unwrap(),
+            modified: true,
+        };
+        ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+    }
 }
 
 pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
@@ -107,7 +112,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     let config = ctx.config;
     if config.in_cc_edit_buffer_dump_req.contains(cc) {
         // send an "edit buffer dump request"
-        let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
+        let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: UI };
         ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
     }
 
@@ -119,7 +124,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     let mut controller = ctx.controller.lock().unwrap();
 
     // save raw CC value to the controller
-    controller.set_cc_value(*cc, *value, MIDI);
+    controller.set_cc_value(*cc, *value, MIDI.into());
 
     // Map the control address to a control for the value lookup.
     // For most controls this will the same control as the one
@@ -138,7 +143,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 
     let control_value = controller.get(name).unwrap();
     let value = control.value_from_midi(*value, control_value);
-    controller.set(name, value, MIDI);
+    controller.set(name, value, MIDI.into());
 }
 
 pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
@@ -150,12 +155,12 @@ pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     let config = ctx.config;
     if config.out_cc_edit_buffer_dump_req.contains(cc) {
         // send an "edit buffer dump request"
-        let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
+        let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: UI };
         ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
     }
 
     // save raw CC value to the controller
-    ctx.controller.lock().unwrap().set_cc_value(*cc, *value, GUI);
+    ctx.controller.lock().unwrap().set_cc_value(*cc, *value, UI.into());
 }
 
 pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
@@ -178,18 +183,18 @@ pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 
 pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
     match event.origin {
-        Origin::MIDI => {
+        MIDI => {
             sync_edit_and_dump_buffers(ctx, MIDI);
         }
-        Origin::UI => {
-            let modified = sync_edit_and_dump_buffers(ctx, GUI);
+        UI => {
+            let modified = sync_edit_and_dump_buffers(ctx, UI);
             send_midi_pc(ctx, &event.program, modified);
         }
     }
 
 }
 
-pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: u8) -> bool {
+pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: Origin) -> bool {
     let mut edit = ctx.edit.lock().unwrap();
     let mut dump = ctx.dump.lock().unwrap();
 
@@ -227,7 +232,7 @@ pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
         // send edit buffer
         let e = BufferStoreEvent {
             buffer: Buffer::EditBuffer,
-            origin: Origin::UI
+            origin: UI
         };
         ctx.app_event_tx.send_or_warn(AppEvent::Store(e));
     } else {
@@ -249,7 +254,7 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     match midi_message {
         MidiMessage::ProgramPatchDumpRequest { patch } => {
             // TODO: 1-indexed?
-            let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: Origin::MIDI };
+            let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: MIDI };
             ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
         }
         MidiMessage::ProgramPatchDump { patch, ver, data } => {
@@ -265,14 +270,14 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             // TODO: 1-indexed?
             let e = BufferDataEvent {
                 buffer: Buffer::Program(*patch as usize),
-                origin: Origin::MIDI,
-                request: Origin::MIDI,
+                origin: MIDI,
+                request: MIDI,
                 data: data.clone()
             };
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
         }
         MidiMessage::ProgramEditBufferDumpRequest => {
-            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::MIDI };
+            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: MIDI };
             ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
         }
         MidiMessage::ProgramEditBufferDump { ver, data } => {
@@ -287,14 +292,14 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             }
             let e = BufferDataEvent {
                 buffer: Buffer::EditBuffer,
-                origin: Origin::MIDI,
-                request: Origin::MIDI,
+                origin: MIDI,
+                request: MIDI,
                 data: data.clone()
             };
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
         }
         MidiMessage::AllProgramsDumpRequest => {
-            let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::MIDI };
+            let e = BufferLoadEvent { buffer: Buffer::All, origin: MIDI };
             ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
         }
         MidiMessage::AllProgramsDump { ver, data } => {
@@ -309,8 +314,8 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             }
             let e = BufferDataEvent {
                 buffer: Buffer::All,
-                origin: Origin::MIDI,
-                request: Origin::MIDI,
+                origin: MIDI,
+                request: MIDI,
                 data: data.clone()
             };
             ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -327,12 +332,12 @@ pub fn midi_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 
 pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
     match event.origin {
-        Origin::MIDI => {
+        MIDI => {
             // reroute this to the store handler
-            let e = BufferStoreEvent { buffer: event.buffer.clone(), origin: Origin::MIDI };
+            let e = BufferStoreEvent { buffer: event.buffer.clone(), origin: MIDI };
             store_handler(ctx, &e);
         }
-        Origin::UI => {
+        UI => {
             let msg = match event.buffer {
                 Buffer::EditBuffer => {
                     Some(MidiMessage::ProgramEditBufferDumpRequest)
@@ -359,8 +364,8 @@ pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
 
 pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
     // Store request origin
-    let request = event.origin.clone();
-    let origin = Origin::UI;
+    let request = event.origin;
+    let origin = UI;
 
     let dump = ctx.dump.lock().unwrap();
     match event.buffer {
@@ -407,8 +412,8 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
                 // individual program dump messages for each program
                 for patch in 0 .. ctx.config.program_num {
                     let e = BufferDataEvent {
-                        request: request.clone(),
-                        origin: origin.clone(),
+                        request,
+                        origin,
                         buffer: Buffer::Program(patch),
                         data: program::store_patch_dump(&dump, patch)
                     };
@@ -424,7 +429,7 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
         ctx.handler.control_value_from_buffer(controller, name, buffer)
     };
     match event.origin {
-        Origin::MIDI => {
+        MIDI => {
             let update_edit_buffer = match event.buffer {
                 Buffer::EditBuffer => {
                     program::load_patch_dump_ctrl(
@@ -475,7 +480,7 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
                 );
             }
         }
-        Origin::UI => {
+        UI => {
             // TODO: modified flag
             let msg = match event.buffer {
                 Buffer::EditBuffer => {
@@ -578,7 +583,7 @@ pub fn new_device_handler(ctx: &Ctx) {
     ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
 
     // Request all buffers load
-    let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::UI };
+    let e = BufferLoadEvent { buffer: Buffer::All, origin: UI };
     ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
 }
 

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::controller::{Controller, Signal, Store};
+use crate::controller::*;
 use crate::model::{AbstractControl, Config, Control, VirtualSelect};
 
 pub struct CCValues;
@@ -16,7 +16,7 @@ impl CCValues {
         map
     }
 
-    pub fn set_cc_value(controller: &mut Controller, cc: u8, value: u8, origin: u8) {
+    pub fn set_cc_value(controller: &mut Controller, cc: u8, value: u8, origin: StoreOrigin) {
         let name = format!("cc.{}", cc);
         controller.set_full(&name, value as u16, origin, Signal::None);
     }
@@ -28,12 +28,12 @@ impl CCValues {
 }
 
 pub trait CCAccess {
-    fn set_cc_value(&mut self, cc: u8, value: u8, origin: u8);
+    fn set_cc_value(&mut self, cc: u8, value: u8, origin: StoreOrigin);
     fn get_cc_value(&self, cc: u8) -> Option<u8>;
 }
 
 impl CCAccess for Controller {
-    fn set_cc_value(&mut self, cc: u8, value: u8, origin: u8) {
+    fn set_cc_value(&mut self, cc: u8, value: u8, origin: StoreOrigin) {
         CCValues::set_cc_value( self ,cc, value, origin)
     }
 

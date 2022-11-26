@@ -1,4 +1,5 @@
 use tokio::sync::broadcast;
+use crate::event::Origin;
 use crate::model::Config;
 use crate::names::ProgramNames;
 use crate::store::{Event, Store};
@@ -44,10 +45,10 @@ impl ProgramsDump {
         self.names.get(page)
     }
 
-    pub fn update_name_from_data(&mut self, page: usize, origin: u8) {
+    pub fn update_name_from_data(&mut self, page: usize, origin: Origin) {
         let data = nth_chunk(&self.data, page, self.program_size);
         if let Some(data) = data {
-            self.names.update_from_data(page, data, origin)
+            self.names.update_from_data(page, data, origin.into())
         }
     }
 
@@ -55,8 +56,8 @@ impl ProgramsDump {
         nth_chunk_mut(&mut self.data, page, self.program_size)
     }
 
-    pub fn set_name(&mut self, page: usize, name: String, origin: u8) -> bool {
-        self.names.set(page, name, origin)
+    pub fn set_name(&mut self, page: usize, name: String, origin: Origin) -> bool {
+        self.names.set(page, name, origin.into())
     }
 
     pub fn modified(&self, page: usize) -> bool {

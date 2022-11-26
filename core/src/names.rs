@@ -1,6 +1,6 @@
 use tokio::sync::broadcast;
 use crate::model::Config;
-use crate::store::{Event, Signal, Store};
+use crate::store::*;
 use crate::str_encoder::StrEncoder;
 use crate::strings::Strings;
 
@@ -17,7 +17,7 @@ impl ProgramNames {
         Self { names, encoder }
     }
 
-    pub fn update_from_data(&mut self, page: usize, data: &[u8], origin: u8) {
+    pub fn update_from_data(&mut self, page: usize, data: &[u8], origin: Origin) {
         let str = self.encoder.str_from_buffer(data);
         self.names.set(page, str, origin);
     }
@@ -37,7 +37,7 @@ impl Store<usize, String, usize> for ProgramNames {
         self.names.get(idx)
     }
 
-    fn set_full(&mut self, idx: usize, val: String, origin: u8, signal: Signal) -> bool {
+    fn set_full(&mut self, idx: usize, val: String, origin: Origin, signal: Signal) -> bool {
         self.names.set_full(idx, val, origin, signal)
     }
 

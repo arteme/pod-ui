@@ -7,6 +7,7 @@ use pod_core::edit::EditBuffer;
 use pod_core::handler::BoxedHandler;
 use pod_core::model::{AbstractControl, Config};
 use pod_core::store::{Signal, Store};
+use pod_core::store::Origin::MIDI;
 use pod_gtk::prelude::*;
 
 static mut MODULES: Vec<Box<dyn Module>> = vec![];
@@ -111,7 +112,7 @@ pub fn init_module_controls(config: &Config, edit_buffer: &EditBuffer) -> Result
     for name in &config.init_controls {
         let value = controller.get(name)
             .with_context(|| format!("Initializing control {:?} value not found!", &name))?;
-        controller.set_full(name, value, pod_core::config::MIDI, Signal::Force);
+        controller.set_full(name, value, MIDI, Signal::Force);
     }
 
     Ok(())

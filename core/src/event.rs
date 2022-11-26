@@ -1,7 +1,8 @@
+use std::ops::Deref;
 use log::warn;
 use tokio::sync::broadcast;
-use crate::context::Ctx;
 use crate::midi::MidiMessage;
+use crate::store::{Origin as StoreOrigin};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Program {
@@ -30,17 +31,39 @@ impl Into<u16> for Program {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Origin {
     MIDI,
     UI,
+}
+
+impl Into<StoreOrigin> for Origin {
+    fn into(self) -> StoreOrigin {
+        match self {
+            Origin::MIDI => StoreOrigin::MIDI,
+            Origin::UI => StoreOrigin::UI
+        }
+    }
+}
+
+impl TryFrom<StoreOrigin> for Origin {
+    type Error = &'static str;
+
+    fn try_from(value: StoreOrigin) -> Result<Self, Self::Error> {
+        match value {
+            StoreOrigin::NONE => Err("Unsupported origin"),
+            StoreOrigin::MIDI => Ok(Origin::MIDI),
+            StoreOrigin::UI => Ok(Origin::UI),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct ControlChangeEvent {
     pub name: String,
     pub value: u16,
-    pub origin: Origin,
+    /// This is intentionally StoreOrigin, not Origin, to detect buffer loads
+    pub origin: StoreOrigin,
 }
 
 #[derive(Clone, Debug, PartialEq)]

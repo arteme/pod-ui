@@ -1,7 +1,7 @@
-use crate::config::MIDI;
 use crate::controller::Controller;
 use crate::dump::ProgramsDump;
 use crate::edit::*;
+use crate::event::Origin;
 
 
 pub fn store_patch_dump_ctrl_buf(edit: &EditBuffer, buffer: &mut [u8]) {
@@ -26,7 +26,7 @@ pub fn store_patch_dump_ctrl(edit: &EditBuffer) -> Vec<u8> {
 // --
 
 pub fn load_patch_dump(programs_dump: &mut ProgramsDump,
-                       page: usize, data: &[u8], origin: u8) {
+                       page: usize, data: &[u8], origin: Origin) {
 
     let program_buffer = programs_dump.data_mut(page);
     if program_buffer.is_none() {
@@ -55,7 +55,7 @@ pub fn store_patch_dump(programs_dump: &ProgramsDump, page: usize) -> Vec<u8> {
     data
 }
 
-pub fn load_all_dump(programs_dump: &mut ProgramsDump, data: &[u8], origin: u8) {
+pub fn load_all_dump(programs_dump: &mut ProgramsDump, data: &[u8], origin: Origin) {
     let mut chunks = data.chunks(programs_dump.program_size());
     for i in 0 .. programs_dump.program_num() {
         let chunk = chunks.next().unwrap();
