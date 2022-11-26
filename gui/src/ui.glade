@@ -21,6 +21,19 @@
     <property name="active">True</property>
     <property name="draw-indicator">True</property>
   </object>
+  <object class="GtkRadioButton" id="program_hidden">
+    <property name="label" translatable="yes">Hidden Program Button</property>
+    <property name="name">program:1000</property>
+    <property name="visible">True</property>
+    <property name="can-focus">True</property>
+    <property name="receives-default">False</property>
+    <property name="active">True</property>
+    <property name="draw-indicator">True</property>
+    <property name="group">program</property>
+    <style>
+      <class name="no_program_name"/>
+    </style>
+  </object>
   <object class="GtkApplicationWindow" id="ui_win">
     <property name="name">ui_window</property>
     <property name="can-focus">False</property>

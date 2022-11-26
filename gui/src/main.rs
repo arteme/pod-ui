@@ -316,6 +316,7 @@ fn wire_ui_controls(
                     return;
                 }
             };
+            if v >= 1000 { return } // hidden program button, no PC events
             let e = ProgramChangeEvent { program: v.into(), origin };
             app_event_tx.send(AppEvent::ProgramChange(e));
         })
@@ -869,6 +870,10 @@ async fn main() -> Result<()> {
                     ui_controller.set_full("manual_mode_present",
                                            state.config.unwrap().flags.contains(DeviceFlags::MANUAL_MODE) as u16,
                                            StoreOrigin::NONE, Signal::Force);
+                    // activate the hidden "program:1000" button, deactivating
+                    // all other program buttons
+                    ui_controller.set_full("program",
+                                           1000, StoreOrigin::NONE, Signal::Force);
 
                     make_window_smaller(window.clone());
                 }
