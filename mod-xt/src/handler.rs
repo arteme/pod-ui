@@ -127,6 +127,7 @@ impl Handler for PodXtHandler {
         match event.origin {
             MIDI => {
                 generic::buffer_handler(ctx, event);
+                generic::buffer_modified_handler(ctx, event);
                 if event.request == MIDI {
                     // patch dump `03 71` messages need to be acknowledged
                     self.set_need_store_ack(true)

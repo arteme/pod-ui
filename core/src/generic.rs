@@ -253,7 +253,6 @@ pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
 pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     match midi_message {
         MidiMessage::ProgramPatchDumpRequest { patch } => {
-            // TODO: 1-indexed?
             let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: MIDI };
             ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
         }
@@ -267,7 +266,6 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
                        ctx.config.program_size, data.len());
                 return;
             }
-            // TODO: 1-indexed?
             let e = BufferDataEvent {
                 buffer: Buffer::Program(*patch as usize),
                 origin: MIDI,
@@ -481,7 +479,6 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
             }
         }
         UI => {
-            // TODO: modified flag
             let msg = match event.buffer {
                 Buffer::EditBuffer => {
                     MidiMessage::ProgramEditBufferDump { ver: 0, data: event.data.clone() }
@@ -507,6 +504,28 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
                 }
             };
             ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
+    }
+}
+
+/// A generic handler that converts BufferData events into Modified events
+pub fn buffer_modified_handler(ctx: &Ctx, event: &BufferDataEvent) {
+    match event.buffer {
+        Buffer::EditBuffer => {
+            // not touching edit buffer modified status?
+        }
+        Buffer::Current => {
+            // devices do not send "current" buffer dumps, only numbered ones
+            error!("Unsupported event: {:?}", event);
+            return;
+        }
+        Buffer::Program(_) | Buffer::All => {
+            let e = ModifiedEvent {
+                buffer: event.buffer.clone(),
+                origin: event.origin,
+                modified: false,
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
         }
     }
 }

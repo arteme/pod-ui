@@ -48,7 +48,8 @@ pub trait Handler {
     }
     /// Handler for buffer data received through MIDI
     fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {
-        generic::buffer_handler(ctx, event)
+        generic::buffer_handler(ctx, event);
+        generic::buffer_modified_handler(ctx, event);
     }
 
     /// Handler for program "modified" status changes
