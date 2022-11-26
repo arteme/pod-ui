@@ -591,9 +591,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "BX-4x12 Green 25's",
             "BX-4x15 Big Boy",
             "BX-8x10 Classic",
-       )),
-
-        flags: DeviceFlags::MANUAL_MODE,
+        )),
+        effects: vec![], // not used
 
         toggles: convert_args!(vec!(
             toggle("noise_gate_enable").non_moving(0),
@@ -646,7 +645,11 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         // 'mod select' CC 58, 'stomp select' CC 75, 'delay select' CC 88, 'wah select' CC 91
         out_cc_edit_buffer_dump_req: vec![ 12, 37, 58, 75, 88, 91 ],
 
-        ..pod2_config
+        // request edit buffer dump after receiving `tap tempo` CC 64
+        in_cc_edit_buffer_dump_req: vec![ 64 ],
+
+        flags: DeviceFlags::empty(),
+        midi_quirks: MidiQuirks::empty(),
     }
 });
 

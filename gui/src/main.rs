@@ -32,7 +32,7 @@ use pod_core::dispatch::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
-use pod_core::model::{Button, Config, Control, MidiQuirks, VirtualSelect};
+use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
 use crate::opts::*;
@@ -83,7 +83,6 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
         "midi_channel" => VirtualSelect::default(),
         "program" => VirtualSelect::default(),
         "program:prev" => VirtualSelect::default(),
-        "program_num" => VirtualSelect::default(),
 
         "load_button" => Button::default(),
         "load_patch_button" => Button::default(),
@@ -865,6 +864,11 @@ async fn main() -> Result<()> {
                     }
 
                     program_grid.replace(g);
+
+                    // update ui from config
+                    ui_controller.set_full("manual_mode_present",
+                                           state.config.unwrap().flags.contains(DeviceFlags::MANUAL_MODE) as u16,
+                                           StoreOrigin::NONE, Signal::Force);
 
                     make_window_smaller(window.clone());
                 }
