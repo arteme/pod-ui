@@ -90,26 +90,28 @@ impl Handler for PodXtHandler {
             Origin::UI => {
                 match event.buffer {
                     Buffer::EditBuffer => {
-                        self.queue_push(MidiMessage::XtEditBufferDumpRequest);
+                        let msg = MidiMessage::XtEditBufferDumpRequest;
+                        ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
                     }
                     Buffer::Current => {
-                        let patch = num_program(&ctx.program());
-                        patch.map(|v| {
+                        if let Some(v) = num_program(&ctx.program()) {
                             self.queue_push(
                                 MidiMessage::XtPatchDumpRequest { patch: v as u16 }
-                            )
-                        });
+                            );
+                            self.queue_send(ctx);
+                        }
                     }
                     Buffer::Program(v) => {
                         self.queue_push(MidiMessage::XtPatchDumpRequest { patch: v as u16 });
+                        self.queue_send(ctx);
                     }
                     Buffer::All => {
                         for v in 0 .. ctx.config.program_num {
                             self.queue_push(MidiMessage::XtPatchDumpRequest { patch: v as u16 });
                         }
+                        self.queue_send(ctx);
                     }
                 };
-                self.queue_send(ctx);
             }
         }
     }
