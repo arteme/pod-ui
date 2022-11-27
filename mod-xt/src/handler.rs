@@ -85,7 +85,9 @@ impl Handler for PodXtHandler {
     fn load_handler(&self, ctx: &Ctx, event: &BufferLoadEvent) {
         match event.origin {
             MIDI => {
-                generic::load_handler(ctx, event)
+                generic::load_handler(ctx, event);
+                // Send a marker that an XtPatchDumpEnd is needed to be sent.
+                ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
             }
             Origin::UI => {
                 match event.buffer {
