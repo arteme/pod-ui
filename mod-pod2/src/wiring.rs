@@ -6,6 +6,7 @@ use pod_core::controller::*;
 use pod_core::controller::StoreOrigin::{MIDI, UI};
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
+use pod_core::store::Origin;
 use pod_gtk::prelude::*;
 
 pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
@@ -49,12 +50,14 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
 
     let handler;
 
-    // gui -> edit buffer
+    // gui -> controller
     {
         let edit = edit.clone();
         let h = entry.connect_changed(move |entry| {
             let str = entry.text();
-            edit.lock().unwrap().set_name(str.as_str());
+            let mut edit = edit.lock().unwrap();
+            edit.set_name(str.as_str());
+            edit.set_full("name_change", 1, UI, Signal::Force);
         });
         handler = SignalHandler::new(&entry, h);
     }

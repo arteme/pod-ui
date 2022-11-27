@@ -422,6 +422,9 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "di:show" => VirtualSelect {},
         "footswitch_mode:show" => VirtualSelect {},
         "xt_packs" => VirtualSelect {},
+
+        // special used for ui wiring only
+        "name_change" => Button {},
     ));
 
     Config {

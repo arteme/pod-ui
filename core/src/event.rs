@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use log::warn;
 use tokio::sync::broadcast;
 use crate::midi::MidiMessage;

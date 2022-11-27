@@ -84,7 +84,7 @@ impl EditBuffer {
         for (name, _) in ordered_controls(&controller) {
             control_value_from_buffer(&mut controller, &name, &raw);
         }
-        controller.set_full("name_change", 1, Origin::MIDI, Signal::Force);
+        controller.set_full("name_change", 1, Origin::NONE, Signal::Force);
     }
 
     pub fn name(&self) -> String {
