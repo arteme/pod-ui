@@ -108,17 +108,12 @@ impl Interface for PodXtInterface {
         wire_name_change(edit, config, &self.objects, callbacks)?;
         resolve_footswitch_mode_show(&self.objects, config)?;
 
-        let toggles = self.objects.ref_by_name::<gtk::Grid>("toggles").unwrap();
-        toggles.set_hexpand(true);
-        for c in toggles.children() {
-            toggles.remove(&c);
-        }
+        let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
         let tuner = TuneIndicator::new();
-        toggles.attach(&tuner, 0, 0, 11, 2);
         tuner.set_expand(true);
-        tuner.set_hexpand(true);
-        tuner.set_vexpand(true);
+        tuner_box.add(&tuner);
         tuner.show();
+        wire_tuner(tuner, controller.clone(), &self.objects, callbacks)?;
 
         Ok(())
     }

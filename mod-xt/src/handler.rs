@@ -15,6 +15,7 @@ use pod_core::generic::num_program;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::AbstractControl;
+use crate::tuner::Tuner;
 
 /// A marker to send MidiMessage::XtPatchDumpEnd
 const MARKER_PATCH_DUMP_END: u32 = 0x0001;
@@ -32,7 +33,8 @@ struct Inner {
     store_programs: BitSet,
     /// A JoinHandle for the currently running thread waiting for the
     /// timeout of the XtStoreStatus message
-    store_status_timeout_handler: Option<tokio::task::JoinHandle<()>>
+    store_status_timeout_handler: Option<tokio::task::JoinHandle<()>>,
+    tuner: Option<Tuner>
 }
 
 pub(crate) struct PodXtHandler {
@@ -46,7 +48,8 @@ impl PodXtHandler {
             sent: false,
             need_store_ack: false,
             store_programs: BitSet::with_capacity(128),
-            store_status_timeout_handler: None
+            store_status_timeout_handler: None,
+            tuner: None,
         };
         Self { inner: RefCell::new(inner) }
     }
@@ -80,9 +83,41 @@ impl PodXtHandler {
     pub fn set_need_store_ack(&self, value: bool) {
         self.inner.borrow_mut().need_store_ack = value
     }
+
+    fn tuner_on(&self, ctx: &Ctx) {
+        let mut inner = self.inner.borrow_mut();
+        if inner.tuner.is_none() {
+            let mut tuner = Tuner::new();
+            tuner.start(ctx);
+            inner.tuner.replace(tuner);
+
+            ctx.controller.set("tuner_enable", 1, StoreOrigin::UI);
+        }
+    }
+
+    fn tuner_off(&self, ctx: &Ctx) {
+        let mut inner = self.inner.borrow_mut();
+        inner.tuner.take(); // take & drop tuner
+
+        ctx.controller.set("tuner_enable", 0, StoreOrigin::UI);
+    }
 }
 
 impl Handler for PodXtHandler {
+    fn cc_handler(&self, ctx: &Ctx, event: &ControlChangeEvent) {
+        generic::cc_handler(ctx, event);
+    }
+
+    fn pc_handler(&self, ctx: &Ctx, event: &ProgramChangeEvent) {
+        if event.program == Program::Tuner {
+            self.tuner_on(ctx);
+        } else {
+            self.tuner_off(ctx);
+        }
+
+        generic::pc_handler(ctx, event);
+    }
+
     fn load_handler(&self, ctx: &Ctx, event: &BufferLoadEvent) {
         match event.origin {
             MIDI => {
@@ -306,6 +341,12 @@ impl Handler for PodXtHandler {
                 let msg = MidiMessage::XtTunerOffset { offset };
                 ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
             }
+            MidiMessage::XtTunerNote { note } => {
+                ctx.controller.set("tuner_note", *note, MIDI.into());
+            }
+            MidiMessage::XtTunerOffset { offset } => {
+                ctx.controller.set("tuner_offset", *offset, MIDI.into());
+            }
             // TODO: handle XtSaved
             _ => {}
         }
@@ -405,6 +446,8 @@ impl Handler for PodXtHandler {
         };
         buffer[addr as usize] = value;
     }
+
+
 }
 
 fn tuner_value_next(inc: u16) -> (u16, u16) {

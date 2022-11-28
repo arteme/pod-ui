@@ -11,6 +11,7 @@ glib::wrapper! {
 
 pub struct TuneIndicatorPriv {
     allocation: Cell<gtk::Allocation>,
+    indicator: Cell<bool>,
     pos: Cell<f64>
 }
 
@@ -33,6 +34,15 @@ impl TuneIndicatorPriv {
 
     fn pos(&self) -> f64 {
         self.pos.get()
+    }
+
+    fn set_indicator(&self, value: bool) {
+        self.indicator.set(value);
+        self.instance().queue_draw();
+    }
+
+    fn indicator(&self) -> bool {
+        self.indicator.get()
     }
 
     fn allocation_changed(&self, alloc: &gtk::Allocation) {
@@ -110,10 +120,13 @@ impl TuneIndicatorPriv {
             cr.line_to(x - w/2.0, y);
         };
 
-        // indicator
-        cr.set_line_width(1.0);
-        draw_rombus(x, y, rw, rh);
-        cr.stroke()?;
+        if self.indicator.get() {
+            // indicator
+            cr.set_line_width(1.0);
+            draw_rombus(x, y, rw, rh);
+            cr.stroke()?;
+        }
+
 
         Ok(())
     }
@@ -129,6 +142,7 @@ impl ObjectSubclass for TuneIndicatorPriv {
         Self {
             allocation: Cell::new(gtk::Allocation::new(0, 0, 0, 0)),
             pos: Cell::new(0.0),
+            indicator: Cell::new(false),
         }
     }
 }
@@ -146,6 +160,13 @@ impl ObjectImpl for TuneIndicatorPriv {
                     0.0,
                     glib::ParamFlags::READWRITE
                 ),
+                glib::ParamSpecBoolean::new(
+                    "indicator",
+                    "Indicator",
+                    "Show indicator",
+                    false,
+                    glib::ParamFlags::READWRITE
+                )
             ]
         });
         PROPERTIES.as_ref()
@@ -157,6 +178,7 @@ impl ObjectImpl for TuneIndicatorPriv {
         }
         match pspec.name() {
             "pos" => self.set_pos(v(value)),
+            "indicator" => self.set_indicator(v(value)),
             _ => unimplemented!(),
         }
     }
@@ -164,6 +186,7 @@ impl ObjectImpl for TuneIndicatorPriv {
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "pos" => self.pos().to_value(),
+            "indicator" => self.indicator().to_value(),
             _ => unimplemented!(),
         }
     }
@@ -200,18 +223,27 @@ impl TuneIndicator {
 }
 
 pub trait TuneIndicatorExt {
-    fn set_pos(&self, value: f64);
-    fn pos(&self) -> f64;
+    fn set_pos(&self, value: Option<f64>);
+    fn pos(&self) -> Option<f64>;
 }
 
 impl TuneIndicatorExt for TuneIndicator {
-    fn set_pos(&self, value: f64) {
+    fn set_pos(&self, value: Option<f64>) {
         let p = TuneIndicatorPriv::from_instance(self);
-        p.set_pos(value)
+        if let Some(v) = value {
+            p.set_pos(v);
+            p.set_indicator(true);
+        } else {
+            p.set_indicator(false);
+        }
     }
 
-    fn pos(&self) -> f64 {
+    fn pos(&self) -> Option<f64> {
         let p = TuneIndicatorPriv::from_instance(self);
-        p.pos()
+        if p.indicator() {
+            Some(p.pos())
+        } else {
+            None
+        }
     }
 }

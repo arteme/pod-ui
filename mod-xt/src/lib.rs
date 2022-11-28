@@ -5,5 +5,6 @@ mod model;
 mod builders;
 mod handler;
 mod widgets;
+mod tuner;
 
 pub use module::*;

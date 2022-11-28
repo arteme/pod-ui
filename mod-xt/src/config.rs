@@ -200,6 +200,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             buffer_config: BufferConfig::Midi },
         "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, buffer_config: BufferConfig::Midi, ..def()  },
         "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, buffer_config: BufferConfig::Midi, ..def() },
+        "tuner_enable" => MidiSwitchControl { cc: 69 },
         // preamp
         "amp_select" => Select { cc: 11, addr: 32 + 12 , ..def() },
         "amp_select:no_def" => MidiSelect { cc: 12 }, // TODO: wire me!
@@ -423,6 +424,9 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "footswitch_mode:show" => VirtualSelect {},
         "xt_packs" => VirtualSelect {},
 
+        "tuner_note" => VirtualSelect {},
+        "tuner_offset" => VirtualSelect {},
+
         // special used for ui wiring only
         "name_change" => Button {},
     ));
@@ -635,6 +639,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "amp_enable",
             "compressor_enable",
             "eq_enable",
+            "tuner_enable",
             // misc
             "stomp_param2_wave", // wonder, why?
             // show signals
