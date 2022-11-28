@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::sync::atomic;
 use std::time::Duration;
 use hibitset::{BitSet, BitSetLike, DrainableBitSet};
 use log::{debug, error, warn};
@@ -292,7 +293,18 @@ impl Handler for PodXtHandler {
 
                     inner.store_programs.clear();
                 }
-
+            }
+            MidiMessage::XtTunerNoteRequest => {
+                // when Line6 Edit asks, animate the tuner indicator
+                let (note, _) = tuner_value_next(0);
+                let msg = MidiMessage::XtTunerNote { note };
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+            }
+            MidiMessage::XtTunerOffsetRequest => {
+                // when Line6 Edit asks, animate the tuner indicator
+                let (_, offset) = tuner_value_next(3);
+                let msg = MidiMessage::XtTunerOffset { offset };
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
             }
             // TODO: handle XtSaved
             _ => {}
@@ -393,4 +405,14 @@ impl Handler for PodXtHandler {
         };
         buffer[addr as usize] = value;
     }
+}
+
+fn tuner_value_next(inc: u16) -> (u16, u16) {
+    static TUNER_VALUE: atomic::AtomicU16 = atomic::AtomicU16::new(0);
+    let v = TUNER_VALUE.fetch_add(inc, atomic::Ordering::SeqCst);
+
+    let offset = ((v % 100) as i16 - 50) as u16;
+    let note = (v / 100) % 12;
+
+    (note, offset)
 }

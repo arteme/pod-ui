@@ -10,6 +10,7 @@ use pod_mod_pod2::wiring::*;
 
 use crate::config;
 use crate::handler::PodXtHandler;
+use crate::widgets::TuneIndicator;
 use crate::wiring::{*, init_combo};
 
 pub struct PodXtModule;
@@ -106,6 +107,18 @@ impl Interface for PodXtInterface {
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         resolve_footswitch_mode_show(&self.objects, config)?;
+
+        let toggles = self.objects.ref_by_name::<gtk::Grid>("toggles").unwrap();
+        toggles.set_hexpand(true);
+        for c in toggles.children() {
+            toggles.remove(&c);
+        }
+        let tuner = TuneIndicator::new();
+        toggles.attach(&tuner, 0, 0, 11, 2);
+        tuner.set_expand(true);
+        tuner.set_hexpand(true);
+        tuner.set_vexpand(true);
+        tuner.show();
 
         Ok(())
     }

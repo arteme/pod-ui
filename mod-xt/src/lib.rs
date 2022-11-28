@@ -4,5 +4,6 @@ mod wiring;
 mod model;
 mod builders;
 mod handler;
+mod widgets;
 
 pub use module::*;

@@ -60,6 +60,18 @@ pub fn u16_from_2_u7(v1: u8, v2: u8) -> u16 {
     (v1 as u16) << 7 | (v2 as u16)
 }
 
+pub fn u16_to_4_u4(v: u16) -> (u8, u8, u8, u8) {
+    let b1 = (v >> 12) & 0x0f;
+    let b2 = (v >> 8) & 0x0f;
+    let b3 = (v >> 4) & 0x0f;
+    let b4 = v & 0x0f;
+    (b1 as u8, b2 as u8, b3 as u8, b4 as u8)
+}
+
+pub fn u16_from_4_u4(v1: u8, v2: u8, v3: u8, v4: u8) -> u16 {
+    (v1 as u16) << 12 | (v2 as u16) << 8 | (v3 as u16) << 4 | (v4 as u16)
+}
+
 /// A shorthand for `Default::default()` while waiting on
 pub fn def<T: Default>() -> T {
     Default::default()

@@ -29,6 +29,10 @@ pub enum MidiMessage {
     XtPatchDumpEnd,
     XtSaved { patch: u16 },
     XtStoreStatus { success: bool },
+    XtTunerNoteRequest,
+    XtTunerNote { note: u16 },
+    XtTunerOffsetRequest,
+    XtTunerOffset { offset: u16 },
 
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
@@ -164,6 +168,20 @@ impl MidiMessage {
                 let f = !success as u8;
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x50 | f, 0xf7].to_vec()
             }
+            MidiMessage::XtTunerNoteRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x16, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerNote { note } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*note);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x16, p1, p2, p3, p4, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerOffsetRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x17, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerOffset { offset: pitch } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*pitch);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x17, p1, p2, p3, p4, 0xf7].to_vec()
+            }
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
@@ -282,6 +300,16 @@ impl MidiMessage {
                             }
                             [0x03, 0x50] => Ok(MidiMessage::XtStoreStatus { success: true }),
                             [0x03, 0x51] => Ok(MidiMessage::XtStoreStatus { success: false }),
+                            [0x03, 0x57, 0x16] => Ok(MidiMessage::XtTunerNoteRequest),
+                            [0x03, 0x57, 0x17] => Ok(MidiMessage::XtTunerOffsetRequest),
+                            [0x03, 0x56, 0x16, p1, p2, p3, p4] => {
+                                let note = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtTunerNote { note })
+                            }
+                            [0x03, 0x56, 0x17, p1, p2, p3, p4] => {
+                                let pitch = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtTunerOffset { offset: pitch })
+                            }
 
                             _ => bail!("Unknown sysex message")
                         }
