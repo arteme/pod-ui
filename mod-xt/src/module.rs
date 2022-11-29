@@ -10,7 +10,7 @@ use pod_mod_pod2::wiring::*;
 
 use crate::config;
 use crate::handler::PodXtHandler;
-use crate::widgets::TuneIndicator;
+use crate::widgets::Tuner;
 use crate::wiring::{*, init_combo};
 
 pub struct PodXtModule;
@@ -109,7 +109,7 @@ impl Interface for PodXtInterface {
         resolve_footswitch_mode_show(&self.objects, config)?;
 
         let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
-        let tuner = TuneIndicator::new();
+        let tuner = Tuner::new();
         tuner.set_expand(true);
         tuner_box.add(&tuner);
         tuner.show();

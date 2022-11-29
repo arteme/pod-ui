@@ -8,7 +8,7 @@ use pod_core::controller::StoreOrigin::{MIDI, NONE, UI};
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
-use crate::widgets::{TuneIndicator, TuneIndicatorExt};
+use crate::widgets::*;
 
 
 fn is_sensitive(packs: XtPacks, name: &str) -> bool {
@@ -453,7 +453,7 @@ pub fn resolve_footswitch_mode_show(objs: &ObjectList, config: &Config) -> Resul
     Ok(())
 }
 
-pub fn wire_tuner(tuner: TuneIndicator,
+pub fn wire_tuner(tuner: Tuner,
                   controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     builder
@@ -461,10 +461,18 @@ pub fn wire_tuner(tuner: TuneIndicator,
         .on("tuner_offset")
         .run(move |value, controller, _, tuner| {
             if value == 97 {
-                tuner.set_pos(None);
+                tuner.set_offset(None);
             } else {
                 let value = (value as i16).min(50).max(-50) as f64 / 50.0;
-                tuner.set_pos(Some(value as f64));
+                tuner.set_offset(Some(value as f64));
+            }
+        })
+        .on("tuner_note")
+        .run(move |value, controller, _, tuner| {
+            if value == 0xfffe {
+                tuner.set_note(None);
+            } else {
+                tuner.set_note(Some(value as usize));
             }
         });
 
