@@ -10,8 +10,13 @@ build_debug_osx() {
 }
 
 build_debug_linux() {
-    SENTRY=1 cargo build
-    ./build/mk-appimage-dist.sh
+    if [[ -n "$DOCKER_POD_UI_BUILD" ]];
+    then
+        SENTRY=1 cargo build
+        ./build/mk-appimage-dist.sh
+    else
+        ./build/mk-appimage-dist-docker.sh
+    fi
 }
 
 build_debug_win64() {

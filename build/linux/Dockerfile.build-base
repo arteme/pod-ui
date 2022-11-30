@@ -16,3 +16,4 @@ RUN echo 'source /opt/cargo/env' > /etc/profile.d/10-rusrtup.sh \
 RUN apt-get install -y cpio fuse file
 
 RUN useradd -rm -d /home/user -s /bin/bash -g root -G sudo -u 1000 user
+ENV DOCKER_POD_UI_BUILD=1
