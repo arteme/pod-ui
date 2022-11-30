@@ -33,6 +33,8 @@ pub enum MidiMessage {
     XtTunerNote { note: u16 },
     XtTunerOffsetRequest,
     XtTunerOffset { offset: u16 },
+    XtProgramNumberRequest,
+    XtProgramNumber { program: u16 },
 
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
@@ -178,9 +180,16 @@ impl MidiMessage {
             MidiMessage::XtTunerOffsetRequest => {
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x17, 0xf7].to_vec()
             }
-            MidiMessage::XtTunerOffset { offset: pitch } => {
-                let (p1, p2, p3, p4) = u16_to_4_u4(*pitch);
+            MidiMessage::XtTunerOffset { offset } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*offset);
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x17, p1, p2, p3, p4, 0xf7].to_vec()
+            }
+            MidiMessage::XtProgramNumberRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x11, 0xf7].to_vec()
+            }
+            MidiMessage::XtProgramNumber { program } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*program);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x11, p1, p2, p3, p4, 0xf7].to_vec()
             }
 
             MidiMessage::ControlChange { channel, control, value } =>
@@ -307,9 +316,15 @@ impl MidiMessage {
                                 Ok(MidiMessage::XtTunerNote { note })
                             }
                             [0x03, 0x56, 0x17, p1, p2, p3, p4] => {
-                                let pitch = u16_from_4_u4(*p1, *p2, *p3, *p4);
-                                Ok(MidiMessage::XtTunerOffset { offset: pitch })
+                                let offset = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtTunerOffset { offset })
                             }
+                            [0x03, 0x57, 0x11] => Ok(MidiMessage::XtProgramNumberRequest),
+                            [0x03, 0x56, 0x11, p1, p2, p3, p4] => {
+                                let program = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtProgramNumber { program })
+                            }
+
 
                             _ => bail!("Unknown sysex message")
                         }

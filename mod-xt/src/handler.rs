@@ -5,11 +5,11 @@ use std::sync::atomic;
 use std::time::Duration;
 use hibitset::{BitSet, BitSetLike, DrainableBitSet};
 use log::{debug, error, warn};
+use Origin::{MIDI, UI};
 use pod_core::context::Ctx;
 use pod_core::controller::*;
 use pod_core::cc_values::*;
 use pod_core::event::*;
-use pod_core::event::Origin::MIDI;
 use pod_core::generic;
 use pod_core::generic::num_program;
 use pod_core::handler::Handler;
@@ -84,36 +84,52 @@ impl PodXtHandler {
         self.inner.borrow_mut().need_store_ack = value
     }
 
-    fn tuner_on(&self, ctx: &Ctx) {
+    fn tuner_on(&self, ctx: &Ctx, origin: Origin) {
         let mut inner = self.inner.borrow_mut();
         if inner.tuner.is_none() {
             let mut tuner = Tuner::new();
             tuner.start(ctx);
             inner.tuner.replace(tuner);
 
-            ctx.controller.set("tuner_enable", 1, StoreOrigin::UI);
+            ctx.controller.set("tuner_enable", 1, origin.into());
+            ctx.set_program(Program::Tuner, origin);
         }
     }
 
-    fn tuner_off(&self, ctx: &Ctx) {
+    fn tuner_off(&self, ctx: &Ctx, origin: Origin) {
         let mut inner = self.inner.borrow_mut();
         inner.tuner.take(); // take & drop tuner
 
-        ctx.controller.set("tuner_enable", 0, StoreOrigin::UI);
+        ctx.controller.set("tuner_enable", 0, origin.into());
+    }
+
+    fn tuner_toggle(&self, on: bool, ctx: &Ctx, origin: Origin) {
+        if on {
+            self.tuner_on(ctx, origin)
+        } else {
+            self.tuner_off(ctx, origin)
+        }
     }
 }
 
 impl Handler for PodXtHandler {
     fn cc_handler(&self, ctx: &Ctx, event: &ControlChangeEvent) {
+        if event.name.as_str() == "tuner_enable" && event.origin == StoreOrigin::MIDI {
+            let on = event.value > 0;
+            self.tuner_toggle(on, ctx, MIDI);
+            // when MIDI device turns off the tuner, ask it, what program is on now
+            if !on {
+                let msg = MidiMessage::XtProgramNumberRequest;
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+            }
+        }
+
         generic::cc_handler(ctx, event);
+
     }
 
     fn pc_handler(&self, ctx: &Ctx, event: &ProgramChangeEvent) {
-        if event.program == Program::Tuner {
-            self.tuner_on(ctx);
-        } else {
-            self.tuner_off(ctx);
-        }
+        self.tuner_toggle(event.program == Program::Tuner, ctx, event.origin);
 
         generic::pc_handler(ctx, event);
     }
@@ -125,7 +141,7 @@ impl Handler for PodXtHandler {
                 // Send a marker that an XtPatchDumpEnd is needed to be sent.
                 ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
             }
-            Origin::UI => {
+            UI => {
                 match event.buffer {
                     Buffer::EditBuffer => {
                         let msg = MidiMessage::XtEditBufferDumpRequest;
@@ -173,8 +189,8 @@ impl Handler for PodXtHandler {
                     self.set_need_store_ack(true)
                 }
             }
-            Origin::UI => {
-                if event.request == Origin::UI {
+            UI => {
+                if event.request == UI {
                     error!("Store events from UI not implemented")
                 }
                 let patch = match event.buffer {
@@ -269,7 +285,7 @@ impl Handler for PodXtHandler {
                 let e = BufferDataEvent {
                     buffer,
                     origin: MIDI,
-                    request: Origin::UI,
+                    request: UI,
                     data: data.clone()
                 };
                 ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
@@ -346,6 +362,15 @@ impl Handler for PodXtHandler {
             }
             MidiMessage::XtTunerOffset { offset } => {
                 ctx.controller.set("tuner_offset", *offset, MIDI.into());
+            }
+            MidiMessage::XtProgramNumberRequest => {
+                if let Some(program) = num_program(&ctx.program()) {
+                    let msg = MidiMessage::XtProgramNumber { program: program as u16 };
+                    ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+                }
+            }
+            MidiMessage::XtProgramNumber { program } => {
+                ctx.set_program(Program::Program(*program), MIDI);
             }
             // TODO: handle XtSaved
             _ => {}

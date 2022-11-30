@@ -81,15 +81,19 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
 }
 
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
+    // Only controls that have an address in the buffer should trigger
+    // a "buffer modified" event
+    let has_addr = ctx.controller.get_config(&event.name)
+        .and_then(|c| c.get_addr()).is_some();
     let modified = match event.origin {
         StoreOrigin::MIDI => {
             update_edit_buffer(ctx, event);
-            true
+            has_addr
         }
         StoreOrigin::UI => {
             update_edit_buffer(ctx, event);
             send_midi_cc(ctx, event);
-            true
+            has_addr
         }
         _ => false
     };
