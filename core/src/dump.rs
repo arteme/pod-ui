@@ -1,4 +1,5 @@
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast;
+use crate::event::Origin;
 use crate::model::Config;
 use crate::names::ProgramNames;
 use crate::store::{Event, Store};
@@ -22,6 +23,10 @@ impl ProgramsDump {
         Self { program_num, program_size, data, modified, names }
     }
 
+    pub fn broadcast_names(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+        self.names.broadcast(tx)
+    }
+
     pub fn program_num(&self) -> usize {
         self.program_num
     }
@@ -36,38 +41,23 @@ impl ProgramsDump {
         nth_chunk(&self.data, page, self.program_size)
     }
 
-    pub fn data_for_program(&self, program: usize) -> Option<&[u8]> {
-        // programs as 1-indexed
-        self.data(program - 1)
-    }
-
     pub fn name(&self, page: usize) -> Option<String> {
         self.names.get(page)
     }
 
-    pub fn name_for_program(&self, program: usize) -> Option<String> {
-        // programs as 1-indexed
-        self.name(program - 1)
-    }
-
-    pub fn update_name_from_data(&mut self, page: usize, origin: u8) {
+    pub fn update_name_from_data(&mut self, page: usize, origin: Origin) {
         let data = nth_chunk(&self.data, page, self.program_size);
         if let Some(data) = data {
-            self.names.update_from_data(page, data, origin)
+            self.names.update_from_data(page, data, origin.into())
         }
-    }
-
-    pub fn subscribe_to_name_updates(&self) -> Receiver<Event<usize>> {
-        self.names.subscribe()
-
     }
 
     pub fn data_mut(&mut self, page: usize) -> Option<&mut [u8]> {
         nth_chunk_mut(&mut self.data, page, self.program_size)
     }
 
-    pub fn set_name(&mut self, page: usize, name: String, origin: u8) -> bool {
-        self.names.set(page, name, origin)
+    pub fn set_name(&mut self, page: usize, name: String, origin: Origin) -> bool {
+        self.names.set(page, name, origin.into())
     }
 
     pub fn modified(&self, page: usize) -> bool {

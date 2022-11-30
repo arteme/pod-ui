@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use crate::controller::Controller;
 use crate::model::{AbstractControl, Config, Control};
-use crate::store::{Event, Signal, Store, StoreSetIm};
+use crate::store::*;
 use log::*;
 use tokio::sync::broadcast;
-use tokio::task::JoinHandle;
+use crate::cc_values::CCValues;
 use crate::str_encoder::StrEncoder;
 
 pub struct EditBuffer {
@@ -14,9 +15,17 @@ pub struct EditBuffer {
     encoder: StrEncoder
 }
 
+pub type ControlFromBufferFn = fn(&mut Controller, &str, &[u8]);
+pub type ControlToBufferFn = fn(&mut Controller, &str, &[u8]);
+
 impl EditBuffer {
     pub fn new(config: &Config) -> Self {
-        let controller = Controller::new(config.controls.clone());
+
+        let controls = config.controls.clone().into_iter()
+            .chain(CCValues::generate_cc_controls(config).into_iter())
+            .collect::<HashMap<_,_>>();
+
+        let controller = Controller::new(controls);
         let raw = vec![0u8; config.program_size].into_boxed_slice();
 
         let controller = Arc::new(Mutex::new(controller));
@@ -26,6 +35,7 @@ impl EditBuffer {
         Self { controller, raw, encoder, modified: false }
     }
 
+    /*
     pub fn start_thread(&self) -> JoinHandle<()> {
         let controller = self.controller.clone();
         let raw = self.raw.clone();
@@ -52,6 +62,8 @@ impl EditBuffer {
         })
     }
 
+     */
+
     pub fn controller(&self) -> Arc<Mutex<Controller>> {
         self.controller.clone()
     }
@@ -64,13 +76,15 @@ impl EditBuffer {
         self.raw.lock().unwrap()
     }
 
-    pub fn load_from_raw(&mut self, origin: u8) {
+    pub fn load_from_raw<F>(&mut self, control_value_from_buffer: F)
+        where F: Fn(&mut Controller, &str, &[u8])
+    {
         let mut controller = self.controller.lock().unwrap();
         let raw = self.raw.lock().unwrap();
         for (name, _) in ordered_controls(&controller) {
-            control_value_from_buffer(&mut controller, &name, &raw, origin);
+            control_value_from_buffer(&mut controller, &name, &raw);
         }
-        controller.set_full("name_change", 1, origin, Signal::Force);
+        controller.set_full("name_change", 1, Origin::NONE, Signal::Force);
     }
 
     pub fn name(&self) -> String {
@@ -143,7 +157,7 @@ fn control_value_to_buffer(controller: &Controller, name: &str, buffer: &mut [u8
         }
     }
 }
-fn control_value_from_buffer(controller: &mut Controller, name: &str, buffer: &[u8], origin: u8) {
+fn control_value_from_buffer(controller: &mut Controller, name: &str, buffer: &[u8], origin: Origin) {
     let control = controller.get_config(name);
     if control.is_none() {
         return;
@@ -191,11 +205,11 @@ impl Store<&str, u16, String> for EditBuffer {
         self.controller.get(name)
     }
 
-    fn set_full(&mut self, name: &str, value: u16, origin: u8, signal: Signal) -> bool {
+    fn set_full(&mut self, name: &str, value: u16, origin: Origin, signal: Signal) -> bool {
         self.controller.set_full(name, value, origin, signal)
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<String>> {
-        self.controller.subscribe()
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<String>>>) {
+        self.controller.broadcast(tx)
     }
 }

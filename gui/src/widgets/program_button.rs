@@ -1,14 +1,6 @@
 use std::cell::Cell;
-use gtk::pango::{Style, Weight};
-use crate::glib;
-use crate::gtk;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
+use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
-use pod_gtk::ObjectList;
-use crate::glib::{ParamSpec, Value};
-use crate::glib::value::FromValue;
-use crate::gtk::Align;
 
 glib::wrapper! {
     pub struct ProgramButton(ObjectSubclass<ProgramButtonPriv>)
@@ -39,8 +31,8 @@ impl ProgramButtonPriv {
         }
 
         obj.add(&widget);
-        obj.set_halign(Align::Fill);
-        obj.set_valign(Align::Fill);
+        obj.set_halign(gtk::Align::Fill);
+        obj.set_valign(gtk::Align::Fill);
 
         self.set_program_id("");
         self.set_program_name("");

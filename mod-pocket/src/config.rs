@@ -41,6 +41,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
 
         controls,
         init_controls,
+        toggles: vec![], // PocketPOD doesn't use dynamic toggle positioning
 
         midi_quirks: MIDI_QUIRKS,
 

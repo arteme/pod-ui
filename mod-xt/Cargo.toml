@@ -1,0 +1,19 @@
+[package]
+name = "pod-mod-xt"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hibitset = "0.6.3"
+
+once_cell = "*" # defined in pod-core
+maplit = "*" # defined in pod-mod-pod2
+log = "*" # defined in pod-core
+tokio = "*" # defined in pod-core
+anyhow = "*" # defined in pod-code
+
+pod-core = { path = "../core" }
+pod-gtk = { path = "../gtk" }
+pod-mod-pod2 = { path = "../mod-pod2" }

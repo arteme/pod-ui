@@ -7,10 +7,9 @@ use anyhow::*;
 use glib::SignalHandlerId;
 
 use gtk::prelude::*;
-use pod_core::config::GUI;
-use pod_core::controller::{Controller, ControllerStoreExt};
-use pod_core::model::{Control, Format};
-use pod_core::store::*;
+use pod_core::controller::*;
+use pod_core::controller::StoreOrigin::UI;
+use pod_core::model::{Control, Format, RangeControl, VirtualRangeControl};
 use crate::{Callbacks, ObjectList};
 
 pub struct SignalHandler {
@@ -89,19 +88,24 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                 {
                     let controller = controller.lock().unwrap();
                     match controller.get_config(&name) {
-                        Some(Control::RangeControl(c)) => {
-                            let (from, to) = c.bounds();
+                        Some(Control::RangeControl(RangeControl { config, format, .. })) |
+                        Some(Control::VirtualRangeControl(VirtualRangeControl { config, format, .. })) => {
+                            let (from, to) = config.bounds();
                             info!("Rage: {} .. {}", from, to);
                             adj.set_lower(from);
                             adj.set_upper(to);
 
-                            match &c.format {
+                            match format {
                                 Format::Callback(f) => {
-                                    let c = c.clone();
+                                    let config = config.clone();
                                     let f = f.clone();
-                                    scale.connect_format_value(move |_, val| f(&c, val));
+                                    scale.connect_format_value(move |_, val| f(&config, val));
                                 },
                                 Format::Data(data) => {
+                                    let data = data.clone();
+                                    scale.connect_format_value(move |_, val| data.format(val));
+                                },
+                                Format::Interpolate(data) => {
                                     let data = data.clone();
                                     scale.connect_format_value(move |_, val| data.format(val));
                                 },
@@ -110,7 +114,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                     scale.connect_format_value(move |_, val| labels.get(val as usize).unwrap_or(&"".into()).clone());
 
                                 }
-                                _ => {}
+                                Format::None => {}
                             }
                         },
                         _ => {
@@ -126,7 +130,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let name = name.clone();
                     let h = adj.connect_value_changed(move |adj| {
                         let mut controller = controller.lock().unwrap();
-                        controller.set(&name, adj.value() as u16, GUI);
+                        controller.set(&name, adj.value() as u16, UI);
                     });
                     handler = SignalHandler::new(&adj, h);
                 }
@@ -169,7 +173,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let controller = controller.clone();
                     let name = name.clone();
                     let h = check.connect_toggled(move |check| {
-                        controller.set(&name, check.is_active() as u16, GUI);
+                        controller.set(&name, check.is_active() as u16, UI);
                     });
                     handler = SignalHandler::new(check, h);
                 }
@@ -236,7 +240,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                                 // Protect against this nonsense.
                                 if radio.group().len() < 2 { return; }
                                 let mut controller = controller.lock().unwrap();
-                                controller.set(&name, value.unwrap(), GUI);
+                                controller.set(&name, value.unwrap(), UI);
                             });
                             handlers.push(SignalHandler::new(&radio, h));
                         }
@@ -292,7 +296,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let name = name.clone();
                     let h = combo.connect_changed(move |combo| {
                         combo.active().map(|v| {
-                            controller.set(&name, v as u16, GUI);
+                            controller.set(&name, v as u16, UI);
                         });
                     });
                     handler = SignalHandler::new(combo, h);
@@ -331,7 +335,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let name = name.clone();
                     button.connect_clicked(move |_button| {
                         let mut controller = controller.lock().unwrap();
-                        controller.set_full(&name, 1, GUI, Signal::Force);
+                        controller.set_full(&name, 1, UI, Signal::Force);
                     });
                 }
                 // wire controller -> gui

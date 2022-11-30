@@ -9,10 +9,12 @@ extern crate arrayref;
 pub mod midi;
 mod util;
 
+pub use util::def;
+
 pub mod store;
 pub mod model;
 pub mod builders;
-pub mod pod;
+pub mod midi_io;
 pub mod config;
 pub mod controller;
 pub mod program;
@@ -22,3 +24,10 @@ pub mod names;
 pub mod dump;
 pub mod edit;
 mod str_encoder;
+pub mod stack;
+pub mod event;
+pub mod generic;
+pub mod context;
+pub mod handler;
+pub mod dispatch;
+pub mod cc_values;

@@ -20,9 +20,80 @@ pub enum MidiMessage {
     AllProgramsDumpRequest,
     AllProgramsDump { ver: u8, data: Vec<u8> },
 
+    XtInstalledPacksRequest,
+    XtInstalledPacks { packs: u8 },
+    XtEditBufferDumpRequest,
+    XtBufferDump { id: u8, data: Vec<u8> },
+    XtPatchDumpRequest { patch: u16 },
+    XtPatchDump { patch: u16, id: u8, data: Vec<u8> },
+    XtPatchDumpEnd,
+    XtSaved { patch: u16 },
+    XtStoreStatus { success: bool },
+    XtTunerNoteRequest,
+    XtTunerNote { note: u16 },
+    XtTunerOffsetRequest,
+    XtTunerOffset { offset: u16 },
+    XtProgramNumberRequest,
+    XtProgramNumber { program: u16 },
+
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
 }
+
+pub struct PodXtPatch;
+impl PodXtPatch {
+    pub fn to_midi(value: u16) -> u16 {
+        let bank = (value >> 8) & 0xff;
+        let patch = value & 0xff;
+        match (bank, patch) {
+            (0, 0 ..= 63) => patch,
+            (0, 64 ..= 127) => patch + 128,
+            (1, 0 ..= 63) => patch + 64,
+            (1, 64 ..= 127) => patch + 192,
+            (2, 0 ..= 63) => patch + 128,
+            (2, 64 ..= 127) => patch + 256,
+            _ => panic!("unsupported patch_to_midi value: {}", value)
+        }
+    }
+
+    pub fn from_midi(value: u16) -> u16 {
+        let (bank, patch) = match value {
+            0 ..= 63 => (0, value),
+            192 ..= 255 => (0, value - 128),
+            64 ..= 127 => (1, value - 64),
+            256 ..= 319 => (1, value - 192),
+            128 ..= 191 => (2, value - 128),
+            320 ..= 383 => (2, value - 256),
+            _ => panic!("unsupported patch_from_midi value: {}", value)
+        };
+        (bank << 8) | patch
+    }
+}
+
+pub struct PodXtSaved;
+impl PodXtSaved {
+    pub fn to_midi(value: u16) -> u16 {
+        let bank = ((value >> 8) & 0xff) as u8;
+        let patch = (value & 0xff) as u8;
+
+        if bank > 2 {
+            panic!("unsupported saved_to_midi value: {}", value);
+        }
+
+        u16_from_2_u7(bank + 1, patch)
+    }
+
+    pub fn from_midi(value: u16) -> u16 {
+        let (bank, patch) = u16_to_2_u7(value);
+
+        if bank == 0 || bank > 3 {
+            panic!("unsupported saved_from_midi value: {}", value)
+        }
+
+        ((bank as u16 - 1) << 8) | patch as u16
+    }
+}
+
 impl MidiMessage {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
@@ -62,6 +133,64 @@ impl MidiMessage {
                 msg.extend_from_slice(&[0xf7]);
                 msg
             },
+
+            MidiMessage::XtInstalledPacksRequest =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x00, 0xf7].to_vec(),
+            MidiMessage::XtInstalledPacks { packs } =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x0e, 0x01, *packs, 0xf7].to_vec(),
+            MidiMessage::XtEditBufferDumpRequest =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x75, 0xf7].to_vec(),
+            MidiMessage::XtBufferDump { id,  data } => {
+                let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x74, *id];
+                msg.extend(data);
+                msg.extend_from_slice(&[0xf7]);
+                msg
+            }
+            MidiMessage::XtPatchDumpRequest { patch } => {
+                let patch = PodXtPatch::to_midi(*patch);
+                let (p1, p2) = u16_to_2_u7(patch);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x73, p1, p2, 0x00, 0x00, 0xf7].to_vec()
+            }
+            MidiMessage::XtPatchDump { patch, id, data } => {
+                let patch = PodXtPatch::to_midi(*patch);
+                let (p1, p2) = u16_to_2_u7(patch);
+                let mut msg = vec![0xf0, 0x00, 0x01, 0x0c, 0x03, 0x71, *id, p1, p2];
+                msg.extend(data);
+                msg.extend_from_slice(&[0xf7]);
+                msg
+            }
+            MidiMessage::XtPatchDumpEnd =>
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x72, 0xf7].to_vec(),
+            MidiMessage::XtSaved { patch} => {
+                let patch = PodXtSaved::to_midi(*patch);
+                let (p1, p2) = u16_to_2_u7(patch);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x24, p1, p2, 0xf7].to_vec()
+            },
+            MidiMessage::XtStoreStatus { success } => {
+                let f = !success as u8;
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x50 | f, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerNoteRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x16, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerNote { note } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*note);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x16, p1, p2, p3, p4, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerOffsetRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x17, 0xf7].to_vec()
+            }
+            MidiMessage::XtTunerOffset { offset } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*offset);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x17, p1, p2, p3, p4, 0xf7].to_vec()
+            }
+            MidiMessage::XtProgramNumberRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x11, 0xf7].to_vec()
+            }
+            MidiMessage::XtProgramNumber { program } => {
+                let (p1, p2, p3, p4) = u16_to_4_u4(*program);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x11, p1, p2, p3, p4, 0xf7].to_vec()
+            }
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
@@ -148,6 +277,55 @@ impl MidiMessage {
                                     ver: *v,
                                     data: nibbles_to_u8_vec(&data)
                                 }),
+                            [0x03, 0x0e, 0x00] =>
+                                Ok(MidiMessage::XtInstalledPacksRequest),
+                            [0x03, 0x0e, 0x01, p] =>
+                                Ok(MidiMessage::XtInstalledPacks { packs: *p }),
+                            [0x03, 0x75] => Ok(MidiMessage::XtEditBufferDumpRequest),
+                            [0x03, 0x74, i, data @ ..] =>
+                                Ok(MidiMessage::XtBufferDump {
+                                    id: *i,
+                                    data: data.to_vec()
+                                }),
+                            [0x03, 0x73, p1, p2, 0x00, 0x00] => {
+                                let patch = u16_from_2_u7(*p1, *p2);
+                                let patch = PodXtPatch::from_midi(patch);
+                                Ok(MidiMessage::XtPatchDumpRequest { patch })
+                            }
+                            [0x03, 0x72] => Ok(MidiMessage::XtPatchDumpEnd),
+                            [0x03, 0x71, i, p1, p2, data @ ..] => {
+                                let patch = u16_from_2_u7(*p1, *p2);
+                                let patch = PodXtPatch::from_midi(patch);
+                                Ok(MidiMessage::XtPatchDump {
+                                    id: *i,
+                                    patch,
+                                    data: data.to_vec()
+                                })
+                            }
+                            [0x03, 0x24, p1, p2] => {
+                                let patch = u16_from_2_u7(*p1, *p2);
+                                let patch = PodXtSaved::from_midi(patch);
+                                Ok(MidiMessage::XtSaved { patch })
+                            }
+                            [0x03, 0x50] => Ok(MidiMessage::XtStoreStatus { success: true }),
+                            [0x03, 0x51] => Ok(MidiMessage::XtStoreStatus { success: false }),
+                            [0x03, 0x57, 0x16] => Ok(MidiMessage::XtTunerNoteRequest),
+                            [0x03, 0x57, 0x17] => Ok(MidiMessage::XtTunerOffsetRequest),
+                            [0x03, 0x56, 0x16, p1, p2, p3, p4] => {
+                                let note = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtTunerNote { note })
+                            }
+                            [0x03, 0x56, 0x17, p1, p2, p3, p4] => {
+                                let offset = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtTunerOffset { offset })
+                            }
+                            [0x03, 0x57, 0x11] => Ok(MidiMessage::XtProgramNumberRequest),
+                            [0x03, 0x56, 0x11, p1, p2, p3, p4] => {
+                                let program = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtProgramNumber { program })
+                            }
+
+
                             _ => bail!("Unknown sysex message")
                         }
                     },

@@ -1,11 +1,12 @@
 use std::sync::{Arc, Mutex};
-use pod_core::config::MIDI;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
-use pod_gtk::*;
-use pod_gtk::gtk::prelude::*;
-use pod_gtk::gtk::{Builder, Widget};
+use pod_gtk::prelude::*;
+use gtk::{Builder, Widget};
+use pod_core::handler::BoxedHandler;
+use pod_core::store::Origin::MIDI;
+use pod_mod_pod2::Pod2Handler;
 use pod_mod_pod2::wiring::*;
 
 use crate::config;
@@ -19,6 +20,10 @@ impl Module for PocketPodModule {
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {
         Box::new(PocketPodInterface::new(config))
+    }
+
+    fn handler(&self, config: &'static Config) -> BoxedHandler {
+        Box::new(Pod2Handler)
     }
 }
 

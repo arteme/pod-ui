@@ -1,15 +1,15 @@
 use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
-use pod_core::pod::*;
+use pod_core::midi_io::*;
+use pod_gtk::prelude::*;
+use gtk::{IconSize, ResponseType};
 use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
-use pod_gtk::gtk::prelude::*;
-use pod_gtk::gtk::{IconSize, ResponseType};
 use crate::util::ManualPoll;
 
 use log::*;
 use pod_core::config::configs;
 use pod_core::midi::Channel;
-use pod_gtk::glib;
+use pod_core::model::MidiQuirks;
 
 #[derive(Clone)]
 struct SettingsDialog {
@@ -164,7 +164,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
 fn wire_autodetect_button(settings: &SettingsDialog) {
     let mut settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
-        let mut autodetect = tokio::spawn(pod_core::pod::autodetect());
+        let mut autodetect = tokio::spawn(pod_core::midi_io::autodetect());
 
         let mut settings = settings.clone();
         settings.work_start(Some(button));
@@ -222,7 +222,7 @@ fn wire_test_button(settings: &SettingsDialog) {
         let midi_channel = midi_channel_from_combo_index(midi_channel);
 
         let mut test = tokio::spawn(async move {
-            pod_core::pod::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
+            pod_core::midi_io::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
         });
 
         let mut settings = settings.clone();
@@ -275,8 +275,8 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
             let index = midi_channel_to_combo_index(state.midi_channel_num);
             settings.midi_channel_combo.set_active(index);
 
-            let config_name = state.config.read().unwrap().name.clone();
-            populate_model_combo(&settings, &Some(config_name));
+            let config_name = state.config.map(|c| c.name.clone());
+            populate_model_combo(&settings, &config_name);
 
             // stop the midi thread during test
             midi_in_out_stop(&mut state)
@@ -367,7 +367,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
                             error!("Unable to restart MIDI output thread for {:?}: {}", out_name, err)
                         }).ok();
                     let midi_channel_num = state.midi_channel_num;
-                    let quirks = state.config.read().unwrap().midi_quirks;
+                    let quirks = state.config.map(|c| c.midi_quirks).unwrap();
                     midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num, quirks);
                 }
             }

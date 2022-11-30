@@ -38,14 +38,16 @@ macro_rules! fx {
 macro_rules! fmt {
     ($f:tt) => ( Format::Callback($f) );
 }
+#[macro_export]
 macro_rules! fmt_percent {
-    (signed) => ( Format::Callback(RangeControl::fmt_percent_signed) );
-    () => ( Format::Callback(RangeControl::fmt_percent) );
+    (signed) => ( Format::Callback(RangeConfig::fmt_percent_signed) );
+    () => ( Format::Callback(RangeConfig::fmt_percent) );
 }
 
 #[macro_export]
 macro_rules! short {
-    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to } );
+    (@edge $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, edge: true, buffer_config: BufferConfig::Normal } );
+    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, edge: false, buffer_config: BufferConfig::Normal } );
     () => ( short!(0, 63) );
 }
 #[macro_export]
@@ -206,14 +208,14 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
         ],
         controls: convert_args!(hashmap!(
            // switches
-           "distortion_enable" => SwitchControl { cc: 25, addr: 0 },
-           "drive_enable" => SwitchControl { cc: 26, addr: 1 },
-           "eq_enable" => SwitchControl { cc: 27, addr: 2 },
-           "delay_enable" => SwitchControl { cc: 28, addr: 3 },
-           "effect_enable" => SwitchControl { cc: 50, addr: 4 }, // trem/rotary speaker/chorus/flanger
-           "reverb_enable" => SwitchControl { cc: 36, addr: 5 },
-           "noise_gate_enable" => SwitchControl { cc: 22, addr: 6 },
-           "bright_switch_enable" => SwitchControl { cc: 73, addr: 7 },
+           "distortion_enable" => SwitchControl { cc: 25, addr: 0, ..def!() },
+           "drive_enable" => SwitchControl { cc: 26, addr: 1, ..def!() },
+           "eq_enable" => SwitchControl { cc: 27, addr: 2, ..def!() },
+           "delay_enable" => SwitchControl { cc: 28, addr: 3, ..def!() },
+           "effect_enable" => SwitchControl { cc: 50, addr: 4, ..def!() }, // trem/rotary speaker/chorus/flanger
+           "reverb_enable" => SwitchControl { cc: 36, addr: 5, ..def!() },
+           "noise_gate_enable" => SwitchControl { cc: 22, addr: 6, ..def!() },
+           "bright_switch_enable" => SwitchControl { cc: 73, addr: 7, ..def!() },
            // preamp
            "amp_select" => Select { cc: 12, addr: 8, ..def!() },
            "drive" => RangeControl { cc: 13, addr: 9, config: short!(),
@@ -232,7 +234,7 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
                format: fmt_percent!(), ..def!() },
            // noise gate
            "gate_threshold" => RangeControl { cc: 23, addr: 16,
-               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi },
+               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi, buffer_config: BufferConfig::Normal },
                format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
            "gate_decay" => RangeControl { cc: 24, addr: 17, config: short!(),
                 format: fmt_percent!(), ..def!() }, // todo: 8.1 msec .. 159 msec
@@ -318,6 +320,14 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
             "name_change" => Button {},
             "digiout_show" => VirtualSelect {}
        )),
+        toggles: convert_args!(vec!(
+            toggle("noise_gate_enable").non_moving(0),
+            toggle("volume_enable").moving("vol_pedal_position", 3, 1),
+            toggle("amp_enable").non_moving(2),
+            toggle("effect_enable").non_moving(4),
+            toggle("delay_enable").non_moving(5),
+            toggle("reverb_enable").non_moving(6),
+        )),
         init_controls: convert_args!(vec!(
            "distortion_enable",
            "drive_enable",

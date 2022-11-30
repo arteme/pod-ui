@@ -8,9 +8,11 @@
       <w>flextone</w>
       <w>midir</w>
       <w>objs</w>
+      <w>podxt</w>
       <w>priv</w>
       <w>recv</w>
       <w>reverb</w>
+      <w>rombus</w>
       <w>serde</w>
       <w>sysex</w>
     </words>

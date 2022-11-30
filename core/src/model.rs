@@ -46,6 +46,7 @@ pub struct Config {
     pub program_size: usize,
     pub program_num: usize,
 
+    pub toggles: Vec<Toggle>,
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
     pub effects: Vec<Effect>,
@@ -85,12 +86,22 @@ pub struct EffectEntry {
     pub controls: Vec<String>
 }
 
+#[derive(Clone, Default, Debug)]
+pub struct Toggle {
+    pub name: String,
+    pub position_control: String,
+    pub on_position: usize,
+    pub off_position: usize,
+}
+
 #[derive(Clone, Debug)]
 pub enum Control {
     SwitchControl(SwitchControl),
     MidiSwitchControl(MidiSwitchControl),
     RangeControl(RangeControl),
+    VirtualRangeControl(VirtualRangeControl),
     Select(Select),
+    MidiSelect(MidiSelect),
     VirtualSelect(VirtualSelect),
     Button(Button)
 }
@@ -100,6 +111,7 @@ pub enum Format<T> {
     None,
     Callback(fn (&T, f64) -> String),
     Data(FormatData),
+    Interpolate(FormatInterpolate),
     Labels(Vec<String>)
 }
 
@@ -109,6 +121,7 @@ impl<T> fmt::Debug for Format<T>  {
             Format::None => write!(f, "<no format>"),
             Format::Callback(_) => write!(f, "<callback>"),
             Format::Data(_) => write!(f, "<data>"),
+            Format::Interpolate(_) => write!(f, "<interpolate>"),
             Format::Labels(_) => write!(f, "<labels>")
         }
     }
@@ -128,18 +141,42 @@ impl Default for FormatData {
     }
 }
 
+/// Interpolate between a given set of points
 #[derive(Clone, Debug)]
-pub struct SwitchControl { pub cc: u8, pub addr: u8 }
+pub struct FormatInterpolate {
+    pub points: Vec<(u8, f64)>,
+    pub format: String
+}
+
+impl Default for FormatInterpolate {
+    fn default() -> Self {
+        FormatInterpolate { points: vec![], format: "{val}".into() }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BufferConfig {
+    /// Value in program dump = switch control value
+    Normal,
+    /// Value in program dump = MIDI value of the control value
+    Midi
+}
+
+#[derive(Clone, Debug)]
+pub struct SwitchControl { pub cc: u8, pub addr: u8, pub inverted: bool, pub buffer_config: BufferConfig }
+
 #[derive(Clone, Debug)]
 pub struct MidiSwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
-pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<Self> }
+pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<RangeConfig> }
+#[derive(Clone, Debug)]
+pub struct VirtualRangeControl { pub config: RangeConfig, pub format: Format<RangeConfig> }
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
-    Normal,
-    Short { from: u8, to: u8 },
+    Normal { buffer_config: BufferConfig },
+    Short { from: u8, to: u8, edge: bool, buffer_config: BufferConfig },
     Long { from: u16, to: u16 },
-    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 },
+    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8, buffer_config: BufferConfig },
     MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
         size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
     MultibyteTail { bitmask: u16, shift: u8 }
@@ -147,6 +184,8 @@ pub enum RangeConfig {
 
 #[derive(Clone, Debug)]
 pub struct Select { pub cc: u8, pub addr: u8 }
+#[derive(Clone, Debug)]
+pub struct MidiSelect { pub cc: u8 }
 #[derive(Clone, Debug)]
 pub struct VirtualSelect {}
 #[derive(Clone, Debug)]
@@ -156,7 +195,7 @@ pub struct Button {}
 
 impl Default for SwitchControl {
     fn default() -> Self {
-        SwitchControl { cc: 0, addr: 0 }
+        SwitchControl { cc: 0, addr: 0, inverted: false, buffer_config: BufferConfig::Normal }
     }
 }
 
@@ -180,7 +219,7 @@ impl From<MidiSwitchControl> for Control {
 
 impl Default for RangeControl {
     fn default() -> Self {
-        RangeControl { cc: 0, addr: 0, config: RangeConfig::Normal,
+        RangeControl { cc: 0, addr: 0, config: RangeConfig::Normal { buffer_config: BufferConfig::Normal },
             format: Format::None }
     }
 }
@@ -188,6 +227,19 @@ impl Default for RangeControl {
 impl From<RangeControl> for Control {
     fn from(c: RangeControl) -> Self {
         Control::RangeControl(c)
+    }
+}
+
+impl Default for VirtualRangeControl {
+    fn default() -> Self {
+        Self { config: RangeConfig::Normal { buffer_config: BufferConfig::Normal },
+            format: Format::None }
+    }
+}
+
+impl From<VirtualRangeControl> for Control {
+    fn from(c: VirtualRangeControl) -> Self {
+        Control::VirtualRangeControl(c)
     }
 }
 
@@ -200,6 +252,18 @@ impl Default for Select {
 impl From<Select> for Control {
     fn from(c: Select) -> Self {
         Control::Select(c)
+    }
+}
+
+impl Default for MidiSelect {
+    fn default() -> Self {
+        MidiSelect { cc: 0 }
+    }
+}
+
+impl From<MidiSelect> for Control {
+    fn from(c: MidiSelect) -> Self {
+        Control::MidiSelect(c)
     }
 }
 
@@ -251,57 +315,26 @@ impl AbstractControl for RangeControl {
     }
 
     fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
-        match &self.config {
-            RangeConfig::Short { from, to } => {
-                let scale = 127 / (to - from);
-                (value / scale + from) as u16
-            }
-            RangeConfig::Long { from, to } => {
-                let (from, to) = (*from as f64, *to as f64);
-                let scale = (to - from) / 127.0;
-                let v = value as f64 * scale + from;
-                v.min(to).max(from) as u16
-            }
-            RangeConfig::MultibyteHead { bitmask, shift, .. } |
-            RangeConfig::MultibyteTail { bitmask, shift, .. } => {
-                let mask = bitmask << shift;
-                (control_value & !mask) | ((value as u16 & bitmask) << shift)
-            },
-            RangeConfig::Function { from_midi, .. } => {
-                from_midi(value)
-            }
-            _ => value as u16
-        }
+        self.config.value_from_midi(value, control_value)
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
-        match &self.config {
-            RangeConfig::Short { from, to } => {
-                let scale = 127 / (to - from);
-                (value as u8 - from) * scale
-            }
-            RangeConfig::Long { from, to } => {
-                let (from, to) = (*from as f64, *to as f64);
-                let scale = (to - from) / 127.0;
-                let v = (value as f64 - from) / scale;
-                v.min(127.0).max(0.0) as u8
-            }
-            RangeConfig::MultibyteHead { bitmask, shift, .. } |
-            RangeConfig::MultibyteTail { bitmask, shift } => {
-                let v = (value >> shift) & bitmask;
-                v.min(127).max(0) as u8
-            }
-            RangeConfig::Function { to_midi, .. } => {
-                to_midi(value)
-            }
-            _ => value as u8
-        }
+        self.config.value_to_midi(value)
     }
 
     fn value_from_buffer(&self, value: u32) -> u16 {
         match &self.config {
             RangeConfig::MultibyteHead { from_buffer, .. } => {
                 from_buffer(value)
+            }
+            RangeConfig::Function { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_from_midi(value as u8, 0)
+            }
+            RangeConfig::Normal { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_from_midi(value as u8, 0)
+            }
+            RangeConfig::Short { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_from_midi(value as u8, 0)
             }
             _ => {
                 value as u16
@@ -314,24 +347,69 @@ impl AbstractControl for RangeControl {
             RangeConfig::MultibyteHead { to_buffer, .. } => {
                 to_buffer(value)
             }
+            RangeConfig::Function { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_to_midi(value) as u32
+            }
+            RangeConfig::Normal { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_to_midi(value) as u32
+            }
+            RangeConfig::Short { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
+                self.value_to_midi(value) as u32
+            }
             _ => {
                 value as u32
             }
         }
-
     }
 }
+
+impl AbstractControl for VirtualRangeControl {
+    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
+        self.config.value_from_midi(value, control_value)
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        self.config.value_to_midi(value)
+    }
+}
+
 
 impl AbstractControl for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 
     fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
-        value as u16 / 64
+        let value = value > 63;
+        (self.inverted ^ value) as u16
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
-        if value > 0 { 127 } else { 0 }
+        let value = value > 0;
+        if self.inverted ^ value { 127 } else { 0 }
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        match &self.buffer_config {
+            BufferConfig::Normal => {
+                let value = value != 0;
+                (self.inverted ^ value) as u16
+            }
+            BufferConfig::Midi => {
+                self.value_from_midi(value as u8, 0)
+            }
+        }
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        match &self.buffer_config {
+            BufferConfig::Normal => {
+                let value = value != 0;
+                (self.inverted ^ value) as u32
+            }
+            BufferConfig::Midi => {
+                self.value_to_midi(value) as u32
+            }
+        }
     }
 }
 
@@ -352,6 +430,10 @@ impl AbstractControl for Select {
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 }
 
+impl AbstractControl for MidiSelect {
+    fn get_cc(&self) -> Option<u8> { Some(self.cc) }
+}
+
 impl AbstractControl for VirtualSelect {}
 
 impl AbstractControl for Button {}
@@ -362,7 +444,9 @@ impl Control {
             Control::SwitchControl(c) => c,
             Control::MidiSwitchControl(c) => c,
             Control::RangeControl(c) => c,
+            Control::VirtualRangeControl(c) => c,
             Control::Select(c) => c,
+            Control::MidiSelect(c) => c,
             Control::VirtualSelect(c) => c,
             Control::Button(c) => c
         }
@@ -398,18 +482,18 @@ impl AbstractControl for Control {
 
 // --
 
-impl RangeControl {
+impl RangeConfig {
     pub fn bounds(&self) -> (f64, f64) {
-        match self.config {
-            RangeConfig::Normal => (0.0, 127.0),
-            RangeConfig::Short { from, to } => (from as f64, to as f64),
+        match self {
+            RangeConfig::Normal { .. } => (0.0, 127.0),
+            RangeConfig::Short { from, to, .. } => (*from as f64, *to as f64),
             RangeConfig::Function { from_midi, .. } => {
                 let a = from_midi(0) as f64;
                 let b = from_midi(127) as f64;
                 (a.min(b), a.max(b))
             }
             RangeConfig::Long { from, to } |
-            RangeConfig::MultibyteHead { from, to, .. } => (from as f64, to as f64),
+            RangeConfig::MultibyteHead { from, to, .. } => (*from as f64, *to as f64),
             RangeConfig::MultibyteTail { .. } => (0.0, 0.0)
         }
     }
@@ -428,11 +512,101 @@ impl RangeControl {
         let v1 = if v <= n { v - n } else { v - p };
         format!("{:1.0}%", v1 * 100.0 / n)
     }
+
+    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
+        match self {
+            RangeConfig::Short { from, to, edge, .. } => {
+                // if this is an "edge config", the last value is situated squarely on value 127
+                if *edge && value == 127 {
+                    return *to as u16;
+                }
+                let to = if *edge { *to - 1 } else { *to };
+
+                let scale = 128 / (to - from + 1);
+                (value / scale + from) as u16
+            }
+            RangeConfig::Long { from, to } => {
+                let (from, to) = (*from as f64, *to as f64);
+                let scale = (to - from) / 127.0;
+                let v = value as f64 * scale + from;
+                v.min(to).max(from) as u16
+            }
+            RangeConfig::MultibyteHead { bitmask, shift, .. } |
+            RangeConfig::MultibyteTail { bitmask, shift, .. } => {
+                let mask = bitmask << shift;
+                (control_value & !mask) | ((value as u16 & bitmask) << shift)
+            },
+            RangeConfig::Function { from_midi, .. } => {
+                from_midi(value)
+            }
+            _ => value as u16
+        }
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        match self {
+            RangeConfig::Short { from, to, edge, .. } => {
+                // if this is an "edge config", the last value is situated squarely on value 127
+                if *edge && (value as u8) >= *to {
+                    return 127;
+                }
+                let to = if *edge { *to - 1 } else { *to };
+
+                let scale = 128 / (to - from + 1);
+                (value as u8 - from) * scale
+            }
+            RangeConfig::Long { from, to } => {
+                let (from, to) = (*from as f64, *to as f64);
+                let scale = (to - from) / 127.0;
+                let v = (value as f64 - from) / scale;
+                v.min(127.0).max(0.0) as u8
+            }
+            RangeConfig::MultibyteHead { bitmask, shift, .. } |
+            RangeConfig::MultibyteTail { bitmask, shift } => {
+                let v = (value >> shift) & bitmask;
+                v.min(127).max(0) as u8
+            }
+            RangeConfig::Function { to_midi, .. } => {
+                to_midi(value)
+            }
+            _ => value as u8
+        }
+    }
 }
 
 impl FormatData {
     pub fn format(&self, v: f64) -> String {
         let val = self.k * v + self.b;
+
+        let mut vars: HashMap<String, f64> = HashMap::new();
+        vars.insert("val".into(), val);
+
+        let f = |mut fmt: strfmt::Formatter| {
+            fmt.f64(*vars.get(fmt.key).unwrap())
+        };
+
+        strfmt::strfmt_map(&self.format, &f)
+            .unwrap_or_else(|err| {
+                // TODO: format failed for which widget?
+                warn!("Format failed: {}", err);
+                "".into()
+            })
+    }
+}
+
+impl FormatInterpolate {
+    pub fn format(&self, v: f64) -> String {
+        // weird logic to keep up with L6E, which skips 127 altogether for
+        // the sake of nice round values in the interpolation
+        let v = if v >= 127.0 { 128 } else { v as u8 };
+        let mut val = 0.0;
+        for w in self.points.windows(2) {
+            let (x1, y1) = w[0];
+            let (x2, y2) = w[1];
+            if v > x2 { continue }
+            val = y1 + (v - x1) as f64 * (y2 - y1) / (x2 - x1) as f64;
+            break;
+        }
 
         let mut vars: HashMap<String, f64> = HashMap::new();
         vars.insert("val".into(), val);
@@ -460,6 +634,7 @@ impl Config {
             member: 0,
             program_size: 0,
             program_num: 0,
+            toggles: vec![],
             amp_models: vec![],
             cab_models: vec![],
             effects: vec![],
@@ -474,9 +649,13 @@ impl Config {
         }
     }
 
+    pub fn control_by_name(&self, name: &str) -> Option<&Control> {
+        self.controls.get(name)
+    }
+
     pub fn cc_to_control(&self, cc: u8) -> Option<(&String, &Control)> {
         self.controls.iter()
-            .find(|&(_, control)| {
+            .find(|(_, control)| {
                 match control.get_cc() {
                     Some(v) if v == cc => true,
                     _ => false

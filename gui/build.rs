@@ -1,7 +1,7 @@
+use git_version::git_version;
 
-extern crate git_version;
-
-const GIT_VERSION: &str = git_version::git_describe!("--tags", "--always", "--match", "v*", "--dirty=+");
+const GIT_VERSION: &str = git_version!(args = ["--tags", "--always", "--match", "v*", "--dirty=+"],
+                                      fallback = "");
 fn set_git_version_env() {
     println!("cargo:rustc-env=GIT_VERSION={}", GIT_VERSION);
 }

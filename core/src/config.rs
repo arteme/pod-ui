@@ -20,8 +20,3 @@ pub fn config_for_id(family: u16, member: u16) -> Option<&'static Config> {
         family == config.family && member == config.member
     })
 }
-
-// Connection
-pub const UNSET: u8 = 0;
-pub const MIDI: u8 = 1;
-pub const GUI: u8 = 2;

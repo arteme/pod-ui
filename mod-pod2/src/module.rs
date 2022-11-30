@@ -1,17 +1,23 @@
 use std::sync::{Arc, Mutex};
-use pod_core::config::MIDI;
 use pod_core::edit::EditBuffer;
 use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
-use pod_gtk::*;
-use pod_gtk::gtk::prelude::*;
-use pod_gtk::gtk::{Builder, Widget};
+use pod_core::store::Origin::MIDI;
+use pod_gtk::prelude::*;
+use gtk::{Builder, Widget};
+use pod_core::handler::{BoxedHandler, Handler};
 
 use crate::wiring::*;
 use crate::config;
 use crate::config::PODPRO_CONFIG;
 
 pub struct Pod2Module;
+
+#[derive(Clone)]
+pub struct Pod2Handler;
+
+impl Handler for Pod2Handler {
+}
 
 impl Module for Pod2Module {
     fn config(&self) -> Box<[Config]> {
@@ -20,6 +26,10 @@ impl Module for Pod2Module {
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {
         Box::new(Pod2Interface::new(config))
+    }
+
+    fn handler(&self, config: &'static Config) -> BoxedHandler {
+        Box::new(Pod2Handler)
     }
 }
 
@@ -69,7 +79,8 @@ impl Interface for Pod2Interface {
 
         wire(controller.clone(), &self.objects, callbacks)?;
 
-        wire_vol_pedal_position(controller.clone(), &self.objects, callbacks)?;
+        wire_toggles("toggles", &config.toggles,
+                     controller.clone(), &self.objects, callbacks)?;
         wire_amp_select(controller.clone(), config, &self.objects, callbacks)?;
         wire_effect_select(config, controller, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;

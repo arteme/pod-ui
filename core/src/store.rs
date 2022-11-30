@@ -1,7 +1,6 @@
 use tokio::sync::broadcast;
 use std::sync::{Mutex, Arc};
-
-const CAPACITY: usize = 256;
+use log::warn;
 
 #[derive(Clone, PartialEq)]
 pub enum Signal {
@@ -10,25 +9,30 @@ pub enum Signal {
     Force
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Origin {
+    NONE,
+    MIDI,
+    UI,
+}
+
 #[derive(Clone)]
 pub struct Event<K: Clone> {
     pub key: K,
-    pub origin: u8,
+    pub origin: Origin,
     pub signal: Signal
 }
 
 pub struct StoreBase<K: Clone> {
-    tx: broadcast::Sender<Event<K>>,
-    rx: broadcast::Receiver<Event<K>>
+    tx: Option<broadcast::Sender<Event<K>>>
 }
 
 impl <K: Clone> StoreBase<K> {
     pub fn new() -> Self {
-        let (tx, rx) = broadcast::channel::<Event<K>>(CAPACITY);
-        StoreBase { tx, rx }
+        StoreBase { tx: None }
     }
 
-    pub fn send_signal(&self, key: K, value_changed: bool, origin: u8, signal: Signal) -> () {
+    pub fn send_signal(&self, key: K, value_changed: bool, origin: Origin, signal: Signal) -> () {
         let send = match signal {
             Signal::Force => true,
             Signal::Change if value_changed => true,
@@ -36,12 +40,16 @@ impl <K: Clone> StoreBase<K> {
         };
         if send {
             let event = Event { key, origin, signal };
-            self.tx.send(event);
+            if let Some(tx) = &self.tx {
+                tx.send(event)
+                    .map_err(|e| warn!("Failed to store event signal"))
+                    .unwrap_or_default();
+            }
         }
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Event<K>> {
-        self.tx.subscribe()
+    pub fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<K>>>) {
+        self.tx = tx;
     }
 }
 
@@ -49,19 +57,21 @@ impl <K: Clone> StoreBase<K> {
 pub trait Store<K, V, E: Clone> {
     fn has(&self, key: K) -> bool;
     fn get(&self, key: K) -> Option<V>;
-    fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) -> bool;
-    fn set(&mut self, key: K, value: V, origin: u8) -> bool {
+    fn set_full(&mut self, key: K, value: V, origin: Origin, signal: Signal) -> bool;
+    fn set(&mut self, key: K, value: V, origin: Origin) -> bool {
         self.set_full(key, value, origin, Signal::Change)
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<E>>;
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<E>>>);
 }
 
-pub trait StoreSetIm<K, V, E> {
-    fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) -> bool;
-    fn set(&self, key: K, value: V, origin: u8) -> bool {
+pub trait StoreSetIm<K, V, E: Clone> {
+    fn set_full(&self, key: K, value: V, origin: Origin, signal: Signal) -> bool;
+    fn set(&self, key: K, value: V, origin: Origin) -> bool {
         self.set_full(key, value, origin, Signal::Change)
     }
+
+    fn broadcast(&self, tx: Option<broadcast::Sender<Event<E>>>);
 }
 
 impl<K, V, E: Clone, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
@@ -75,21 +85,26 @@ impl<K, V, E: Clone, T: Store<K,V,E>> Store<K, V, E> for Arc<Mutex<T>> {
         s.get(key)
     }
 
-    fn set_full(&mut self, key: K, value: V, origin: u8, signal: Signal) -> bool {
+    fn set_full(&mut self, key: K, value: V, origin: Origin, signal: Signal) -> bool {
         let mut s = self.lock().unwrap();
         s.set_full(key, value, origin, signal)
     }
 
-    fn subscribe(&self) -> broadcast::Receiver<Event<E>> {
-        let s = self.lock().unwrap();
-        s.subscribe()
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<E>>>) {
+        let mut s = self.lock().unwrap();
+        s.broadcast(tx);
     }
 }
 
 impl<K, V, E: Clone, T: Store<K,V,E>> StoreSetIm<K, V, E> for Arc<Mutex<T>> {
-    fn set_full(&self, key: K, value: V, origin: u8, signal: Signal) -> bool {
+    fn set_full(&self, key: K, value: V, origin: Origin, signal: Signal) -> bool {
         let mut s = self.lock().unwrap();
         s.set_full(key, value, origin, signal)
+    }
+
+    fn broadcast(&self, tx: Option<broadcast::Sender<Event<E>>>) {
+        let mut s = self.lock().unwrap();
+        s.broadcast(tx);
     }
 }
 

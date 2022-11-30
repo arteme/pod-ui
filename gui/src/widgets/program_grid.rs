@@ -1,12 +1,7 @@
 use std::cell::Cell;
 use std::time::Duration;
-use crate::glib;
-use crate::gtk;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
+use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
-use crate::glib::{ParamSpec, Value};
-use crate::glib::value::FromValue;
 use super::program_button::{ProgramButton, ProgramButtonExt};
 
 const NUM_BUTTONS_PER_PAGE: usize = 36;
@@ -167,7 +162,7 @@ impl ProgramGridPriv {
 
     fn program_button(&self, program_idx: usize) -> Option<ProgramButton> {
         self.widgets.get()
-            .and_then(|w| w.buttons.get(program_idx - 1))
+            .and_then(|w| w.buttons.get(program_idx))
             .and_then(|b| b.child())
             .and_then(|w| w.dynamic_cast::<ProgramButton>().ok())
     }
@@ -223,7 +218,7 @@ impl ObjectImpl for ProgramGridPriv {
                     "Number of buttons",
                     "Number of buttons",
                     32,
-                    124,
+                    128,
                     NUM_BUTTONS_DEFAULT as u32,
                     glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY
                 ),
@@ -317,7 +312,7 @@ impl ObjectImpl for ProgramGridPriv {
                 // real button
                 let (a, b) = (i / 4, i % 4);
 
-                let name = format!("program:{}", i + 1);
+                let name = format!("program:{}", i);
                 let pb = ProgramButton::new();
                 let program_id = format!("{}{}", a + 1, char::from_u32('A' as u32 + b as u32).unwrap());
                 pb.set_program_id(&program_id);

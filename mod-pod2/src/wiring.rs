@@ -2,74 +2,12 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::*;
 use anyhow::*;
-use pod_core::config::{GUI, MIDI};
-use pod_core::store::{Signal, Store};
-use pod_core::controller::Controller;
+use pod_core::controller::*;
+use pod_core::controller::StoreOrigin::{MIDI, UI};
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
-use pod_gtk::{animate, Callbacks, glib, gtk, ObjectList, SignalHandler, SignalHandlerExt};
-use pod_gtk::gtk::prelude::*;
-
-pub fn wire_vol_pedal_position(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let name = "vol_pedal_position".to_string();
-    let vol_pedal_position = objs.ref_by_name::<gtk::Button>(&name)?;
-    let amp_enable = objs.ref_by_name::<gtk::Widget>("amp_enable")?;
-    let volume_enable = objs.ref_by_name::<gtk::Widget>("volume_enable")?;
-
-    let set_in_order = {
-        let vol_pedal_position = vol_pedal_position.clone();
-
-        move |volume_post_amp: bool| {
-            let ancestor = amp_enable.ancestor(gtk::Grid::static_type()).unwrap();
-            let grid = ancestor.dynamic_cast_ref::<gtk::Grid>().unwrap();
-            grid.remove(&amp_enable);
-            grid.remove(&volume_enable);
-
-            let (volume_left, amp_left) = match volume_post_amp {
-                false => {
-                    vol_pedal_position.set_label(">");
-                    (1, 2)
-                },
-                true => {
-                    vol_pedal_position.set_label("<");
-                    (2, 1)
-                }
-            };
-            grid.attach(&amp_enable, amp_left, 1, 1, 1);
-            grid.attach(&volume_enable, volume_left, 1, 1, 1);
-        }
-    };
-
-    set_in_order(false);
-
-    // gui -> controller
-    {
-        let controller = controller.clone();
-        let name = name.clone();
-        vol_pedal_position.connect_clicked(move |_| {
-            let mut controller = controller.lock().unwrap();
-            let v = controller.get(&name).unwrap() > 0;
-            let v = !v; // toggling
-            controller.set(&name, v as u16, GUI);
-        });
-    }
-
-    // controller -> gui
-    {
-        let controller = controller.clone();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let v = {
-                    let controller = controller.lock().unwrap();
-                    controller.get(&name).unwrap()
-                };
-                set_in_order(v > 0);
-            })
-        )
-    };
-    Ok(())
-}
+use pod_core::store::Origin;
+use pod_gtk::prelude::*;
 
 pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     // controller -> gui
@@ -112,12 +50,14 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
 
     let handler;
 
-    // gui -> edit buffer
+    // gui -> controller
     {
         let edit = edit.clone();
         let h = entry.connect_changed(move |entry| {
             let str = entry.text();
-            edit.lock().unwrap().set_name(str.as_str());
+            let mut edit = edit.lock().unwrap();
+            edit.set_name(str.as_str());
+            edit.set_full("name_change", 1, UI, Signal::Force);
         });
         handler = SignalHandler::new(&entry, h);
     }
@@ -186,7 +126,7 @@ fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Optio
         (if delay_enable { delay.or(clean) } else { clean.or(delay) })
             .unwrap().clone();
 
-    controller.set("effect_select:raw", entry.id as u16, GUI);
+    controller.set("effect_select:raw", entry.id as u16, UI);
 
     Some(entry)
 }
@@ -195,7 +135,7 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
     for name in &effect.controls {
         controller.get(&name)
             .and_then(|v| {
-                controller.set_full(name, v, GUI, Signal::Force);
+                controller.set_full(name, v, UI, Signal::Force);
                 Some(())
             });
     }
@@ -246,7 +186,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
                 let mut controller = controller.lock().unwrap();
                 let (v, origin) = controller.get_origin(&name).unwrap();
 
-                if v != 0 && origin == GUI {
+                if v != 0 && origin == UI {
                     let effect_select = controller.get("effect_select:raw").unwrap();
                     let (_, delay, idx) =
                         effect_entry_for_value(&config, effect_select).unwrap();
@@ -258,7 +198,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
                         let need_reset = config.effects.get(idx)
                             .map(|e| e.delay.is_none()).unwrap_or(false);
                         if need_reset {
-                            controller.set("effect_select", 0u16, GUI);
+                            controller.set("effect_select", 0u16, UI);
                         }
                     }
                 }

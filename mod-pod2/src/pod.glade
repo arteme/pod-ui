@@ -206,7 +206,8 @@
             <property name="spacing">10</property>
             <child>
               <!-- n-columns=6 n-rows=2 -->
-              <object class="GtkGrid">
+              <object class="GtkGrid" id="toggles">
+                <property name="name">toggles</property>
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="column-homogeneous">True</property>
@@ -307,19 +308,10 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkButton" id="vol_pedal_position">
-                    <property name="label" translatable="yes">&gt;</property>
-                    <property name="name">vol_pedal_position</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                    <property name="valign">start</property>
-                  </object>
-                  <packing>
-                    <property name="left-attach">1</property>
-                    <property name="top-attach">0</property>
-                    <property name="width">2</property>
-                  </packing>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
                 <child>
                   <placeholder/>
@@ -2233,7 +2225,6 @@
       <widget name="effect_enable"/>
       <widget name="delay_enable"/>
       <widget name="reverb_enable"/>
-      <widget name="vol_pedal_position"/>
       <widget name="comboboxtext1"/>
       <widget name="label1"/>
       <widget name="label2"/>
