@@ -35,9 +35,6 @@ macro_rules! fx {
     );
 }
 
-macro_rules! fmt {
-    ($f:tt) => ( Format::Callback($f) );
-}
 #[macro_export]
 macro_rules! fmt_percent {
     (signed) => ( Format::Callback(RangeConfig::fmt_percent_signed) );

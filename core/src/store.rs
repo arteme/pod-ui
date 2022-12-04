@@ -42,7 +42,7 @@ impl <K: Clone> StoreBase<K> {
             let event = Event { key, origin, signal };
             if let Some(tx) = &self.tx {
                 tx.send(event)
-                    .map_err(|e| warn!("Failed to store event signal"))
+                    .map_err(|_| warn!("Failed to store event signal"))
                     .unwrap_or_default();
             }
         }

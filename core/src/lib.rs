@@ -24,7 +24,6 @@ pub mod names;
 pub mod dump;
 pub mod edit;
 mod str_encoder;
-pub mod stack;
 pub mod event;
 pub mod generic;
 pub mod context;

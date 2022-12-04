@@ -224,8 +224,7 @@ impl MidiMessage {
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
-        let mut len = bytes.len();
-        if len < 1 {
+        if bytes.len() < 1 {
             bail!("Zero-size MIDI message")
         }
 

@@ -47,37 +47,12 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
         return;
     };
 
-    let config = ctx.config;
-
-    // TODO: rewrite this after changing multi-byte controls to MSB,LSB pair...
-    // Map the control address to a list of controls to make CC messages for.
-    // Typically this will be a single-element list with the same control
-    // that was resolved by name. For multibyte controls this will be a list
-    // of [tail control, head control], sorted this way specifically because
-    // we want to sent the lower bytes first.
-    let controls: Vec<&Control> = control.get_addr()
-        .filter(|(_, size)| *size > 1)
-        .map(|(addr, size)| {
-            // multibyte control
-            config.addr_to_control_vec((addr + size -1) as usize, true)
-                .into_iter().map(|(_, c)| c).collect()
-        })
-        // single byte control, or control without address
-        .unwrap_or_else(|| vec![control]);
-
-     let channel = ctx.midi_channel();
+    let channel = ctx.midi_channel();
     let channel = if channel == Channel::all() { 0 } else { channel };
 
-    let messages = controls.into_iter().map(|control| {
-        let value = control.value_to_midi(*value);
-        let cc = control.get_cc();
-        MidiMessage::ControlChange { channel, control: cc.unwrap(), value }
-    }).collect::<Vec<_>>();
-
-    // send messages
-    for msg in messages.into_iter() {
-        ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
-    }
+    let value = control.value_to_midi(*value);
+    let msg = MidiMessage::ControlChange { channel, control: cc, value };
+    ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
 }
 
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
@@ -130,22 +105,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     // save raw CC value to the controller
     controller.set_cc_value(*cc, *value, MIDI.into());
 
-    // Map the control address to a control for the value lookup.
-    // For most controls this will the same control as the one
-    // resolved by CC, for multibyte controls this will be the
-    // head control.
-    let (name, value_control) = control.get_addr()
-        .and_then(|(addr, _)| {
-            config.addr_to_control_vec(addr as usize, false).into_iter().next()
-        })
-        .filter(|(name, control)| {
-            let (_, size) = control.get_addr().unwrap();
-            size > 1
-        })
-        // single byte control, or control without address
-        .unwrap_or_else(|| (name, control));
-
-    let control_value = controller.get(name).unwrap();
+    // save converted value to the controller
     let value = control.value_from_midi(*value);
     controller.set(name, value, MIDI.into());
 }
@@ -181,8 +141,6 @@ pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
         return;
     };
-
-    // todo
 }
 
 pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
@@ -195,7 +153,6 @@ pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
             send_midi_pc(ctx, &event.program, modified);
         }
     }
-
 }
 
 pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: Origin) -> bool {

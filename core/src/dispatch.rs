@@ -8,7 +8,7 @@ pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
 }
 
 pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ControlChange { channel, control: cc, value } = midi_message else {
+    let MidiMessage::ControlChange { channel, .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI CC handler: {:?}", midi_message);
         return;
     };
@@ -23,7 +23,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ControlChange { channel, control: cc, value } = midi_message else {
+    let MidiMessage::ControlChange { .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI CC handler: {:?}", midi_message);
         return;
     };
@@ -32,7 +32,7 @@ pub fn midi_cc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ProgramChange { channel, program } = midi_message else {
+    let MidiMessage::ProgramChange { channel, .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
         return;
     };
@@ -47,7 +47,7 @@ pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ProgramChange { channel, program } = midi_message else {
+    let MidiMessage::ProgramChange { .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
         return;
     };

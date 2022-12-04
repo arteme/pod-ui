@@ -43,7 +43,7 @@ impl MidiIn {
         let conn = midi_in.connect(&port, "pod midi in conn", move |ts, data, _| {
             trace!("<< {:02x?} len={} ts={}", data, data.len(), ts);
             tx.send(Vec::from(data))
-                .unwrap_or_else(|e| {
+                .unwrap_or_else(|_| {
                     error!("midi input ({}): failed to send data to the application", n);
                 });
 

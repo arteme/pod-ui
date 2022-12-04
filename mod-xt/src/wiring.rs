@@ -81,31 +81,6 @@ fn update_combo<F>(objs: &ObjectList, name: &str, update: F) -> Result<()>
     Ok(())
 }
 
-// todo: when switching to BX cab update the mic names from BC_MIC_NAMES!
-pub fn init_mic_models(objs: &ObjectList) -> Result<()> {
-    let select = objs.ref_by_name::<gtk::ComboBox>("mic_select")?;
-
-    let list_store = gtk::ListStore::new(
-        &[u8::static_type(), String::static_type(), bool::static_type()]
-    );
-
-    for (i, item) in config::MIC_NAMES.iter().enumerate() {
-        list_store.insert_with_values(None, &[
-            (0, &(i as u32)), (1, item), (2, &true)
-        ]);
-    }
-
-    select.set_model(Some(&list_store));
-    select.clear();
-    select.set_entry_text_column(1);
-
-    let renderer = gtk::CellRendererText::new();
-    select.pack_start(&renderer, true);
-    select.add_attribute(&renderer, "text", 1);
-
-    Ok(())
-}
-
 pub fn wire_di_show(controller: Arc<Mutex<Controller>>, config: &'static Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     let objs = objs.clone();
