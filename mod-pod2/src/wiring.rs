@@ -110,7 +110,6 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
             let str = entry.text();
             let mut edit = edit.lock().unwrap();
             edit.set_name(str.as_str());
-            edit.set_full("name_change", 1, UI, Signal::Force);
         });
         handler = SignalHandler::new(&entry, h);
     }
