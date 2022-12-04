@@ -146,7 +146,7 @@ pub fn midi_cc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         .unwrap_or_else(|| (name, control));
 
     let control_value = controller.get(name).unwrap();
-    let value = control.value_from_midi(*value, control_value);
+    let value = control.value_from_midi(*value);
     controller.set(name, value, MIDI.into());
 }
 

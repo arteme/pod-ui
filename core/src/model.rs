@@ -168,9 +168,7 @@ pub enum RangeConfig {
     Short { from: u8, to: u8, edge: bool },
     Long { from: u16, to: u16 },
     Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 },
-    MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
-        size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
-    MultibyteTail { bitmask: u16, shift: u8 }
+    Multibyte { from: u16, to: u16, size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
 }
 
 #[derive(Clone, Debug)]
@@ -284,7 +282,7 @@ pub trait AbstractControl {
     fn get_cc(&self) -> Option<u8> { None }
     fn get_addr(&self) -> Option<(u8, u8)> { None }
 
-    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 { value as u16 }
+    fn value_from_midi(&self, value: u8) -> u16 { value as u16 }
     fn value_to_midi(&self, value: u16) -> u8 { value as u8 }
 
     fn value_from_buffer(&self, value: u32) -> u16 { value as u16 }
@@ -297,14 +295,14 @@ impl AbstractControl for RangeControl {
     fn get_addr(&self) -> Option<(u8, u8)> {
         let bytes = match self.config {
             RangeConfig::Long { .. } => 2,
-            RangeConfig::MultibyteHead { size, .. } => size,
+            RangeConfig::Multibyte { size, .. } => size,
             _ => 1
         };
         Some((self.addr, bytes))
     }
 
-    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
-        self.config.value_from_midi(value, control_value)
+    fn value_from_midi(&self, value: u8) -> u16 {
+        self.config.value_from_midi(value)
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
@@ -313,7 +311,7 @@ impl AbstractControl for RangeControl {
 
     fn value_from_buffer(&self, value: u32) -> u16 {
         match &self.config {
-            RangeConfig::MultibyteHead { from_buffer, .. } => {
+            RangeConfig::Multibyte { from_buffer, .. } => {
                 from_buffer(value)
             }
             _ => {
@@ -324,7 +322,7 @@ impl AbstractControl for RangeControl {
 
     fn value_to_buffer(&self, value: u16) -> u32 {
         match &self.config {
-            RangeConfig::MultibyteHead { to_buffer, .. } => {
+            RangeConfig::Multibyte { to_buffer, .. } => {
                 to_buffer(value)
             }
             _ => {
@@ -335,8 +333,8 @@ impl AbstractControl for RangeControl {
 }
 
 impl AbstractControl for VirtualRangeControl {
-    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
-        self.config.value_from_midi(value, control_value)
+    fn value_from_midi(&self, value: u8) -> u16 {
+        self.config.value_from_midi(value)
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
@@ -349,7 +347,7 @@ impl AbstractControl for SwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> { Some((self.addr, 1)) }
 
-    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
+    fn value_from_midi(&self, value: u8) -> u16 {
         let value = value > 63;
         (self.inverted ^ value) as u16
     }
@@ -373,7 +371,7 @@ impl AbstractControl for SwitchControl {
 impl AbstractControl for MidiSwitchControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
 
-    fn value_from_midi(&self, value: u8, _control_value: u16) -> u16 {
+    fn value_from_midi(&self, value: u8) -> u16 {
         value as u16 / 64
     }
 
@@ -420,8 +418,8 @@ impl AbstractControl for Control {
         self.abstract_control().get_addr()
     }
 
-    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
-        self.abstract_control().value_from_midi(value, control_value)
+    fn value_from_midi(&self, value: u8) -> u16 {
+        self.abstract_control().value_from_midi(value)
     }
 
     fn value_to_midi(&self, value: u16) -> u8 {
@@ -450,8 +448,7 @@ impl RangeConfig {
                 (a.min(b), a.max(b))
             }
             RangeConfig::Long { from, to } |
-            RangeConfig::MultibyteHead { from, to, .. } => (*from as f64, *to as f64),
-            RangeConfig::MultibyteTail { .. } => (0.0, 0.0)
+            RangeConfig::Multibyte { from, to, .. } => (*from as f64, *to as f64),
         }
     }
 
@@ -470,7 +467,7 @@ impl RangeConfig {
         format!("{:1.0}%", v1 * 100.0 / n)
     }
 
-    fn value_from_midi(&self, value: u8, control_value: u16) -> u16 {
+    fn value_from_midi(&self, value: u8) -> u16 {
         match self {
             RangeConfig::Short { from, to, edge, .. } => {
                 // if this is an "edge config", the last value is situated squarely on value 127
@@ -488,11 +485,6 @@ impl RangeConfig {
                 let v = value as f64 * scale + from;
                 v.min(to).max(from) as u16
             }
-            RangeConfig::MultibyteHead { bitmask, shift, .. } |
-            RangeConfig::MultibyteTail { bitmask, shift, .. } => {
-                let mask = bitmask << shift;
-                (control_value & !mask) | ((value as u16 & bitmask) << shift)
-            },
             RangeConfig::Function { from_midi, .. } => {
                 from_midi(value)
             }
@@ -517,11 +509,6 @@ impl RangeConfig {
                 let scale = (to - from) / 127.0;
                 let v = (value as f64 - from) / scale;
                 v.min(127.0).max(0.0) as u8
-            }
-            RangeConfig::MultibyteHead { bitmask, shift, .. } |
-            RangeConfig::MultibyteTail { bitmask, shift } => {
-                let v = (value >> shift) & bitmask;
-                v.min(127).max(0) as u8
             }
             RangeConfig::Function { to_midi, .. } => {
                 to_midi(value)

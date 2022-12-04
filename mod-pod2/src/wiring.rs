@@ -3,11 +3,57 @@ use std::sync::{Arc, Mutex};
 use log::*;
 use anyhow::*;
 use pod_core::controller::*;
-use pod_core::controller::StoreOrigin::{MIDI, UI};
+use pod_core::controller::StoreOrigin::{MIDI, NONE, UI};
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
-use pod_core::store::Origin;
+use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::*;
+
+pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks,
+                  control_name: &str, msb_name: &str, lsb_name: &str) -> Result<()> {
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let objs = objs.clone();
+    builder
+        .on(control_name)
+        .run({
+            let lsb_name = lsb_name.to_string();
+            let msb_name = msb_name.to_string();
+
+            move |value, controller, origin| {
+                let msb = (value & 0x3f80) >> 7;
+                let lsb = value & 0x7f;
+
+                // Make sure GUI event always generates both MSB and LSB MIDI messages
+                let signal = if origin == UI { Signal::Force } else { Signal::Change };
+                controller.set_full(&msb_name, msb, origin, signal.clone());
+                controller.set_full(&lsb_name, lsb, origin, signal);
+            }
+        })
+        .on(msb_name).from(MIDI).from(NONE)
+        .run({
+            let control_name = control_name.to_string();
+
+            move |value, controller, origin| {
+                let control_value = controller.get(&control_name).unwrap();
+                let lsb = control_value & 0x7f;
+                let control_value = ((value & 0x7f) << 7) | lsb;
+                controller.set(&control_name, control_value, origin);
+            }
+        })
+        .on(lsb_name).from(MIDI).from(NONE)
+        .run({
+            let control_name = control_name.to_string();
+
+            move |value, controller, origin| {
+                let control_value = controller.get(&control_name).unwrap();
+                let msb = control_value & 0x3f80;
+                let control_value = msb | (value & 0x7f);
+                controller.set(&control_name, control_value, origin);
+            }
+        });
+
+    Ok(())
+}
 
 pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     // controller -> gui
@@ -232,7 +278,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
                     let val = config.value_to_midi(control_val);
 
                     let config = controller.get_config(&control_name).unwrap();
-                    let val = config.value_from_midi(val, control_val);
+                    let val = config.value_from_midi(val);
                     controller.set(&control_name, val, MIDI);
                 }
             })

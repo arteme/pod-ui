@@ -436,8 +436,7 @@ impl Handler for PodXtHandler {
         };
 
         let value = buffer[addr as usize];
-        let control_value = controller.get(name).unwrap();
-        let control_value = control.value_from_midi(value, control_value);
+        let control_value = control.value_from_midi(value);
 
         controller.set_cc_value(cc, value, StoreOrigin::NONE);
         controller.set(name, control_value, StoreOrigin::NONE);

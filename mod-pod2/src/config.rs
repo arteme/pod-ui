@@ -248,16 +248,15 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
            "vol_minimum" => RangeControl { cc: 46, addr: 23, format: fmt_percent!(), ..def!() },
            "vol_pedal_position" => SwitchControl { cc: 47, addr: 24, ..def!() },
            // delay
-           "delay_time" => RangeControl { cc: 30, addr: 26,
-               config: RangeConfig::MultibyteHead {
-                    from: 0, to: 16383 /* 2^14-1 */, bitmask: 0x7f, shift: 7,
-                    size: 4, from_buffer: delay_time_from_buffer, to_buffer: delay_time_to_buffer
+           "delay_time" => VirtualRangeControl {
+               config: RangeConfig::Multibyte {
+                    from: 0, to: 16383 /* 2^14-1 */, size: 4,
+                    from_buffer: delay_time_from_buffer, to_buffer: delay_time_to_buffer
                 },
                format: Format::Data(FormatData { k: 6.0 * 0.03205, b: 0.0, format: "{val:1.0f} ms".into() }),
                 ..def!() }, // 0 .. 3150 ms / 128 steps (16384 steps as full 14-bit value)
-           "delay_time:fine" => RangeControl { cc: 62, addr: 27,
-               config: RangeConfig::MultibyteTail { bitmask: 0x7f, shift: 0 },
-                ..def!() },
+           "delay_time:msb" => RangeControl { cc: 30, addr: 26, ..def!() },
+           "delay_time:lsb" => RangeControl { cc: 62, addr: 27, ..def!() },
            "delay_feedback" => RangeControl { cc: 32, addr: 34, config: short!(),
                 format: fmt_percent!(), ..def!() },
            "delay_level" => RangeControl { cc: 34, addr: 36, config: short!(),

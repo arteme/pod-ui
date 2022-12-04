@@ -160,11 +160,11 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("stomp_param2")
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param2_wave").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("stomp_param2_wave", midi, origin);
 
             let control = controller.get_config("stomp_param2_octave").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("stomp_param2_octave", midi, origin);
         })
         .on("stomp_param2_wave").from(UI)
@@ -185,11 +185,11 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("stomp_param3")
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param3_octave").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("stomp_param3_octave", midi, origin);
 
             let control = controller.get_config("stomp_param3_offset").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("stomp_param3_offset", midi, origin);
         })
         .on("stomp_param3_octave").from(UI)
@@ -210,7 +210,7 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("stomp_param4")
         .run(move |value, controller, origin| {
             let control = controller.get_config("stomp_param4_offset").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("stomp_param4_offset", midi, origin);
         })
         .on("stomp_param4_offset").from(UI)
@@ -289,7 +289,7 @@ pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("delay_param3")
         .run(move |value, controller, origin| {
             let control = controller.get_config("delay_param3_heads").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("delay_param3_heads", midi, origin);
         })
         .on("delay_param3_heads").from(UI)
@@ -304,7 +304,7 @@ pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         .on("delay_param4")
         .run(move |value, controller, origin| {
             let control = controller.get_config("delay_param4_bits").unwrap();
-            let midi = control.value_from_midi(value as u8, 0);
+            let midi = control.value_from_midi(value as u8);
             controller.set("delay_param4_bits", midi, origin);
         })
         .on("delay_param4_bits").from(UI)
@@ -312,52 +312,6 @@ pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
             let control = controller.get_config("delay_param4_bits").unwrap();
             let midi = control.value_to_midi(value);
             controller.set("delay_param4", midi as u16, origin);
-        });
-
-    Ok(())
-}
-
-pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks,
-                  control_name: &str, msb_name: &str, lsb_name: &str) -> Result<()> {
-    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
-    builder
-        .on(control_name)
-        .run({
-            let lsb_name = lsb_name.to_string();
-            let msb_name = msb_name.to_string();
-
-            move |value, controller, origin| {
-                let msb = (value & 0x3f80) >> 7;
-                let lsb = value & 0x7f;
-
-                // Make sure GUI event always generates both MSB and LSB MIDI messages
-                let signal = if origin == UI { Signal::Force } else { Signal::Change };
-                controller.set_full(&msb_name, msb, origin, signal.clone());
-                controller.set_full(&lsb_name, lsb, origin, signal);
-            }
-        })
-        .on(msb_name).from(MIDI).from(NONE)
-        .run({
-            let control_name = control_name.to_string();
-
-            move |value, controller, origin| {
-                let control_value = controller.get(&control_name).unwrap();
-                let lsb = control_value & 0x7f;
-                let control_value = ((value & 0x7f) << 7) | lsb;
-                controller.set(&control_name, control_value, origin);
-            }
-        })
-        .on(lsb_name).from(MIDI).from(NONE)
-        .run({
-            let control_name = control_name.to_string();
-
-            move |value, controller, origin| {
-                let control_value = controller.get(&control_name).unwrap();
-                let msb = control_value & 0x3f80;
-                let control_value = msb | (value & 0x7f);
-                controller.set(&control_name, control_value, origin);
-            }
         });
 
     Ok(())
