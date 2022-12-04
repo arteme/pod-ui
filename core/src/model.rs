@@ -154,17 +154,8 @@ impl Default for FormatInterpolate {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum BufferConfig {
-    /// Value in program dump = switch control value
-    Normal,
-    /// Value in program dump = MIDI value of the control value
-    Midi
-}
-
 #[derive(Clone, Debug)]
-pub struct SwitchControl { pub cc: u8, pub addr: u8, pub inverted: bool, pub buffer_config: BufferConfig }
-
+pub struct SwitchControl { pub cc: u8, pub addr: u8, pub inverted: bool }
 #[derive(Clone, Debug)]
 pub struct MidiSwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
@@ -173,10 +164,10 @@ pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub
 pub struct VirtualRangeControl { pub config: RangeConfig, pub format: Format<RangeConfig> }
 #[derive(Clone, Debug)]
 pub enum RangeConfig {
-    Normal { buffer_config: BufferConfig },
-    Short { from: u8, to: u8, edge: bool, buffer_config: BufferConfig },
+    Normal,
+    Short { from: u8, to: u8, edge: bool },
     Long { from: u16, to: u16 },
-    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8, buffer_config: BufferConfig },
+    Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 },
     MultibyteHead { from: u16, to: u16, bitmask: u16, shift: u8,
         size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
     MultibyteTail { bitmask: u16, shift: u8 }
@@ -195,7 +186,7 @@ pub struct Button {}
 
 impl Default for SwitchControl {
     fn default() -> Self {
-        SwitchControl { cc: 0, addr: 0, inverted: false, buffer_config: BufferConfig::Normal }
+        Self { cc: 0, addr: 0, inverted: false }
     }
 }
 
@@ -219,8 +210,7 @@ impl From<MidiSwitchControl> for Control {
 
 impl Default for RangeControl {
     fn default() -> Self {
-        RangeControl { cc: 0, addr: 0, config: RangeConfig::Normal { buffer_config: BufferConfig::Normal },
-            format: Format::None }
+        Self { cc: 0, addr: 0, config: RangeConfig::Normal, format: Format::None }
     }
 }
 
@@ -232,8 +222,7 @@ impl From<RangeControl> for Control {
 
 impl Default for VirtualRangeControl {
     fn default() -> Self {
-        Self { config: RangeConfig::Normal { buffer_config: BufferConfig::Normal },
-            format: Format::None }
+        Self { config: RangeConfig::Normal, format: Format::None }
     }
 }
 
@@ -327,15 +316,6 @@ impl AbstractControl for RangeControl {
             RangeConfig::MultibyteHead { from_buffer, .. } => {
                 from_buffer(value)
             }
-            RangeConfig::Function { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
-                self.value_from_midi(value as u8, 0)
-            }
-            RangeConfig::Normal { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
-                self.value_from_midi(value as u8, 0)
-            }
-            RangeConfig::Short { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
-                self.value_from_midi(value as u8, 0)
-            }
             _ => {
                 value as u16
             }
@@ -346,15 +326,6 @@ impl AbstractControl for RangeControl {
         match &self.config {
             RangeConfig::MultibyteHead { to_buffer, .. } => {
                 to_buffer(value)
-            }
-            RangeConfig::Function { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
-                self.value_to_midi(value) as u32
-            }
-            RangeConfig::Normal { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
-                self.value_to_midi(value) as u32
-            }
-            RangeConfig::Short { buffer_config, .. } if *buffer_config == BufferConfig::Midi => {
-                self.value_to_midi(value) as u32
             }
             _ => {
                 value as u32
@@ -389,27 +360,13 @@ impl AbstractControl for SwitchControl {
     }
 
     fn value_from_buffer(&self, value: u32) -> u16 {
-        match &self.buffer_config {
-            BufferConfig::Normal => {
-                let value = value != 0;
-                (self.inverted ^ value) as u16
-            }
-            BufferConfig::Midi => {
-                self.value_from_midi(value as u8, 0)
-            }
-        }
+        let value = value != 0;
+        (self.inverted ^ value) as u16
     }
 
     fn value_to_buffer(&self, value: u16) -> u32 {
-        match &self.buffer_config {
-            BufferConfig::Normal => {
-                let value = value != 0;
-                (self.inverted ^ value) as u32
-            }
-            BufferConfig::Midi => {
-                self.value_to_midi(value) as u32
-            }
-        }
+        let value = value != 0;
+        (self.inverted ^ value) as u32
     }
 }
 

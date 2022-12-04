@@ -46,8 +46,8 @@ macro_rules! fmt_percent {
 
 #[macro_export]
 macro_rules! short {
-    (@edge $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, edge: true, buffer_config: BufferConfig::Normal } );
-    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, edge: false, buffer_config: BufferConfig::Normal } );
+    (@edge $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, edge: true } );
+    ( $from:expr, $to:expr ) => ( RangeConfig::Short { from: $from, to: $to, edge: false } );
     () => ( short!(0, 63) );
 }
 #[macro_export]
@@ -234,7 +234,7 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
                format: fmt_percent!(), ..def!() },
            // noise gate
            "gate_threshold" => RangeControl { cc: 23, addr: 16,
-               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi, buffer_config: BufferConfig::Normal },
+               config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi },
                format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def!() }, // todo: -96 db .. 0 db
            "gate_decay" => RangeControl { cc: 24, addr: 17, config: short!(),
                 format: fmt_percent!(), ..def!() }, // todo: 8.1 msec .. 159 msec
