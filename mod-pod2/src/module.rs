@@ -5,23 +5,17 @@ use pod_core::store::{Signal, StoreSetIm};
 use pod_core::store::Origin::MIDI;
 use pod_gtk::prelude::*;
 use gtk::{Builder, Widget};
-use pod_core::handler::{BoxedHandler, Handler};
+use pod_core::handler::BoxedHandler;
 
 use crate::wiring::*;
-use crate::config;
-use crate::config::PODPRO_CONFIG;
+use crate::config::*;
+pub use crate::handler::Pod2Handler;
 
 pub struct Pod2Module;
 
-#[derive(Clone)]
-pub struct Pod2Handler;
-
-impl Handler for Pod2Handler {
-}
-
 impl Module for Pod2Module {
     fn config(&self) -> Box<[Config]> {
-        vec![config::POD2_CONFIG.clone(), config::PODPRO_CONFIG.clone()].into_boxed_slice()
+        vec![POD2_CONFIG.clone(), PODPRO_CONFIG.clone()].into_boxed_slice()
     }
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {
