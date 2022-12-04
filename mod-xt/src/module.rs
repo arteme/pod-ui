@@ -98,9 +98,11 @@ impl Interface for PodXtInterface {
         wire_mod_select(controller.clone(), &self.objects, callbacks)?;
         wire_delay_select(controller.clone(), &self.objects, callbacks)?;
         wire_14bit(controller.clone(), &self.objects, callbacks,
-                   "mod_speed", "mod_speed:msb", "mod_speed:lsb")?;
+                   "mod_speed", "mod_speed:msb", "mod_speed:lsb",
+                   true)?;
         wire_14bit(controller.clone(), &self.objects, callbacks,
-                   "delay_time", "delay_time:msb", "delay_time:lsb")?;
+                   "delay_time", "delay_time:msb", "delay_time:lsb",
+                   true)?;
         wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
         wire_xt_packs(controller.clone(), &self.objects, callbacks)?;
         wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;

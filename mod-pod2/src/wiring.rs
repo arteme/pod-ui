@@ -10,7 +10,7 @@ use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::*;
 
 pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks,
-                  control_name: &str, msb_name: &str, lsb_name: &str) -> Result<()> {
+                  control_name: &str, msb_name: &str, lsb_name: &str, big_endian: bool) -> Result<()> {
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     let objs = objs.clone();
     builder
@@ -25,8 +25,15 @@ pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
 
                 // Make sure GUI event always generates both MSB and LSB MIDI messages
                 let signal = if origin == UI { Signal::Force } else { Signal::Change };
-                controller.set_full(&msb_name, msb, origin, signal.clone());
-                controller.set_full(&lsb_name, lsb, origin, signal);
+                if big_endian {
+                    // PODxt/L6E sends msb,lsb
+                    controller.set_full(&msb_name, msb, origin, signal.clone());
+                    controller.set_full(&lsb_name, lsb, origin, signal);
+                } else {
+                    // L6E sends lsb,msb; POD2.0 only sends msb
+                    controller.set_full(&lsb_name, lsb, origin, signal.clone());
+                    controller.set_full(&msb_name, msb, origin, signal);
+                }
             }
         })
         .on(msb_name).from(MIDI).from(NONE)

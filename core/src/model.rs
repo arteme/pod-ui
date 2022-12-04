@@ -99,6 +99,7 @@ pub enum Control {
     SwitchControl(SwitchControl),
     MidiSwitchControl(MidiSwitchControl),
     RangeControl(RangeControl),
+    AddrRangeControl(AddrRangeControl),
     VirtualRangeControl(VirtualRangeControl),
     Select(Select),
     MidiSelect(MidiSelect),
@@ -160,6 +161,8 @@ pub struct SwitchControl { pub cc: u8, pub addr: u8, pub inverted: bool }
 pub struct MidiSwitchControl { pub cc: u8 }
 #[derive(Clone, Debug)]
 pub struct RangeControl { pub cc: u8, pub addr: u8, pub config: RangeConfig, pub format: Format<RangeConfig> }
+#[derive(Clone, Debug)]
+pub struct AddrRangeControl { pub addr: u8, pub config: RangeConfig, pub format: Format<RangeConfig> }
 #[derive(Clone, Debug)]
 pub struct VirtualRangeControl { pub config: RangeConfig, pub format: Format<RangeConfig> }
 #[derive(Clone, Debug)]
@@ -230,6 +233,18 @@ impl From<VirtualRangeControl> for Control {
     }
 }
 
+impl Default for AddrRangeControl {
+    fn default() -> Self {
+        Self { addr: 0, config: RangeConfig::Normal, format: Format::None }
+    }
+}
+
+impl From<AddrRangeControl> for Control {
+    fn from(c: AddrRangeControl) -> Self {
+        Control::AddrRangeControl(c)
+    }
+}
+
 impl Default for Select {
     fn default() -> Self {
         Select { cc: 0, addr: 0 }
@@ -287,18 +302,12 @@ pub trait AbstractControl {
 
     fn value_from_buffer(&self, value: u32) -> u16 { value as u16 }
     fn value_to_buffer(&self, value: u16) -> u32 { value as u32 }
-
 }
 
 impl AbstractControl for RangeControl {
     fn get_cc(&self) -> Option<u8> { Some(self.cc) }
     fn get_addr(&self) -> Option<(u8, u8)> {
-        let bytes = match self.config {
-            RangeConfig::Long { .. } => 2,
-            RangeConfig::Multibyte { size, .. } => size,
-            _ => 1
-        };
-        Some((self.addr, bytes))
+        Some((self.addr, self.config.len()))
     }
 
     fn value_from_midi(&self, value: u8) -> u16 {
@@ -310,25 +319,33 @@ impl AbstractControl for RangeControl {
     }
 
     fn value_from_buffer(&self, value: u32) -> u16 {
-        match &self.config {
-            RangeConfig::Multibyte { from_buffer, .. } => {
-                from_buffer(value)
-            }
-            _ => {
-                value as u16
-            }
-        }
+        self.config.value_from_buffer(value)
     }
 
     fn value_to_buffer(&self, value: u16) -> u32 {
-        match &self.config {
-            RangeConfig::Multibyte { to_buffer, .. } => {
-                to_buffer(value)
-            }
-            _ => {
-                value as u32
-            }
-        }
+        self.config.value_to_buffer(value)
+    }
+}
+
+impl AbstractControl for AddrRangeControl {
+    fn get_addr(&self) -> Option<(u8, u8)> {
+        Some((self.addr, self.config.len()))
+    }
+
+    fn value_from_midi(&self, value: u8) -> u16 {
+        self.config.value_from_midi(value)
+    }
+
+    fn value_to_midi(&self, value: u16) -> u8 {
+        self.config.value_to_midi(value)
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        self.config.value_from_buffer(value)
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        self.config.value_to_buffer(value)
     }
 }
 
@@ -400,6 +417,7 @@ impl Control {
             Control::MidiSwitchControl(c) => c,
             Control::RangeControl(c) => c,
             Control::VirtualRangeControl(c) => c,
+            Control::AddrRangeControl(c) => c,
             Control::Select(c) => c,
             Control::MidiSelect(c) => c,
             Control::VirtualSelect(c) => c,
@@ -438,6 +456,14 @@ impl AbstractControl for Control {
 // --
 
 impl RangeConfig {
+    pub fn len(&self) -> u8 {
+        match self {
+            RangeConfig::Long { .. } => 2,
+            RangeConfig::Multibyte { size, .. } => *size,
+            _ => 1
+        }
+    }
+
     pub fn bounds(&self) -> (f64, f64) {
         match self {
             RangeConfig::Normal { .. } => (0.0, 127.0),
@@ -514,6 +540,28 @@ impl RangeConfig {
                 to_midi(value)
             }
             _ => value as u8
+        }
+    }
+
+    fn value_from_buffer(&self, value: u32) -> u16 {
+        match self {
+            RangeConfig::Multibyte { from_buffer, .. } => {
+                from_buffer(value)
+            }
+            _ => {
+                value as u16
+            }
+        }
+    }
+
+    fn value_to_buffer(&self, value: u16) -> u32 {
+        match self {
+            RangeConfig::Multibyte { to_buffer, .. } => {
+                to_buffer(value)
+            }
+            _ => {
+                value as u32
+            }
         }
     }
 }

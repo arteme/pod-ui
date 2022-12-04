@@ -9,7 +9,7 @@ use glib::SignalHandlerId;
 use gtk::prelude::*;
 use pod_core::controller::*;
 use pod_core::controller::StoreOrigin::UI;
-use pod_core::model::{Control, Format, RangeControl, VirtualRangeControl};
+use pod_core::model::{AddrRangeControl, Control, Format, RangeControl, VirtualRangeControl};
 use crate::{Callbacks, ObjectList};
 
 pub struct SignalHandler {
@@ -89,6 +89,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                     let controller = controller.lock().unwrap();
                     match controller.get_config(&name) {
                         Some(Control::RangeControl(RangeControl { config, format, .. })) |
+                        Some(Control::AddrRangeControl(AddrRangeControl { config, format, .. })) |
                         Some(Control::VirtualRangeControl(VirtualRangeControl { config, format, .. })) => {
                             let (from, to) = config.bounds();
                             info!("Rage: {} .. {}", from, to);
