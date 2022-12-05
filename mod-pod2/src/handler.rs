@@ -50,7 +50,7 @@ impl Handler for Pod2Handler {
     }
 
     fn pc_handler(&self, ctx: &Ctx, event: &ProgramChangeEvent) {
-        generic::sync_edit_and_dump_buffers(ctx, event.origin);
+        let modified = generic::sync_edit_and_dump_buffers(ctx, event.origin);
 
         if event.origin == UI {
             let program = match event.program {
@@ -59,7 +59,7 @@ impl Handler for Pod2Handler {
                 Program::Program(p) => p as u8 + 1
             };
             let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program };
-            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+            generic::send_edit_buffer_or_pc(ctx, modified, msg);
         }
     }
 

@@ -144,13 +144,13 @@ pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
-    match event.origin {
-        MIDI => {
-            sync_edit_and_dump_buffers(ctx, MIDI);
-        }
-        UI => {
-            let modified = sync_edit_and_dump_buffers(ctx, UI);
-            send_midi_pc(ctx, &event.program, modified);
+    let modified = sync_edit_and_dump_buffers(ctx, event.origin);
+
+    if event.origin == UI {
+        let program = num_program(&event.program);
+        if let Some(program) = program {
+            let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program: program as u8 };
+            send_edit_buffer_or_pc(ctx, modified, msg);
         }
     }
 }
@@ -199,7 +199,7 @@ pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: Origin) -> bool {
 }
 
 
-pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
+pub fn send_edit_buffer_or_pc(ctx: &Ctx, modified: bool, pc: MidiMessage) {
     if modified {
         // send edit buffer
         let e = BufferStoreEvent {
@@ -209,15 +209,8 @@ pub fn send_midi_pc(ctx: &Ctx, program: &Program, modified: bool) {
         ctx.app_event_tx.send_or_warn(AppEvent::Store(e));
     } else {
         // send PC
-        let program = num_program(&program);
-        if let Some(program) = program {
-            let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program: program as u8 };
-            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
-        }
+        ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(pc));
     };
-
-    // todo?
-
 }
 
 // other
