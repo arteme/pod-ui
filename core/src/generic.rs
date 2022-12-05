@@ -164,7 +164,18 @@ pub fn sync_edit_and_dump_buffers(ctx: &Ctx, origin: Origin) -> bool {
         // store edit buffer to the program dump
         let data = program::store_patch_dump_ctrl(&edit);
         program::load_patch_dump(&mut dump, page, data.as_slice(), origin);
-        dump.set_modified(page, edit.modified()); // not needed?
+        // in case the edit buffer was modified, but the dump was not marked
+        // modified (as happens with a name change signal), make sure to
+        // send a "modified event"
+        if edit.modified() {
+            dump.set_modified(page, true);
+            let e = ModifiedEvent {
+                buffer: Buffer::Program(page),
+                origin,
+                modified: true
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+        }
     }
 
     let mut modified = false;
