@@ -6,7 +6,7 @@ use pod_core::event::Origin::{MIDI, UI};
 use pod_core::generic;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
-use pod_core::model::AbstractControl;
+use pod_core::model::{AbstractControl, DeviceFlags};
 
 pub struct Pod2Handler;
 
@@ -59,6 +59,12 @@ impl Handler for Pod2Handler {
                 Program::Program(p) => p as u8 + 1
             };
             let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program };
+            if modified && ctx.config.flags.contains(DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER) {
+                // The buffer is modified, so the  send_edit_buffer_or_pc will send
+                // the edit buffer. Send PC here first if the device can handle it.
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg.clone()));
+            }
+
             generic::send_edit_buffer_or_pc(ctx, modified, msg);
         }
     }

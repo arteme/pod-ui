@@ -72,6 +72,9 @@ impl Interface for PocketPodInterface {
         wire(controller.clone(), &self.objects, callbacks)?;
 
         wire_amp_select(controller.clone(), config, &self.objects, callbacks)?;
+        wire_14bit(controller.clone(), &self.objects, callbacks,
+                   "delay_time", "delay_time:msb", "delay_time:lsb",
+                   false)?;
         wire_effect_select(config, controller, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         //todo!()
