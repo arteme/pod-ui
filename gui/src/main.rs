@@ -612,7 +612,7 @@ async fn main() -> Result<()> {
     );
 
     // autodetect or open devices specified on command line
-    autodetect::detect(state.clone(), opts)?;
+    autodetect::detect(state.clone(), opts, &window)?;
 
     // app event handling in a separate thread
     tokio::spawn({

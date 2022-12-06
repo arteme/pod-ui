@@ -268,12 +268,13 @@ fn list_ports<T: MidiIO>(midi: T) -> Result<Vec<String>> {
 
 const DETECT_DELAY: Duration = Duration::from_millis(1000);
 
-async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<Vec<(usize, &'static Config)>> {
+async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
     detect_with_channel(in_ports, out_ports, Channel::all()).await
 }
 
-async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut], channel: u8) -> Result<Vec<(usize, &'static Config)>> {
+async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut], channel: u8) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
 
+    let in_names = in_ports.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
     let udi = MidiMessage::UniversalDeviceInquiry { channel }.to_bytes();
 
     let mut streams = IndexedStreamsUnordered::new();
@@ -292,9 +293,14 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
     }
 
     let mut replied_midi_in = Vec::<(usize, &Config)>::new();
+    let mut error: Option<String> = None;
     loop {
         tokio::select! {
             Some((i, Some(bytes))) = streams.next() => {
+                if let Some(e) = check_for_broken_drivers(&in_names[i], &bytes) {
+                    warn!("Detected broken drivers on port {:?}", &in_names[i]);
+                    error.replace(e);
+                }
                 let event = MidiMessage::from_bytes(bytes).ok();
                 let found = match event {
                     Some(MidiMessage::UniversalDeviceInquiryResponse { family, member, .. }) => {
@@ -318,7 +324,7 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
         }
     }
 
-    Ok(replied_midi_in)
+    Ok((replied_midi_in, error))
 }
 
 async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<Option<u8>> {
@@ -395,9 +401,13 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
 
     // 1. find the input
     {
-        let rep = detect(in_ports.as_mut_slice(), out_ports.as_mut_slice()).await?;
+        let (rep, error) = detect(in_ports.as_mut_slice(), out_ports.as_mut_slice()).await?;
         if rep.len() == 0 {
-            bail!("Received no device response");
+            if let Some(e) = error {
+                bail!("{}", e);
+            } else {
+                bail!("Received no device response");
+            }
         }
         if rep.len() > 1 {
             bail!("Received device response on multiple ({}) ports", rep.len());
@@ -412,9 +422,15 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
         let slice =  (out_ports.len() as f32 / 2.0).ceil() as usize;
         let chunks = out_ports.chunks_mut(slice);
         let mut good = Vec::<usize>::new();
+        let mut error: Option<String> = None;
         let mut i = 0usize;
         for chunk in chunks {
-            let rep = detect(in_ports.as_mut_slice(), chunk).await?
+            let (rep, e) = detect(in_ports.as_mut_slice(), chunk).await?;
+            if let Some(e) = e {
+                error.replace(e);
+            }
+
+            let rep = rep
                 .into_iter()
                 // make sure we only count the ports that have the same device as in step 1
                 .filter(|(_, c)| config.filter(|c1| *c1 == *c).is_some())
@@ -429,7 +445,11 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
             i += chunk.len();
         }
         if good.len() == 0 {
-            bail!("Received no device response (output search)");
+            if let Some(e) = error {
+                bail!("{}", e);
+            } else {
+                bail!("Received no device response (output search)");
+            }
         }
         if good.len() == out_ports.len() && good.len() > 1 {
             bail!("Can't determine output port -- stuck at {}", good.len());
@@ -458,15 +478,43 @@ pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -
     let mut in_ports = vec![in_port];
     let mut out_ports = vec![out_port];
 
-    let rep = detect_with_channel(
+    let (rep, error) = detect_with_channel(
         in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
     ).await?;
     if rep.len() == 0 {
-        bail!("Received no device response");
+        if let Some(e) = error {
+            bail!("{}", e);
+        } else {
+            bail!("Received no device response");
+        }
     }
     if *rep[0].1 != *config {
         bail!("Incorrect device type");
     }
 
     Ok((in_ports.remove(0), out_ports.remove(0), channel))
+}
+
+#[cfg(unix)]
+fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<String> {
+    if port_name.starts_with("PODxt") &&
+        MidiMessage::from_bytes(bytes.clone()).ok().is_none() &&
+        bytes.get(0) == Some(&0xf2) {
+
+        let error = String::new() +
+            "We've detected that you have a PODxt device connected via " +
+            "USB. Unfortunately, the Line6 USB driver is buggy and this " +
+            "won't work. Please connect the device to a sound card with " +
+            "MIDI cables. The bug has been reported to the linux-usb " +
+            "mailing list. There's nothing else we can do except to wait " +
+            "and hope that the snd_usb_pod driver gets fixed soon...";
+        return Some(error)
+    }
+
+    None
+}
+
+#[cfg(not(unix))]
+fn check_for_broken_drivers(midi: &MidiIn, bytes: Vec<u8>) -> Option<String> {
+    None
 }

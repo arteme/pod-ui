@@ -7,7 +7,7 @@ use pod_core::config::configs;
 use pod_core::midi::Channel;
 use pod_core::midi_io::*;
 use pod_core::model::Config;
-use pod_gtk::prelude::{Continue, glib};
+use pod_gtk::prelude::{Continue, DialogExt, glib, gtk, GtkWindowExt, MessageDialogExt, WidgetExt};
 use crate::opts::Opts;
 use crate::{set_midi_in_out, State};
 use crate::util::ManualPoll;
@@ -40,7 +40,7 @@ fn config_for_str(config_str: &str) -> Result<&'static Config> {
     Ok(found.unwrap())
 }
 
-pub fn detect(state: Arc<Mutex<State>>, opts: Opts) -> Result<()> {
+pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Result<()> {
 
     // autodetect/open midi
     let autodetect = match (&opts.input, &opts.output) {
@@ -50,6 +50,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts) -> Result<()> {
 
     if autodetect {
         let state = state.clone();
+        let window = window.clone();
         let mut autodetect = tokio::spawn(pod_core::midi_io::autodetect());
 
         glib::idle_add_local(move || {
@@ -62,6 +63,22 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts) -> Result<()> {
                 }
                 Some(Err(e)) => {
                     error!("MIDI autodetect failed: {}", e);
+
+                    if e.to_string().starts_with("We've detected that you have a PODxt") {
+                        let m = gtk::MessageDialog::new(
+                            Some(&window),
+                            gtk::DialogFlags::DESTROY_WITH_PARENT,
+                            gtk::MessageType::Error,
+                            gtk::ButtonsType::Ok,
+                            "Autodetect encountered errors:"
+                        );
+                        m.set_secondary_text(Some(e.to_string().as_str()));
+                        m.connect_response(|dialog, _| {
+                            dialog.close();
+                        });
+                        m.show();
+                    }
+
                     let config = opts.model.as_ref()
                         .and_then(|str| config_for_str(&str).ok())
                         .or_else(|| configs().iter().next());
