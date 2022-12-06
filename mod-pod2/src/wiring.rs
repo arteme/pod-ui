@@ -6,6 +6,7 @@ use pod_core::controller::*;
 use pod_core::controller::StoreOrigin::{MIDI, NONE, UI};
 use pod_core::edit::EditBuffer;
 use pod_core::model::*;
+use pod_core::store::Origin;
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::*;
 
@@ -148,20 +149,18 @@ fn effect_entry_for_value<'a>(config: &'a Config, value: u16) -> Option<(&'a Eff
 
 }
 
-fn effect_select_from_midi(config: &Config, controller: &mut Controller) -> Option<EffectEntry> {
+fn effect_select_from_midi(config: &Config, controller: &mut Controller, origin: Origin) -> Option<EffectEntry> {
 
     let value = controller.get("effect_select:raw").unwrap();
-    let entry_opt = effect_entry_for_value(config, value);
-    if entry_opt.is_none() {
+    let entry = effect_entry_for_value(config, value);
+    let Some((entry, delay, index)) = entry else {
         return None;
-    }
-    let (entry, delay, index) = entry_opt.unwrap();
-    let entry = entry.clone();
+    };
 
-    controller.set("delay_enable", delay as u16, MIDI);
-    controller.set("effect_select", index as u16, MIDI);
+    controller.set("delay_enable", delay as u16, origin);
+    controller.set("effect_select", index as u16, origin);
 
-    Some(entry)
+    Some(entry.clone())
 }
 
 fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Option<EffectEntry> {
@@ -185,111 +184,73 @@ fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Optio
 
 fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry) {
     for name in &effect.controls {
-        controller.get(&name)
-            .and_then(|v| {
-                controller.set_full(name, v, UI, Signal::Force);
-                Some(())
-            });
+        if let Some(v) = controller.get(name) {
+            controller.set_full(name, v, UI, Signal::Force);
+        }
     }
 }
 
 pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
-    // effect_select: raw -> controller
-    {
-        let config = config.clone();
-        let controller = controller.clone();
-        let name = "effect_select:raw".to_string();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let mut controller = controller.lock().unwrap();
-                effect_select_from_midi(&config, &mut controller);
-            })
-        );
-    }
-    // effect_select: controller -> raw
-    {
-        let config = config.clone();
-        let controller = controller.clone();
-        let name = "effect_select".to_string();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let mut controller = controller.lock().unwrap();
-                if let Some(e) = effect_select_from_gui(&config, &mut controller) {
-                    /*
-                    // POD sends controls after effect select
-                    // Line6 Edit requests an edit buffer dump from the device
-                    effect_select_send_controls(&mut controller, &e);
-                    */
-                }
-            })
-        );
-    }
+    let objs = ObjectList::new(&gtk::Builder::new());
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
 
-    // delay_enable: controller -> raw
-    {
-        let config = config.clone();
-        let controller = controller.clone();
-        let name = "delay_enable".to_string();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let mut controller = controller.lock().unwrap();
-                let (v, origin) = controller.get_origin(&name).unwrap();
-
-                if v != 0 && origin == UI {
-                    let effect_select = controller.get("effect_select:raw").unwrap();
-                    let (_, delay, idx) =
-                        effect_entry_for_value(&config, effect_select).unwrap();
-                    if !delay {
-                        // if `delay_enable` was switched on in the UI and if coming from
-                        // an effect which didn't have delay to begin with, check if it can
-                        // have a delay at all (POD 2.0 rotary cannot). If not, then switch
-                        // to plain "delay" effect.
-                        let need_reset = config.effects.get(idx)
-                            .map(|e| e.delay.is_none()).unwrap_or(false);
-                        if need_reset {
-                            controller.set("effect_select", 0u16, UI);
-                        }
+    builder
+        .data(config.clone())
+        // effect_select: raw -> controller
+        .on("effect_select:raw")
+        .run(move |_, controller, origin, config| {
+            effect_select_from_midi(config, controller, origin);
+        })
+        // effect_select: controller -> raw
+        .on("effect_select")
+        .run(move |_, controller, _, config| {
+            if let Some(e) = effect_select_from_gui(&config, controller) {
+                /*
+                // POD sends controls after effect select
+                // Line6 Edit requests an edit buffer dump from the device
+                effect_select_send_controls(&mut controller, &e);
+                */
+            }
+        })
+        // delay_enable: controller -> raw
+        .on("delay_enable").from(UI)
+        .run(move |value, controller, origin, config| {
+            if value != 0 {
+                let effect_select = controller.get("effect_select:raw").unwrap();
+                let (_, delay, idx) =
+                    effect_entry_for_value(&config, effect_select).unwrap();
+                if !delay {
+                    // if `delay_enable` was switched on in the UI and if coming from
+                    // an effect which didn't have delay to begin with, check if it can
+                    // have a delay at all (POD 2.0 rotary cannot). If not, then switch
+                    // to plain "delay" effect.
+                    let need_reset = config.effects.get(idx)
+                        .map(|e| e.delay.is_none()).unwrap_or(false);
+                    if need_reset {
+                        controller.set("effect_select", 0u16, UI);
                     }
                 }
-            })
-        )
-    }
+            }
+        })
+        // effect_tweak
+        .on("effect_tweak").from(MIDI).from(NONE)
+        .run(move |value, controller, origin, config| {
+            let effect_select = controller.get("effect_select:raw").unwrap();
+            let (entry, _, _) =
+                effect_entry_for_value(&config, effect_select).unwrap();
+            let control_name = &entry.effect_tweak;
+            if control_name.is_empty() {
+                return;
+            }
 
-    // effect_tweak
-    {
-        let config = config.clone();
-        let controller = controller.clone();
-        let name = "effect_tweak".to_string();
-        callbacks.insert(
-            name.clone(),
-            Rc::new(move || {
-                let mut controller = controller.lock().unwrap();
-                let (_, origin) = controller.get_origin(&name).unwrap();
+            // HACK: as if everything's coming straight from MIDI
+            let config = controller.get_config("effect_tweak").unwrap();
+            let val = config.value_to_midi(value);
 
-                if origin == MIDI {
-                    let effect_select = controller.get("effect_select:raw").unwrap();
-                    let (entry, _, _) =
-                        effect_entry_for_value(&config, effect_select).unwrap();
-                    let control_name = &entry.effect_tweak;
-                    if control_name.is_empty() {
-                        return;
-                    }
-
-                    // HACK: as if everything's coming straight from MIDI
-                    let config = controller.get_config(&name).unwrap();
-                    let control_val = controller.get(&name).unwrap();
-                    let val = config.value_to_midi(control_val);
-
-                    let config = controller.get_config(&control_name).unwrap();
-                    let val = config.value_from_midi(val);
-                    controller.set(&control_name, val, MIDI);
-                }
-            })
-        )
-    }
+            let config = controller.get_config(&control_name).unwrap();
+            let val = config.value_from_midi(val);
+            controller.set(&control_name, val, origin);
+        });
 
     Ok(())
 }
