@@ -15,13 +15,14 @@ pub struct TuneIndicatorPriv {
     pos: Cell<f64>
 }
 
-const X1_MARGIN: f64 = 5.0;
-const X2_MARGIN: f64 = 2.0;
-const Y1_MARGIN: f64 = 5.0;
-const Y2_MARGIN: f64 = 5.0;
+const L_MARGIN: f64 = 5.0;
+const R_MARGIN: f64 = 5.0;
+const T_MARGIN: f64 = 5.0;
+const B_MARGIN: f64 = 5.0;
 
 const MID_NOTCH_H: f64 = 10.0;
 const NOTCH_H: f64 = 5.0;
+const BRACKET_W: f64 = 5.0;
 
 const ROMBUS_MARGIN_Y: f64 = 4.0;
 const ROMBUS_SCALE_H: f64 = 0.5;
@@ -51,32 +52,15 @@ impl TuneIndicatorPriv {
 
     fn draw(&self, cr: &Context, style: &gtk::StyleContext) -> Result<()> {
         let c = style.color(gtk::StateFlags::NORMAL);
+        let a = self.allocation.get();
 
         cr.set_source_rgb(c.red(), c.green(), c.blue());
-        cr.set_font_size(32.0);
 
-        let font_extents = cr.font_extents()?;
-        println!("{:?}", font_extents);
-
-        let mid_y = self.allocation.get().height() as f64 / 2.0 +
-                         font_extents.ascent / 2.0;
-
-        let l_extents = cr.text_extents("♭")?;
-        let r_extents = cr.text_extents("♯")?;
-
-        let x1 = l_extents.width + l_extents.x_bearing + X1_MARGIN;
-        let x2 = self.allocation.get().width() as f64 - r_extents.width - r_extents.x_bearing - X2_MARGIN;
-        let y1 = mid_y - font_extents.ascent + Y1_MARGIN;
-        let y2 = mid_y + font_extents.descent - Y2_MARGIN;
+        let x1 = L_MARGIN;
+        let x2 = a.width() as f64 - R_MARGIN;
+        let y1 = T_MARGIN + MID_NOTCH_H;
+        let y2 = a.height() as f64 - B_MARGIN - MID_NOTCH_H;
         let mid_x = x1 + (x2 - x1) / 2.0;
-
-        cr.move_to(0.0, mid_y);
-        cr.show_text("♭")?;
-
-        cr.move_to(x2 + X2_MARGIN, mid_y);
-        cr.show_text("♯")?;
-
-        //context.set_source_rgb(0.3,0.3, 0.3);
 
         cr.set_line_width(1.0);
         cr.move_to(x1, y1);
@@ -94,21 +78,25 @@ impl TuneIndicatorPriv {
         let x = mid_x + (x2 - mid_x - rw / 2.0) * pos;
         let y = y1 + (y2 - y1) / 2.0;
 
-        let draw_notch = |x: f64, h: f64| {
-            cr.move_to(x, y1 - h);
-            cr.line_to(x, y1);
-            cr.move_to(x, y2 + h);
-            cr.line_to(x, y2);
+        let draw_notch = |x: f64, h: f64, horizontal: f64| {
+            cr.move_to(x, y1);
+            cr.line_to(x, y1 - h);
+            cr.line_to(x + horizontal, y1 - h);
+            cr.move_to(x, y2);
+            cr.line_to(x, y2 + h);
+            cr.line_to(x + horizontal, y2 + h);
         };
 
         // mid notch
         cr.set_line_width(0.5);
-        draw_notch(mid_x, MID_NOTCH_H);
+        draw_notch(mid_x, MID_NOTCH_H, 0.0);
         // other notches
         for i in 1 ..= 5 {
             let x = (mid_x - x1 - rw / 2.0) / 5.0 * (i as f64);
-            draw_notch(mid_x - x, NOTCH_H);
-            draw_notch(mid_x + x, NOTCH_H);
+            let bw = if i == 1 { BRACKET_W } else { 0.0 };
+            let nh = if i == 1 { MID_NOTCH_H } else { NOTCH_H };
+            draw_notch(mid_x - x, nh, bw);
+            draw_notch(mid_x + x, nh, -bw);
         }
         cr.stroke()?;
 
@@ -124,6 +112,10 @@ impl TuneIndicatorPriv {
             // indicator
             cr.set_line_width(1.0);
             draw_rombus(x, y, rw, rh);
+            if (-0.2 ..= 0.2).contains(&pos) {
+                cr.close_path();
+                cr.fill()?;
+            }
             cr.stroke()?;
         }
 
@@ -207,6 +199,12 @@ impl WidgetImpl for TuneIndicatorPriv {
         //       context, computed x1,x2,y1,y2 and resulting rombus dimensions
         (100, 1000)
     }
+
+    fn preferred_height(&self, _widget: &Self::Type) -> (i32, i32) {
+        // TODO: calculate max width based on vexpand attribute
+        (50, 50)
+    }
+
 
     fn size_allocate(&self, widget: &Self::Type, allocation: &gtk::Allocation) {
         self.parent_size_allocate(widget, allocation);

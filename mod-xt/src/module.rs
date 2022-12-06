@@ -112,7 +112,6 @@ impl Interface for PodXtInterface {
 
         let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
         let tuner = Tuner::new();
-        tuner.set_expand(true);
         tuner_box.add(&tuner);
         tuner.show();
         wire_tuner(tuner, controller.clone(), &self.objects, callbacks)?;

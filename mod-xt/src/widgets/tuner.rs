@@ -16,7 +16,8 @@ glib::wrapper! {
 #[derive(Clone, Debug)]
 struct Widgets {
     indicator: TuneIndicator,
-    note: gtk::Label
+    note: gtk::Label,
+    octave: gtk::Label
 }
 
 pub struct TunerPriv {
@@ -26,13 +27,16 @@ pub struct TunerPriv {
 impl TunerPriv {
     fn set_note(&self, value: Option<usize>) {
         if let Some(w) = self.widgets.get() {
-            let mut label: String = EMPTY.into();
+            let mut note_label: String = EMPTY.into();
+            let mut octave_label: String = String::new();
             if let Some(v) = value {
                 let note = NOTES[v % 12];
+                note_label = note.into();
                 let octave = v / 12 + 1;
-                label = format!("{}<sub>{}</sub>", note, octave);
+                octave_label = format!("{}", octave);
             }
-            w.note.set_markup(&label);
+            w.note.set_text(&note_label);
+            w.octave.set_text(&octave_label);
         }
     }
 
@@ -60,18 +64,39 @@ impl ObjectImpl for TunerPriv {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
 
-        let indicator = TuneIndicator::new();
-        indicator.show();
-        obj.pack_start(&indicator, true, true, 0);
+        let left = gtk::Label::builder()
+            .use_markup(true)
+            .label("<span size='200%'>♭</span>")
+            .build();
+        obj.pack_start(&left, false, false, 0);
 
-        let note = gtk::Label::new(None);
-        note.set_margin_top(9);
-        note.set_width_request(10);
-        note.show();
+        let indicator = TuneIndicator::new();
+        obj.pack_start(&indicator, false, false, 0);
+
+        let right = gtk::Label::builder()
+            .use_markup(true)
+            .label("<span size='200%'>♯</span>")
+            .build();
+        obj.pack_start(&right, false, false, 0);
+
+        let note = gtk::Label::builder()
+            .label("")
+            .width_chars(2)
+            .margin_start(20)
+            .build();
         obj.pack_start(&note, false, false, 0);
 
+        let octave = gtk::Label::builder()
+            .label(&"")
+            .margin_top(5)
+            .margin_end(20)
+            .build();
+        obj.pack_start(&octave, false, false, 0);
+
+        obj.show_all();
+
         self.widgets.set(Widgets {
-            indicator, note
+            indicator, note, octave
         }).expect("Setting widgets failed");
 
         self.set_note(None);
@@ -84,9 +109,7 @@ impl BoxImpl for TunerPriv {}
 
 impl Tuner {
     pub fn new() -> Self {
-        glib::Object::new(&[
-            ("spacing", &10) // gtk::Box
-        ])
+        glib::Object::new(&[])
         .expect("Failed to create Tuner")
     }
 }
