@@ -354,6 +354,29 @@ fn wire_ui_controls(
     Ok(())
 }
 
+fn wire_open_button(ui: &gtk::Builder, window: &gtk::Window) {
+    let open_button = ui.object::<gtk::ToggleButton>("open_button").unwrap();
+    open_button.connect_clicked({
+        let window = window.clone();
+        let grid = ui.object::<gtk::Grid>("program_grid").unwrap();
+        move |button| {
+            let is_active = button.is_active();
+            // dynamically look up the current ProgramGrid widget from the UI
+            ObjectList::from_widget(&grid)
+                .objects_by_type::<ProgramGrid>().next()
+                .map(|g| {
+                    grid.remove(g);
+                    let w = if is_active { g.num_pages() * 2 } else { 2 };
+                    grid.attach(g, 0, 1, w as i32, 18);
+                    g.set_open(is_active);
+                });
+            if !button.is_active() {
+                make_window_smaller(window.clone());
+            }
+        }
+    });
+}
+
 async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
                                   controller: &Arc<Mutex<Controller>>,
                                   objs: &ObjectList, callbacks: &Callbacks,
@@ -559,10 +582,6 @@ async fn main() -> Result<()> {
     let ui_objects = ObjectList::new(&ui);
     let mut ui_callbacks = Callbacks::new();
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
-    wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
-                     app_event_tx.clone())?;
-    wire_settings_dialog(state.clone(), &ui);
-    wire_panic_indicator(state.clone());
 
     let title = format!("POD UI {}", &*VERSION);
 
@@ -576,6 +595,12 @@ async fn main() -> Result<()> {
             Inhibit(true)
         }
     });
+
+    wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
+                     app_event_tx.clone())?;
+    wire_settings_dialog(state.clone(), &ui);
+    wire_panic_indicator(state.clone());
+    wire_open_button(&ui, &window);
 
     let css = gtk::CssProvider::new();
     css.load_from_data(include_str!("default.css").as_bytes())
