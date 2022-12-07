@@ -380,23 +380,46 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
 }
 
 pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
+
     let in_port_names = MidiIn::ports()?;
+    let mut in_port_errors = vec![];
     let mut in_ports = in_port_names.iter().enumerate()
-        .map(|(i, _)| MidiIn::new(Some(i)))
-        .collect::<Result<Vec<_>>>()?;
+        .flat_map(|(i, name)| {
+            MidiIn::new(Some(i)).map_err(|e| {
+                let error = format!("Failed to open MIDI in port {:?}: {}", name, e);
+                warn!("{}", error);
+                in_port_errors.push(error);
+            }).ok()
+        })
+        .collect::<Vec<_>>();
 
     let out_port_names = MidiOut::ports()?;
+    let mut out_port_errors = vec![];
     let mut out_ports = out_port_names.iter().enumerate()
-        .map(|(i, _)| MidiOut::new(Some(i)))
-        .collect::<Result<Vec<_>>>()?;
+        .flat_map(|(i, name)| {
+            MidiOut::new(Some(i)).map_err(|e| {
+                let error = format!("Failed to open MIDI out port {:?}: {}", name, e);
+                warn!("{}", error);
+                out_port_errors.push(error);
+            }).ok()
+        })
+        .collect::<Vec<_>>();
 
     let mut config: Option<&Config> = None;
 
     if in_ports.len() < 1 {
-        bail!("No MIDI input ports found")
+        if in_port_errors.len() < 1 {
+            bail!("No MIDI input ports found")
+        } else {
+            bail!("Failed to open any MIDI input ports: {}", in_port_errors.join(", "))
+        }
     }
     if out_ports.len() < 1 {
-        bail!("No MIDI output ports found")
+        if out_port_errors.len() < 1 {
+            bail!("No MIDI output ports found")
+        } else {
+            bail!("Failed to open any MIDI output ports: {}", in_port_errors.join(", "))
+        }
     }
 
     // 1. find the input
