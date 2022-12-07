@@ -1,3 +1,4 @@
+#!/bin/bash
 #
 # usage: collect-gtk.sh <dest dir>
 #
@@ -70,7 +71,12 @@ echo "update-icon-cache: $UPDATE_ICON_CACHE"
 ROOT=$(realpath $(dirname $UPDATE_ICON_CACHE)/..)
 echo "root: $ROOT"
 LIBDIR=$(pkg-config --variable=libdir gtk+-3.0)
+# On MacOS with Homebrew every package installs its contents to a separate directory,
+# then the files are linked in to /usr/local/... tree, so if we fo with gtk+-3.0 or
+# gdk-pixbuf-2.0 libdir, we miss the other installed packages, like librsvg
+[[ "`uname`" == "Darwin" ]] && LIBDIR="$ROOT/lib"
 echo "libdir: $LIBDIR"
+
 
 echo "1. theme"
 mkdir -p $DIR/share/themes
@@ -113,7 +119,7 @@ for arg in "${EXCLUDE_PIXBUF[@]}"; do
 done
 find $DIR/lib/gdk-pixbuf-2.0 \( "${args[@]}" \) -delete
 
-if [ "$COLLECT_GTK_RELATIVE_PATHS" = "y" ]; then
+if [ "$COLLECT_GTK_RELATIVE_PATHS" = "1" ]; then
 	# update cache with relative paths
 	CACHE=$(find $DIR/lib/gdk-pixbuf-2.0 -name 'loaders.cache')
 	sed -i.old -E "s,\".*(lib/gdk-pixbuf.*)\",\"$2\\1\"," $CACHE
@@ -125,7 +131,7 @@ mkdir -p $DIR/lib/gtk-3.0/3.0.0
 cp -RL $LIBDIR/gtk-3.0/3.0.0/immodules $DIR/lib/gtk-3.0/3.0.0
 cp $LIBDIR/gtk-3.0/3.0.0/immodules.cache $DIR/lib/gtk-3.0/3.0.0
 
-if [ "$COLLECT_GTK_RELATIVE_PATHS" = "y" ]; then
+if [ "$COLLECT_GTK_RELATIVE_PATHS" = "1" ]; then
 	# update cache with relative paths
 	CACHE=$(find $DIR/lib/gtk-3.0 -name 'immodules.cache')
 	sed -i.old -E "s,\".*(lib/gtk-3.0/.*)\",\"$2\\1\"," $CACHE
