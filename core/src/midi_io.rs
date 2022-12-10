@@ -528,9 +528,9 @@ fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<Strin
             "We've detected that you have a PODxt device connected via " +
             "USB. Unfortunately, the Line6 USB driver is buggy and this " +
             "won't work. Please connect the device to a sound card with " +
-            "MIDI cables. The bug has been reported to the linux-usb " +
-            "mailing list. There's nothing else we can do except to wait " +
-            "and hope that the snd_usb_pod driver gets fixed soon...";
+            "MIDI cables. The patch for this bug has been sent to the " +
+            "kernel developers. There's nothing else to do but wait " +
+            "that it makes it to the mainline kernel soon...";
         return Some(error)
     }
 
@@ -538,6 +538,6 @@ fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<Strin
 }
 
 #[cfg(not(unix))]
-fn check_for_broken_drivers(midi: &MidiIn, bytes: Vec<u8>) -> Option<String> {
+fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<String> {
     None
 }
