@@ -7,10 +7,9 @@ use pod_core::config::configs;
 use pod_core::midi::Channel;
 use pod_core::midi_io::*;
 use pod_core::model::Config;
-use pod_gtk::prelude::{Continue, DialogExt, glib, gtk, GtkWindowExt, MessageDialogExt, WidgetExt};
+use pod_gtk::prelude::*;
 use crate::opts::Opts;
 use crate::{set_midi_in_out, State};
-use crate::util::ManualPoll;
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
     use std::str::FromStr;
@@ -51,17 +50,18 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
     if autodetect {
         let state = state.clone();
         let window = window.clone();
-        let mut autodetect = tokio::spawn(pod_core::midi_io::autodetect());
-
-        glib::idle_add_local(move || {
-            let cont = match(autodetect).poll() {
-                None => { true }
-                Some(Ok((midi_in, midi_out, midi_channel, config))) => {
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        tokio::spawn(async move {
+            let res = pod_core::midi_io::autodetect().await;
+            tx.send(res).ok();
+        });
+        rx.attach(None, move |autodetect| {
+            match autodetect {
+                Ok((midi_in, midi_out, midi_channel, config)) => {
                     set_midi_in_out(&mut state.lock().unwrap(),
                                     Some(midi_in), Some(midi_out), midi_channel, Some(config));
-                    false
                 }
-                Some(Err(e)) => {
+                Err(e) => {
                     error!("MIDI autodetect failed: {}", e);
 
                     if e.to_string().starts_with("We've detected that you have a PODxt") {
@@ -84,11 +84,10 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                         .or_else(|| configs().iter().next());
                     set_midi_in_out(&mut state.lock().unwrap(),
                                     None, None, Channel::all(), config);
-                    false
                 }
             };
 
-            Continue(cont)
+            Continue(false)
         });
     } else {
         let midi_in =

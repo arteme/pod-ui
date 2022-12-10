@@ -4,12 +4,10 @@ use pod_core::midi_io::*;
 use pod_gtk::prelude::*;
 use gtk::{IconSize, ResponseType};
 use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
-use crate::util::ManualPoll;
 
 use log::*;
 use pod_core::config::configs;
 use pod_core::midi::Channel;
-use pod_core::model::MidiQuirks;
 
 #[derive(Clone)]
 struct SettingsDialog {
@@ -164,15 +162,18 @@ fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
 fn wire_autodetect_button(settings: &SettingsDialog) {
     let mut settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
-        let mut autodetect = tokio::spawn(pod_core::midi_io::autodetect());
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        tokio::spawn(async move {
+            let res = pod_core::midi_io::autodetect().await;
+            tx.send(res).ok();
+        });
 
         let mut settings = settings.clone();
         settings.work_start(Some(button));
 
-        glib::idle_add_local(move || {
-            let cont = match autodetect.poll() {
-                None => { true }
-                Some(Ok((in_, out_, channel, config))) => {
+        rx.attach(None, move |autodetect| {
+            let cont = match autodetect {
+                Ok((in_, out_, channel, config)) => {
                     let msg = format!("Autodetect successful!");
                     settings.work_finish("dialog-ok", &msg);
 
@@ -182,17 +183,14 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
                     populate_model_combo(&settings, &Some(config.name.clone()));
-                    false
                 }
-                Some(Err(e)) => {
+                Err(e) => {
                     error!("Settings MIDI autodetect failed: {}", e);
                     let msg = format!("Autodetect failed:\n{}", e);
                     settings.work_finish("dialog-error", &msg);
-
-                    false
                 }
             };
-            Continue(cont)
+            Continue(false)
         });
     });
 }
@@ -221,17 +219,18 @@ fn wire_test_button(settings: &SettingsDialog) {
         let midi_out = midi_out.as_ref().unwrap().to_string();
         let midi_channel = midi_channel_from_combo_index(midi_channel);
 
-        let mut test = tokio::spawn(async move {
-            pod_core::midi_io::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        tokio::spawn(async move {
+            let res = pod_core::midi_io::test(&midi_in, &midi_out, midi_channel, config.unwrap()).await;
+            tx.send(res).ok();
         });
 
         let mut settings = settings.clone();
         settings.work_start(Some(button));
 
-        glib::idle_add_local(move || {
-            let cont = match test.poll() {
-                None => { true }
-                Some(Ok((in_, out_, _))) => {
+        rx.attach(None, move |test| {
+            let cont = match test {
+                Ok((in_, out_, _)) => {
                     let msg = format!("Test successful!");
                     settings.work_finish("dialog-ok", &msg);
 
@@ -239,17 +238,14 @@ fn wire_test_button(settings: &SettingsDialog) {
                     // TODO: do we need to update the combo here at all?
                     populate_midi_combos(&settings,
                                          &Some(in_.name.clone()), &Some(out_.name.clone()));
-                    false
                 }
-                Some(Err(e)) => {
+                Err(e) => {
                     error!("Settings MIDI test failed: {}", e);
                     let msg = format!("Test failed:\n{}", e);
                     settings.work_finish("dialog-error", &msg);
-
-                    false
                 }
             };
-            Continue(cont)
+            Continue(false)
         });
     });
 }
@@ -259,7 +255,6 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
     let settings_button: gtk::Button = ui.object("settings_button").unwrap();
 
     let settings_ = settings.clone();
-    let state_ = state.clone();
 
     settings_button.connect_clicked(move |_| {
         // reset the dialog
@@ -285,35 +280,34 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         settings.set_message("", "Waiting for MIDI...");
         settings.set_interactive(false);
 
-        let mut midi_io_stop_wait = tokio::spawn(async {
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        tokio::spawn(async move {
             let results = midi_io_stop_handle.await;
             let errors = results.into_iter()
                 .filter(|r| r.is_err())
                 .map(|r| r.unwrap_err())
                 .collect::<Vec<_>>();
-            if errors.is_empty() {
+            let res = if errors.is_empty() {
                 Ok(())
             } else {
                 Err(anyhow!("Failed to stop {} MIDI threads", errors.len()))
-            }
+            };
+            tx.send(res).ok();
         });
 
         {
             let mut settings = settings.clone();
-            glib::idle_add_local(move || {
-                let cont = match midi_io_stop_wait.poll() {
-                    None => { true }
-                    Some(Ok(_)) => {
+            rx.attach(None, move |midi_io_stop_wait| {
+                let cont = match midi_io_stop_wait {
+                    Ok(_) => {
                         settings.work_finish("", "");
-                        false
                     }
-                    Some(Err(e)) => {
+                    Err(e) => {
                         let msg = format!("Failed to stop MIDI threads:\n{}", e);
                         settings.work_finish("dialog-error", &msg);
-                        false
                     }
                 };
-                Continue(cont)
+                Continue(false)
             });
         }
 
