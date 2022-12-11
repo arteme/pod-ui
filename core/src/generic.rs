@@ -429,12 +429,9 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
                 }
             };
             if update_edit_buffer {
-                let current = match ctx.program() {
-                    Program::Program(v) => { v as usize }
-                    _ => {
-                        error!("Update edit buffer flag, but program: {:?}", ctx.program());
-                        return;
-                    }
+                let Some(current) = num_program(&ctx.program()) else {
+                    warn!("Update edit buffer flag, but program: {:?}", ctx.program());
+                    return;
                 };
                 program::load_patch_dump_ctrl(
                     &mut ctx.edit.lock().unwrap(),
@@ -577,6 +574,7 @@ pub fn new_device_handler(ctx: &Ctx) {
 pub fn num_program(p: &Program) -> Option<usize> {
     match p {
         Program::ManualMode | Program::Tuner => { None }
+        Program::Program(1000) => { None }
         Program::Program(v) => { Some(*v as usize) }
     }
 }
