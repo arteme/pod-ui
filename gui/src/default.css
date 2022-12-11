@@ -2,3 +2,8 @@ programbutton.modified {
     font-weight: bold;
     font-style: italic;
 }
+
+#toggles button {
+    font-size: x-small;
+    min-height: 10px;
+}
