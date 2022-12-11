@@ -14,9 +14,19 @@ pub fn wire_toggles(container_name: &str,
                     objs: &ObjectList,
                     callbacks: &mut Callbacks) -> Result<()> {
     let grid = objs.ref_by_name::<gtk::Grid>(container_name)?;
+    // The grid is intended to have homogeneous column size, but if we rely on GTK
+    // grid "column-homogeneous" property, then the total grid changes minimum size
+    // as widgets below are repositioned. Seems like a bug (arch linux gtk-1:3.24.35-1)
+    //
+    // Instead, we'll set grid's "column-homogeneous" to false, its children's
+    // "hexpand" to true and add a `gtk::SizeGroup` to make the widths homogeneous.
+    grid.set_column_homogeneous(false);
+    let sg = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
 
     for toggle in toggles.iter() {
         let widget = objs.ref_by_name::<gtk::Widget>(&toggle.name)?;
+        widget.set_hexpand(true);
+        sg.add_widget(&widget);
         if let Some(parent) = widget.parent() {
             let parent = parent.dynamic_cast_ref::<gtk::Container>().unwrap();
             parent.remove(&widget);
@@ -26,6 +36,8 @@ pub fn wire_toggles(container_name: &str,
 
         // add widget relocation on position_control toggle
         let button = gtk::Button::with_label(">");
+        button.set_hexpand(true);
+        sg.add_widget(&button);
 
         let set_position = {
             let toggle = toggle.clone();
