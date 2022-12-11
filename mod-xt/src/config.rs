@@ -373,6 +373,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         // volume pedal
         "vol_level" => RangeControl { cc: 7, addr: 32 + 7, format: fmt_percent!(), ..def() },
         "vol_minimum" => RangeControl { cc: 46, addr: 32 + 46, format: fmt_percent!(), ..def() },
+        "vol_pedal_position" => SwitchControl { cc: 47, addr: 32 + 47, ..def() },
         // wah wah
         "wah_select" => Select { cc: 91, addr: 32 + 91, ..def() },
         "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
