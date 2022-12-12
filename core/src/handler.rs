@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use crate::context::Ctx;
 use crate::controller::Controller;
 use crate::event::*;

@@ -146,7 +146,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
 
     let mut names = configs().iter().map(|c| &c.name).collect::<Vec<_>>();
     names.sort();
-    for (i, &name) in names.iter().enumerate() {
+    for &name in names.iter() {
         settings.model_combo.append_text(name.as_str());
     }
 
@@ -160,7 +160,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
 }
 
 fn wire_autodetect_button(settings: &SettingsDialog) {
-    let mut settings = settings.clone();
+    let settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         tokio::spawn(async move {
@@ -172,7 +172,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
         settings.work_start(Some(button));
 
         rx.attach(None, move |autodetect| {
-            let cont = match autodetect {
+            match autodetect {
                 Ok((in_, out_, channel, config)) => {
                     let msg = format!("Autodetect successful!");
                     settings.work_finish("dialog-ok", &msg);
@@ -229,7 +229,7 @@ fn wire_test_button(settings: &SettingsDialog) {
         settings.work_start(Some(button));
 
         rx.attach(None, move |test| {
-            let cont = match test {
+            match test {
                 Ok((in_, out_, _)) => {
                     let msg = format!("Test successful!");
                     settings.work_finish("dialog-ok", &msg);
@@ -298,7 +298,7 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
         {
             let mut settings = settings.clone();
             rx.attach(None, move |midi_io_stop_wait| {
-                let cont = match midi_io_stop_wait {
+                match midi_io_stop_wait {
                     Ok(_) => {
                         settings.work_finish("", "");
                     }

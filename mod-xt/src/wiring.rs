@@ -4,7 +4,7 @@ use pod_core::model::{AbstractControl, Config};
 use pod_gtk::prelude::*;
 use anyhow::*;
 use log::*;
-use pod_core::controller::StoreOrigin::{MIDI, NONE, UI};
+use pod_core::controller::StoreOrigin::UI;
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
@@ -83,7 +83,6 @@ fn update_combo<F>(objs: &ObjectList, name: &str, update: F) -> Result<()>
 
 pub fn wire_di_show(controller: Arc<Mutex<Controller>>, config: &'static Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
     builder
         // wire `amp_select` for `di:show`
         .on("amp_select")
@@ -388,7 +387,7 @@ pub fn wire_tuner(tuner: Tuner,
     builder
         .data(tuner)
         .on("tuner_offset")
-        .run(move |value, controller, _, tuner| {
+        .run(move |value, _, _, tuner| {
             if value == 97 {
                 tuner.set_offset(None);
             } else {
@@ -397,7 +396,7 @@ pub fn wire_tuner(tuner: Tuner,
             }
         })
         .on("tuner_note")
-        .run(move |value, controller, _, tuner| {
+        .run(move |value, _, _, tuner| {
             if value == 0xfffe {
                 tuner.set_note(None);
             } else {

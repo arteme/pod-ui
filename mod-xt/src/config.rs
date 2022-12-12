@@ -179,12 +179,6 @@ fn heel_toe_to_midi(value: u16) -> u8 {
 
 
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
-    let pod2_config = pod_mod_pod2::module().config()[0].clone();
-    let exclude = vec![
-        "drive2", "digiout_show", "eq_enable", "effect_enable",
-        "reverb_type", "reverb_diffusion", "reverb_density"
-    ];
-
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
         // switches
         "noise_gate_enable" => SwitchControl { cc: 22, addr: 32 + 22, ..def() },

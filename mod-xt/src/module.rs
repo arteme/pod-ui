@@ -28,7 +28,7 @@ impl Module for PodXtModule {
         Box::new(PodXtInterface::new(config))
     }
 
-    fn handler(&self, config: &'static Config) -> BoxedHandler {
+    fn handler(&self, _config: &'static Config) -> BoxedHandler {
         Box::new(PodXtHandler::new())
     }
 }

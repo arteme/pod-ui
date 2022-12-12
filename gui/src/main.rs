@@ -12,7 +12,6 @@ use std::time::{Duration, Instant};
 use anyhow::*;
 use clap::{Args, Command, FromArgMatches};
 use core::result::Result::Ok;
-use std::ops::Deref;
 use std::rc::Rc;
 use futures_util::future::{join_all, JoinAll};
 use futures_util::FutureExt;
@@ -30,7 +29,6 @@ use pod_core::controller::*;
 use pod_core::event::*;
 use pod_core::dispatch::*;
 use pod_core::dump::ProgramsDump;
-use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_gtk::logic::LogicBuilder;
@@ -39,14 +37,14 @@ use crate::opts::*;
 use crate::panic::*;
 use crate::registry::*;
 use crate::settings::*;
-use crate::util::next_thread_id;
+use crate::util::{next_thread_id, SenderExt as SenderExt2};
 use crate::widgets::*;
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const CLOSE_QUIET_DURATION_MS: u64 = 1000;
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum UIEvent {
     DeviceDetected(DeviceDetectedEvent),
     NewMidiConnection,
@@ -91,7 +89,7 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
         "store_patch_button" => Button::default(),
         "store_all_button" => Button::default(),
 
-        /// Set if device config contains DeviceFlags::MANUAL_MODE
+        // Set if device config contains DeviceFlags::MANUAL_MODE
         "manual_mode_present" => VirtualSelect::default(),
     ))
 });
@@ -162,8 +160,8 @@ pub fn midi_in_out_start(state: &mut State,
     let mut midi_in = midi_in.unwrap();
     let mut midi_out = midi_out.unwrap();
 
-    let (in_cancel_tx, mut in_cancel_rx) = oneshot::channel::<()>();
-    let (out_cancel_tx, mut out_cancel_rx) = oneshot::channel::<()>();
+    let (in_cancel_tx, in_cancel_rx) = oneshot::channel::<()>();
+    let (out_cancel_tx, out_cancel_rx) = oneshot::channel::<()>();
 
     state.midi_in_name = Some(midi_in.name.clone());
     state.midi_in_cancel = Some(in_cancel_tx);
@@ -193,8 +191,8 @@ pub fn midi_in_out_start(state: &mut State,
                         msg = midi_in.recv() => {
                             match msg {
                                 Some(bytes) => {
-                                    app_event_tx.send(AppEvent::MidiIn(bytes));
-                                    ui_event_tx.send(UIEvent::MidiRx);
+                                    app_event_tx.send_or_warn(AppEvent::MidiIn(bytes));
+                                    ui_event_tx.send_or_warn(UIEvent::MidiRx);
                                 }
                                 _ => {}
                             }
@@ -240,7 +238,7 @@ pub fn midi_in_out_start(state: &mut State,
                                 Ok(AppEvent::MidiOut(bytes)) => {
                                     midi_out.send(&bytes)
                                     .unwrap_or_else(|e| error!("MIDI OUT thread tx error: {}", e));
-                                    ui_event_tx.send(UIEvent::MidiTx);
+                                    ui_event_tx.send_or_warn(UIEvent::MidiTx);
                                 }
                                 Err(err) => {
                                     error!("MIDI OUT thread rx error: {:?}", err);
@@ -318,37 +316,37 @@ fn wire_ui_controls(
             };
             if v >= 1000 { return } // hidden program button, no PC events
             let e = ProgramChangeEvent { program: v.into(), origin };
-            app_event_tx.send(AppEvent::ProgramChange(e));
+            app_event_tx.send_or_warn(AppEvent::ProgramChange(e));
         })
         .on("load_button")
         .run(move |_,_,_,app_event_tx| {
             let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
-            app_event_tx.send(AppEvent::Load(e));
+            app_event_tx.send_or_warn(AppEvent::Load(e));
         })
         .on("load_patch_button")
         .run(move |_,_,_,app_event_tx| {
             let e = BufferLoadEvent { buffer: Buffer::Current, origin: Origin::UI };
-            app_event_tx.send(AppEvent::Load(e));
+            app_event_tx.send_or_warn(AppEvent::Load(e));
         })
         .on("load_all_button")
         .run(move |_,_,_,app_event_tx| {
             let e = BufferLoadEvent { buffer: Buffer::All, origin: Origin::UI };
-            app_event_tx.send(AppEvent::Load(e));
+            app_event_tx.send_or_warn(AppEvent::Load(e));
         })
         .on("store_button")
         .run(move |_,_,_,app_event_tx| {
             let e = BufferStoreEvent { buffer: Buffer::EditBuffer, origin: Origin::UI };
-            app_event_tx.send(AppEvent::Store(e));
+            app_event_tx.send_or_warn(AppEvent::Store(e));
         })
         .on("store_patch_button")
         .run(move |_,_,_,app_event_tx| {
             let e = BufferStoreEvent { buffer: Buffer::Current, origin: Origin::UI };
-            app_event_tx.send(AppEvent::Store(e));
+            app_event_tx.send_or_warn(AppEvent::Store(e));
         })
         .on("store_all_button")
         .run(move |_,_,_,app_event_tx| {
             let e = BufferStoreEvent { buffer: Buffer::All, origin: Origin::UI };
-            app_event_tx.send(AppEvent::Store(e));
+            app_event_tx.send_or_warn(AppEvent::Store(e));
         });
 
     Ok(())
@@ -591,7 +589,7 @@ async fn main() -> Result<()> {
         let app_event_tx = app_event_tx.clone();
         move |_, _| {
             info!("Shutting down...");
-            app_event_tx.send(AppEvent::Shutdown);
+            app_event_tx.send_or_warn(AppEvent::Shutdown);
             Inhibit(true)
         }
     });
@@ -713,7 +711,7 @@ async fn main() -> Result<()> {
                 match &msg {
                     // device detected
                     AppEvent::DeviceDetected(event) => {
-                        ui_event_tx.send(UIEvent::DeviceDetected(event.clone()));
+                        ui_event_tx.send_or_warn(UIEvent::DeviceDetected(event.clone()));
                     }
                     // new config & shutdown
                     AppEvent::NewConfig => {
@@ -722,7 +720,7 @@ async fn main() -> Result<()> {
                         let mut ctx_share = ctx_share.lock().unwrap();
                         *ctx_share = ctx.take();
 
-                        ui_event_tx.send(UIEvent::NewConfig);
+                        ui_event_tx.send_or_warn(UIEvent::NewConfig);
                     }
                     AppEvent::NewCtx => {
                         trace!("New context installed...");
@@ -731,7 +729,7 @@ async fn main() -> Result<()> {
                         new_device_handler(ctx.as_ref().unwrap());
                     }
                     AppEvent::Shutdown => {
-                        ui_event_tx.send(UIEvent::Shutdown);
+                        ui_event_tx.send_or_warn(UIEvent::Shutdown);
                     }
 
                     // message conversion
@@ -949,7 +947,7 @@ async fn main() -> Result<()> {
                     //       it can be a local to the UI thread
                     let mut state = state.lock().unwrap();
                     state.detected.replace(event);
-                    ui_event_tx.send(UIEvent::NewMidiConnection);
+                    ui_event_tx.send_or_warn(UIEvent::NewMidiConnection);
                 }
                 UIEvent::NewMidiConnection => {
                     let state = state.lock().unwrap();
@@ -1025,8 +1023,6 @@ async fn main() -> Result<()> {
                     info!("Quitting...");
                     // application is being closed, perform clean-up
                     // that needs to happen inside the GTK thread...
-
-                    let window: gtk::Window = ui.object("ui_win").unwrap();
 
                     // detach the program buttons so that there are no
                     // "GTK signal handler not found" errors when SignalHandler

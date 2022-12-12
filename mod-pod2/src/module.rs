@@ -22,7 +22,7 @@ impl Module for Pod2Module {
         Box::new(Pod2Interface::new(config))
     }
 
-    fn handler(&self, config: &'static Config) -> BoxedHandler {
+    fn handler(&self, _config: &'static Config) -> BoxedHandler {
         Box::new(Pod2Handler)
     }
 }

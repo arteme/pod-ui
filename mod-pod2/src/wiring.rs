@@ -13,7 +13,6 @@ use pod_gtk::prelude::*;
 pub fn wire_14bit(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks,
                   control_name: &str, msb_name: &str, lsb_name: &str, big_endian: bool) -> Result<()> {
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
     builder
         .on(control_name)
         .run({
@@ -100,7 +99,6 @@ pub fn wire_amp_select(controller: Arc<Mutex<Controller>>, config: &Config, objs
 pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let entry = objs.ref_by_name::<gtk::Entry>("program_name").unwrap();
     entry.set_max_length(config.program_name_length as i32);
-    //entry.set_width_chars(config.program_name_length as i32);
 
     let handler;
 
@@ -204,7 +202,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         // effect_select: controller -> raw
         .on("effect_select")
         .run(move |_, controller, _, config| {
-            if let Some(e) = effect_select_from_gui(&config, controller) {
+            if let Some(_e) = effect_select_from_gui(&config, controller) {
                 /*
                 // POD sends controls after effect select
                 // Line6 Edit requests an edit buffer dump from the device
@@ -227,7 +225,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
                     let need_reset = config.effects.get(idx)
                         .map(|e| e.delay.is_none()).unwrap_or(false);
                     if need_reset {
-                        controller.set("effect_select", 0u16, UI);
+                        controller.set("effect_select", 0u16, origin);
                     }
                 }
             }

@@ -4,7 +4,7 @@ use crate::controller::*;
 use crate::event::*;
 use crate::event::Origin::{MIDI, UI};
 use crate::midi::{Channel, MidiMessage};
-use crate::model::{AbstractControl, Control, DeviceFlags};
+use crate::model::{AbstractControl, DeviceFlags};
 use crate::{config, program};
 use crate::cc_values::*;
 
@@ -13,22 +13,6 @@ fn update_edit_buffer(ctx: &Ctx, event: &ControlChangeEvent) {
     let edit = ctx.edit.lock().unwrap();
     let mut raw = edit.raw_locked();
     ctx.handler.control_value_to_buffer(controller, event.name.as_str(), &mut raw);
-    /*
-    let dump = &mut ctx.dump.lock().unwrap();
-
-    let Some(idx) = num_program(&ctx.program()) else {
-        // not updating dump in manual mode or tuner
-        return;
-    };
-
-    let Some(buffer) = dump.data_mut(idx) else {
-        warn!("No dump buffer for program {}", idx);
-        return;
-    };
-
-    control_value_to_buffer(controller, event, buffer);
-     */
-
 }
 
 fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
@@ -136,8 +120,8 @@ pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     ctx.set_program(Program::from(*program as u16), MIDI);
 }
 
-pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    let MidiMessage::ProgramChange { program, .. } = midi_message else {
+pub fn midi_pc_out_handler(_ctx: &Ctx, midi_message: &MidiMessage) {
+    let MidiMessage::ProgramChange { .. } = midi_message else {
         warn!("Incorrect MIDI message for MIDI PC handler: {:?}", midi_message);
         return;
     };
@@ -288,6 +272,7 @@ pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
     }
 }
 
+#[allow(unused_variables)]
 pub fn midi_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
@@ -504,7 +489,7 @@ pub fn midi_udi_handler(ctx: &Ctx, midi_message: &MidiMessage) {
             };
             ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
         }
-        MidiMessage::UniversalDeviceInquiryResponse { channel, family, member, ver } => {
+        MidiMessage::UniversalDeviceInquiryResponse { family, member, ver, .. } => {
             let c1 = &ver.chars().next().unwrap_or_default();
             let version = if ('0' ..= '9').contains(c1) {
                 let hi = if *c1 == '0' { &ver[1 ..= 1] } else { &ver[0 ..= 1] };

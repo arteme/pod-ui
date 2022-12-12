@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::atomic;
@@ -24,7 +23,6 @@ const MARKER_STORE_STATUS_TIMEOUT: u32 = 0x0002;
 
 struct Inner {
     midi_out_queue: VecDeque<MidiMessage>,
-    sent: bool,
     /// Send XtStoreStatus ack message when the XtPatchDump message is
     /// received (from Line6 Edit)
     need_store_ack: bool,
@@ -45,7 +43,6 @@ impl PodXtHandler {
     pub fn new() -> Self {
         let inner = Inner {
             midi_out_queue: VecDeque::new(),
-            sent: false,
             need_store_ack: false,
             store_programs: BitSet::with_capacity(128),
             store_status_timeout_handler: None,
@@ -55,7 +52,7 @@ impl PodXtHandler {
     }
 
     pub fn queue_send(&self, ctx: &Ctx) -> bool {
-        let mut inner = self.inner.borrow_mut();
+        let inner = self.inner.borrow_mut();
         if let Some(msg) = inner.midi_out_queue.front() {
             ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg.clone()));
             true

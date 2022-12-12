@@ -15,7 +15,7 @@ static mut MODULES: Vec<Box<dyn Module>> = vec![];
 fn validate_unique_cc(config: &Config) -> bool {
     let mut seen_cc = vec![];
     let mut ok = true;
-    for (k, v) in config.controls.iter() {
+    for (_, v) in config.controls.iter() {
         if let Some(cc) = v.get_cc() {
             if seen_cc.contains(&cc) {
                 error!("Config {:?} contains multiple controls for CC={}", config.name, cc);

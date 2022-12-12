@@ -405,7 +405,7 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
         })
         .collect::<Vec<_>>();
 
-    let mut config: Option<&Config> = None;
+    let config: Option<&Config>;
 
     if in_ports.len() < 1 {
         if in_port_errors.len() < 1 {

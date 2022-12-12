@@ -22,7 +22,7 @@ impl Module for PocketPodModule {
         Box::new(PocketPodInterface::new(config))
     }
 
-    fn handler(&self, config: &'static Config) -> BoxedHandler {
+    fn handler(&self, _config: &'static Config) -> BoxedHandler {
         Box::new(Pod2Handler)
     }
 }

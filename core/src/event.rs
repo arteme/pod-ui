@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use log::warn;
 use tokio::sync::broadcast;
 use crate::midi::MidiMessage;
@@ -147,12 +148,12 @@ pub fn is_system_app_event(event: &AppEvent) -> bool {
 
 pub type EventSender = broadcast::Sender<AppEvent>;
 
-pub trait EventSenderExt {
-    fn send_or_warn(&self, msg: AppEvent);
+pub trait SenderExt<T> {
+    fn send_or_warn(&self, msg: T);
 }
 
-impl EventSenderExt for EventSender {
-    fn send_or_warn(&self, msg: AppEvent) {
+impl <T: Debug> SenderExt<T> for broadcast::Sender<T> {
+    fn send_or_warn(&self, msg: T) {
         self.send(msg).unwrap_or_else(|err| {
             warn!("Message cannot be sent: {:?}", err.0);
             0

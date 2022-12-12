@@ -1,6 +1,6 @@
 use std::time::Duration;
 use pod_core::context::Ctx;
-use pod_core::event::{AppEvent, EventSenderExt};
+use pod_core::event::{AppEvent, SenderExt};
 use pod_core::midi::MidiMessage;
 
 pub struct Tuner {
