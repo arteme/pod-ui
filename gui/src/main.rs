@@ -129,14 +129,6 @@ pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
     state.midi_in_cancel.take().map(|cancel| cancel.send(()));
     state.midi_out_cancel.take().map(|cancel| cancel.send(()));
 
-    /* TODO: this should one day be 'async fn midi_in_out_stop' so that we
-             can wait on the MIDI in/out threads stopping, but for now,
-             State is not Send, so we can't really schedule this in a
-             separate thread. For now we assume that MIDI in/out threads stop
-             "very soon after cancel is signalled", which should be good
-             enough around the settings dialog user interaction...
-    */
-
     let handles = state.midi_in_handle.take().into_iter()
         .chain(state.midi_out_handle.take().into_iter());
     join_all(handles)
@@ -263,7 +255,14 @@ pub fn midi_in_out_start(state: &mut State,
 
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
                        midi_channel: u8, config: Option<&'static Config>) -> bool {
-    midi_in_out_stop(state);
+    if state.midi_in_cancel.is_some() || state.midi_out_cancel.is_some() {
+        error!("Midi still running when entering send_midi_in_out");
+        // Not sure if we ever end up in this situation anymore,
+        // let's just register it to sentry for not
+        sentry::capture_message("Midi still running when entering send_midi_in_out",
+                                sentry::Level::Error);
+        //midi_in_out_stop(state);
+    }
 
     let config_changed = match (config, state.config) {
         (Some(a), Some(b)) => { *a != *b }
@@ -284,10 +283,6 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
     //let quirks = state.config.read().unwrap().midi_quirks;
     let quirks = MidiQuirks::empty();
     midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks);
-
-    // we assume that something changed -- either the config or the midi settings
-    // so signal a new device ping!
-    //state.ui_event_tx.send(UIEvent::NewDevice);
 
     config_changed
 }
@@ -711,6 +706,12 @@ async fn main() -> Result<()> {
                 match &msg {
                     // device detected
                     AppEvent::DeviceDetected(event) => {
+                        sentry_set_device_tags(
+                            &event.name,
+                            &event.version,
+                            &ctx.as_ref().map(|ctx| ctx.config.name.clone())
+                                .unwrap_or_else(|| "?".into())
+                        );
                         ui_event_tx.send_or_warn(UIEvent::DeviceDetected(event.clone()));
                     }
                     // new config & shutdown
