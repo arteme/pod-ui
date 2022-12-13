@@ -54,6 +54,7 @@ pub enum UIEvent {
     Panic,
     Modified(usize, bool),
     Name(usize, String),
+    Notification(String),
     Shutdown,
     Quit
 }
@@ -589,6 +590,13 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Re-parent window content into a notification overlay
+    let widget = window.child().unwrap();
+    window.remove(&widget);
+    let overlay = NotificationOverlay::new();
+    window.add(&overlay);
+    overlay.add(&widget);
+
     wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
                      app_event_tx.clone())?;
     wire_settings_dialog(state.clone(), &ui);
@@ -713,6 +721,10 @@ async fn main() -> Result<()> {
                                 .unwrap_or_else(|| "?".into())
                         );
                         ui_event_tx.send_or_warn(UIEvent::DeviceDetected(event.clone()));
+                    }
+                    // forward notification messages to the UI thread
+                    AppEvent::Notification(msg) => {
+                        ui_event_tx.send_or_warn(UIEvent::Notification(msg.clone()));
                     }
                     // new config & shutdown
                     AppEvent::NewConfig => {
@@ -987,6 +999,9 @@ async fn main() -> Result<()> {
                     let subtitle = format!("{} @ {}", name, subtitle);
 
                     header_bar.set_subtitle(Some(&subtitle));
+                }
+                UIEvent::Notification(msg) => {
+                    overlay.add_notification(msg.as_str());
                 }
                 UIEvent::Shutdown if !shutting_down => {
                     header_bar.set_subtitle(Some("Shutting down..."));
