@@ -30,6 +30,11 @@ impl NotificationOverlayPriv {
             .valign(gtk::Align::Start)
             .build();
 
+        // make sure these are done before rev is added to the notification box
+        rev.set_has_window(true);
+        rev.set_sensitive(true);
+        rev.set_events(EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK);
+
         let label = gtk::Label::builder()
             .margin_end(2)
             .use_markup(true)
@@ -39,12 +44,15 @@ impl NotificationOverlayPriv {
         let sc = label.style_context();
         sc.add_class("app-notification");
         rev.add(&label);
+        rev.set_has_window(true);
         rev.show_all();
 
         w.notifications_box.add(&rev);
 
+        // show the notification
         rev.set_reveal_child(true);
 
+        // remove notification when hiding animation is complete
         rev.connect_child_revealed_notify(
             glib::clone!(@weak w.notifications_box as n => @default-return (), move |rev| {
                 if !rev.is_child_revealed() {
@@ -52,19 +60,15 @@ impl NotificationOverlayPriv {
                 }
         }));
 
-        label.set_has_window(true);
-        label.set_sensitive(true);
-        label.set_events(EventMask::ALL_EVENTS_MASK);
-        label.connect_button_release_event(
-            glib::clone!(@weak rev => @default-return Inhibit(false), move |_, event| {
-                if !event.is::<EventButton>() { return Inhibit(false) }
-                if rev.reveals_child() {
-                    rev.set_reveal_child(false);
-                }
-                Inhibit(false)
-            })
-        );
+        // dismiss notification on click on the revelater
+        rev.connect_button_release_event(|rev, event| {
+            if rev.reveals_child() {
+                rev.set_reveal_child(false);
+            }
+            Inhibit(false)
+        });
 
+        // dismiss notification after 5 seconds of showing it
         glib::timeout_add_local_once(
             Duration::from_millis(5000),
             glib::clone!(@weak rev => @default-return (), move || {
@@ -97,8 +101,10 @@ impl ObjectImpl for NotificationOverlayPriv {
         self.parent_add(&obj, &overlay.clone().upcast());
 
         let notifications_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        notifications_box.set_valign(gtk::Align::Start); // not needed, strictly speaking
         notifications_box.set_margin_top(2);
         overlay.add_overlay(&notifications_box);
+        overlay.set_overlay_pass_through(&notifications_box, true);
 
         self.widgets.set(Widgets {
             overlay,
@@ -107,9 +113,7 @@ impl ObjectImpl for NotificationOverlayPriv {
     }
 }
 
-impl WidgetImpl for NotificationOverlayPriv {
-
-}
+impl WidgetImpl for NotificationOverlayPriv {}
 impl ContainerImpl for NotificationOverlayPriv {
     fn add(&self, _container: &Self::Type, widget: &Widget) {
         let Some(w) = self.widgets.get() else { return; };
