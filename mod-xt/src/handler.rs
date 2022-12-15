@@ -336,8 +336,9 @@ impl Handler for PodXtHandler {
                         ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
                     }
                 } else {
-                    error!("Store of the programs failed!");
-                    // TODO: show error in UI?
+                    let msg = format!("Storing programs to the device failed!");
+                    error!("{}", msg);
+                    ctx.app_event_tx.send_or_warn(AppEvent::Notification(msg));
 
                     inner.store_programs.clear();
                 }
