@@ -604,7 +604,7 @@ async fn main() -> Result<()> {
 
     wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
                      app_event_tx.clone())?;
-    wire_settings_dialog(state.clone(), &ui);
+    wire_settings_dialog(state.clone(), &ui, &window);
     wire_panic_indicator(state.clone());
     wire_open_button(&ui, &window);
 

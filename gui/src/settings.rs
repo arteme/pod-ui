@@ -250,10 +250,11 @@ fn wire_test_button(settings: &SettingsDialog) {
     });
 }
 
-pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder) {
+pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder, window: &gtk::Window) {
     let settings = SettingsDialog::new(ui);
-    let settings_button: gtk::Button = ui.object("settings_button").unwrap();
+    settings.dialog.set_transient_for(Some(window));
 
+    let settings_button: gtk::Button = ui.object("settings_button").unwrap();
     let settings_ = settings.clone();
 
     settings_button.connect_clicked(move |_| {
