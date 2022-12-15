@@ -2,17 +2,23 @@
 
 set -xe
 
+export SENTRY=1
+export RELEASE_CHECK=1
+export SIGN=1
+
 build_debug_osx() {
+    export RELEASE_PLATFORM="osx"
     export RUSTFLAGS="-C split-debuginfo=packed"
-    SENTRY=1 cargo build
-    SIGN=1 ./build/mk-osx-dist.sh
+    cargo build
+    ./build/mk-osx-dist.sh
     ./build/sentry-upload-dsyms.sh
 }
 
 build_debug_linux() {
+    export RELEASE_PLATFORM="linux"
     if [[ -n "$DOCKER_POD_UI_BUILD" ]];
     then
-        SENTRY=1 cargo build
+        cargo build
         ./build/mk-appimage-dist.sh
     else
         ./build/mk-appimage-dist-docker.sh
@@ -20,10 +26,12 @@ build_debug_linux() {
 }
 
 build_debug_win64() {
-    SENTRY=1 cargo build
+    export RELEASE_PLATFORM="win64"
+    cargo build
     bash ./build/mk-win64-dist.sh
 
-    SENTRY=1 cargo build -F "winrt"
+    export RELEASE_PLATFROM="win64-winrt"
+    cargo build -F "winrt"
     bash ./build/mk-win64-dist.sh -winrt
 }
 

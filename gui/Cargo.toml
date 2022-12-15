@@ -8,8 +8,10 @@ rust-version.workspace = true
 
 [dependencies]
 clap = { version = "=3.2.14", features = ["derive", "wrap_help"] }
-simple_logger = "=4.0.0"
+reqwest = "0.11.13"
+semver = "1.0.14"
 sentry = "0.29.1"
+simple_logger = "=4.0.0"
 
 once_cell = "*" # defined in pod-core
 maplit = "*" # defined in mod-pod2

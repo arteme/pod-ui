@@ -30,8 +30,11 @@ impl NotificationOverlayPriv {
             .valign(gtk::Align::Start)
             .build();
 
-        let label = gtk::Label::new(Some(label));
-        label.set_margin_end(2);
+        let label = gtk::Label::builder()
+            .margin_end(2)
+            .use_markup(true)
+            .label(label)
+            .build();
 
         let sc = label.style_context();
         sc.add_class("app-notification");
@@ -58,7 +61,7 @@ impl NotificationOverlayPriv {
                 if rev.reveals_child() {
                     rev.set_reveal_child(false);
                 }
-                Inhibit(true)
+                Inhibit(false)
             })
         );
 
@@ -108,12 +111,12 @@ impl WidgetImpl for NotificationOverlayPriv {
 
 }
 impl ContainerImpl for NotificationOverlayPriv {
-    fn add(&self, container: &Self::Type, widget: &Widget) {
+    fn add(&self, _container: &Self::Type, widget: &Widget) {
         let Some(w) = self.widgets.get() else { return; };
         w.overlay.add(widget);
     }
 
-    fn remove(&self, container: &Self::Type, widget: &Widget) {
+    fn remove(&self, _container: &Self::Type, widget: &Widget) {
         let Some(w) = self.widgets.get() else { return; };
         w.overlay.remove(widget);
     }

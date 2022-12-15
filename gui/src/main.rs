@@ -5,6 +5,7 @@ mod util;
 mod panic;
 mod widgets;
 mod autodetect;
+mod check;
 
 use std::collections::HashMap;
 use std::sync::{Arc, atomic, Mutex};
@@ -33,6 +34,7 @@ use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
+use crate::check::new_release_check;
 use crate::opts::*;
 use crate::panic::*;
 use crate::registry::*;
@@ -534,7 +536,10 @@ async fn main() -> Result<()> {
         ..Default::default()
     }));
     let sentry_enabled = _guard.is_enabled();
-    simple_logger::init()?;
+    simple_logger::SimpleLogger::new()
+        .with_level(LevelFilter::Trace)
+        .env()
+        .init()?;
 
     register_module(pod_mod_pod2::module())?;
     register_module(pod_mod_pocket::module())?;
@@ -614,6 +619,7 @@ async fn main() -> Result<()> {
 
     // autodetect or open devices specified on command line
     autodetect::detect(state.clone(), opts, &window)?;
+    new_release_check(&app_event_tx);
 
     // app event handling in a separate thread
     tokio::spawn({
@@ -1060,7 +1066,7 @@ async fn main() -> Result<()> {
     });
 
     // panic indicator testing in debug builds
-    if cfg!(debug_assertions) && option_env!("PANIC").is_some() {
+    if cfg!(debug_assertions) && std::env::var_os("PANIC").is_some() {
         info!("Panic indicator testing...");
         glib::timeout_add_local_once(
             Duration::from_millis(10000),
