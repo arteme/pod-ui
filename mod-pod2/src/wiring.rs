@@ -179,7 +179,7 @@ fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Optio
 
     Some(entry)
 }
-
+/*
 fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry) {
     for name in &effect.controls {
         if let Some(v) = controller.get(name) {
@@ -187,7 +187,7 @@ fn effect_select_send_controls(controller: &mut Controller, effect: &EffectEntry
         }
     }
 }
-
+*/
 pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, callbacks: &mut Callbacks) -> Result<()> {
     let objs = ObjectList::new(&gtk::Builder::new());
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);

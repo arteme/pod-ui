@@ -399,13 +399,13 @@ async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
     f(name, value, origin);
     false
 }
-
+/*
 async fn controller_rx_handler_nop(rx: &mut broadcast::Receiver<Event<String>>,
                                    controller: &Arc<Mutex<Controller>>,
                                    objs: &ObjectList, callbacks: &Callbacks) -> bool {
     controller_rx_handler(rx, controller, objs, callbacks, |_,_,_| {}).await
 }
-
+*/
 fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
                           objs: ObjectList, callbacks: Callbacks,
                           f: F)
