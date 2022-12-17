@@ -58,7 +58,7 @@ ICONS=(
  emblem-important-symbolic application-menu-symbolic open-menu-symbolic
  dialog-ok dialog-error dialog-warning
 )
-EXCLUDE_PIXBUF=("*avif*" "*heif*")
+EXCLUDE_PIXBUF=("*avif*" "*heif*" "*tif*" "*tga*" "*bmp*" "*ani*")
 
 # not really the coreutils' realpath, but will do 
 realpath() {
