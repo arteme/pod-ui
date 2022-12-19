@@ -518,7 +518,7 @@ pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -
     Ok((in_ports.remove(0), out_ports.remove(0), channel))
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<String> {
     if port_name.starts_with("PODxt") &&
         MidiMessage::from_bytes(bytes.clone()).ok().is_none() &&
@@ -537,7 +537,7 @@ fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<Strin
     None
 }
 
-#[cfg(not(unix))]
-fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<String> {
+#[cfg(not(target_os = "linux"))]
+fn check_for_broken_drivers(_port_name: &String, _bytes: &Vec<u8>) -> Option<String> {
     None
 }

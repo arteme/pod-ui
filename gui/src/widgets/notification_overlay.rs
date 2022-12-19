@@ -1,6 +1,6 @@
 use std::time::Duration;
 use once_cell::sync::OnceCell;
-use pod_gtk::prelude::gtk::gdk::{EventButton, EventMask};
+use pod_gtk::prelude::gtk::gdk::EventMask;
 use pod_gtk::prelude::gtk::Widget;
 use pod_gtk::prelude::subclass::*;
 
@@ -60,8 +60,8 @@ impl NotificationOverlayPriv {
                 }
         }));
 
-        // dismiss notification on click on the revelater
-        rev.connect_button_release_event(|rev, event| {
+        // dismiss notification on click on the revealer
+        rev.connect_button_release_event(|rev, _| {
             if rev.reveals_child() {
                 rev.set_reveal_child(false);
             }

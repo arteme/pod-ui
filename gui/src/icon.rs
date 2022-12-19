@@ -20,6 +20,6 @@ pub fn set_app_icon(window: &gtk::Window) -> Result<()> {
 }
 
 #[cfg(target_os = "macos")]
-pub fn set_app_icon(window: &gtk::Window) -> Result<()> {
+pub fn set_app_icon(_window: &gtk::Window) -> Result<()> {
     Ok(())
 }
