@@ -6,6 +6,7 @@ mod panic;
 mod widgets;
 mod autodetect;
 mod check;
+mod icon;
 
 use std::collections::HashMap;
 use std::sync::{Arc, atomic, Mutex};
@@ -35,6 +36,7 @@ use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualS
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
 use crate::check::new_release_check;
+use crate::icon::set_app_icon;
 use crate::opts::*;
 use crate::panic::*;
 use crate::registry::*;
@@ -594,6 +596,8 @@ async fn main() -> Result<()> {
             Inhibit(true)
         }
     });
+
+    set_app_icon(&window)?;
 
     // Re-parent window content into a notification overlay
     let widget = window.child().unwrap();

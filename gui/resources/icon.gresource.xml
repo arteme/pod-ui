@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<gresources>
+    <gresource>
+        <file compressed="false">icon/16x16.png</file>
+        <file compressed="false">icon/32x32.png</file>
+        <file compressed="false">icon/64x64.png</file>
+        <file compressed="false">icon/128x128.png</file>
+        <file compressed="false">icon/256x256.png</file>
+        <file compressed="false">icon/512x512.png</file>
+    </gresource>
+</gresources>
