@@ -55,7 +55,7 @@ ICONS=(
  #   grep -Roh -- '-gtk-icontheme(.*)' . | grep -oh '(.*)' | tr -d "()\"'"
  selection-start-symbolic selection-end-symbolic process-working-symbolic
  # app ui
- emblem-important-symbolic application-menu-symbolic open-menu-symbolic
+ emblem-important-symbolic application-menu-symbolic pane-show-symbolic
  dialog-ok dialog-error dialog-warning
 )
 EXCLUDE_PIXBUF=("*avif*" "*heif*" "*tif*" "*tga*" "*bmp*" "*ani*")
