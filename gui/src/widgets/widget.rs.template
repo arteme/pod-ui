@@ -1,0 +1,55 @@
+// A GTK widget template: %s/Hello/NewWidgetName/g
+
+use once_cell::sync::OnceCell;
+use crate::glib;
+use crate::gtk;
+use gtk::prelude::*;
+use gtk::subclass::prelude::*;
+
+glib::wrapper! {
+    pub struct Hello(ObjectSubclass<HelloPriv>)
+    @extends gtk::Box, gtk::Container, gtk::Widget;
+}
+
+struct Widgets {
+}
+
+pub struct HelloPriv {
+    widgets: OnceCell<Widgets>
+}
+
+impl HelloPriv {
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for HelloPriv {
+    const NAME: &'static str = "Hello";
+    type Type = Hello;
+    type ParentType = gtk::Box;
+
+    fn new() -> Self {
+        Self {
+            widgets: OnceCell::new()
+        }
+    }
+}
+
+impl ObjectImpl for HelloPriv {
+}
+
+impl WidgetImpl for HelloPriv {}
+impl ContainerImpl for HelloPriv {}
+impl BoxImpl for HelloPriv {}
+
+impl Hello {
+    pub fn new() -> Self {
+        glib::Object::new(&[])
+            .expect("Failed to create Hello")
+    }
+}
+
+pub trait HelloExt {
+}
+
+impl HelloExt for Hello {
+}
