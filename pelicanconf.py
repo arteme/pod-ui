@@ -37,7 +37,7 @@ INDEX_SAVE_AS = 'blog.html'
 SITETITLE = 'pod-ui'
 SITESUBTITLE = 'A modern cross-platform UI for controlling Line 6 POD family of modelling amp via MIDI'
 
-SITELOGO = 'https://arteme.github.io/pod-ui/images/icon-small.png'
+SITELOGO = '/images/icon-small.png'
 
 GITHUB_CORNER_URL = 'https://github.com/arteme/pod-ui'
 
@@ -46,7 +46,7 @@ CUSTOM_CSS = 'static/extra.css'
 
 MARKDOWN = {
         'extensions': {
-            'markdown_checklist.extension': {},
+#            'markdown_checklist.extension': {},
             'markdown.extensions.extra': {},
             'markdown.extensions.meta': {},
             'markdown.extensions.toc:' : { 'title': 'Table of Contents' },

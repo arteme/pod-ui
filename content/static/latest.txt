@@ -1,0 +1,4 @@
+linux v1.0.0
+osx v1.0.0
+win64 v1.0.0
+win64-winrt v1.0.0
