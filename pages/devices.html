@@ -53,7 +53,7 @@
 
 
 
-  <title>pod-ui &ndash; Introduction</title>
+  <title>pod-ui &ndash; Devices</title>
 
 </head>
 <body class="light-theme">
@@ -115,41 +115,199 @@
 <article class="single">
   <header>
     
-    <h1 id="introduction">Introduction</h1>
+    <h1 id="devices">Devices</h1>
   </header>
   <div>
-<p><img alt="Screenshot" src="https://arteme.github.io/pod-ui/images/pod-ui-v1.0.0-podxt.jpg" /></p>
-<p><strong>pod-ui</strong> is a modern cross-platform app to control Line6 POD family
-of guitar modelling amps via MIDI. Currently it supports <strong>POD 2.0</strong>,
-<strong>POD Pro</strong>, <strong>PocketPOD</strong> and a family of <strong>PODxt</strong> devices (PODxt,
-PODxt Pro, PODxt Live).
-For pre-built binaries check out the 
-<a href="https://github.com/arteme/pod-ui/releases">releases page</a>.</p>
-<p>The app is a work-in-progress and many features may still missing,
-however I intended to get feature parity with <strong>Line6 Edit</strong> on things like:</p>
+<p>Here is a list of legacy Line6 devices that are known to be supported by pod-ui,
+possible to be supported, or known to not be supported.</p>
+<p>If you have a device that can be supported by pod-ui, but is not currently
+supported, please consider helping out the project by 
+<a href="https://arteme.github.io/pod-ui/pages/how-to-help.html">becoming a tester</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Device</th>
+<th>Supported</th>
+<th>Can be supported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#pod1">POD</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#pod2">POD 2.0</a></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#pod2">POD Pro</a></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#bass-pod">Bass POD</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#podxt">PODxt</a></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#podxt">PODxt Pro</a></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#podxt">PODxt Live</a></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#bass-podxt">Bass PODxt</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#bass-podxt">Bass PODxt Pro</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#bass-podxt">Bass PODxt Live</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#pod-x3">POD X3</a></td>
+<td></td>
+<td>✗</td>
+</tr>
+<tr>
+<td><a href="#pod-x3">POD X3 Pro</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#pod-x3">POD X3 Live</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#pocket-pod">Pocket POD</a></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#pocket-pod">Pocket POD Express</a></td>
+<td></td>
+<td>✗</td>
+</tr>
+<tr>
+<td><a href="#floor-pod">Floor POD</a></td>
+<td></td>
+<td>✗</td>
+</tr>
+<tr>
+<td><a href="#floor-pod">Floor POD Plus</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#bass-floor-pod">Bass Floor POD</a></td>
+<td></td>
+<td>✗</td>
+</tr>
+<tr>
+<td><a href="#pod-hd-family">POD HD family</a></td>
+<td></td>
+<td>???</td>
+</tr>
+<tr>
+<td><a href="#hd147">HD147</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#other">Vetta II family</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#other">Flextone III family</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><a href="#dt-series">DT-series devices</a></td>
+<td></td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<!-- ✓ ✗ heavy ✔ ✘ -->
+
+<h3 id="pod-10"><a name=pod1></a> POD 1.0</h3>
+<p><strong>POD 1.0</strong>, a.k.a the original Line6 POD. 28 amp models, only 16 accessible
+from the device controls, the rest accessible via MIDI. The POD 1.0 device can
+easily be supported, but they are so very rare nowadays that a device (or its
+owner) can hardly be found in the wild.</p>
+<h3 id="pod-20-pod-pro"><a name=pod2></a> POD 2.0, POD Pro</h3>
+<p><strong>POD 2.0</strong> and <strong>POD Pro</strong> are fully supported.</p>
+<h3 id="bass-pod">Bass POD</h3>
+<p><strong>Bass POD</strong> device can easily be supported if there is demand or testers
+with this device. The device is similar to POD 2.0 and the SysEx message
+layout is well-known.</p>
+<h3 id="podxt">PODxt</h3>
+<p><strong>PODxt</strong>, <strong>PODxt Pro</strong>, <strong>PODxt Live</strong> are supported since version 1.0.0
+with minor functionality missing:</p>
 <ul>
-<li>☑ controlling the POD;</li>
-<li>☑ up-/downloading individual patches;</li>
-<li>☑ up-/downloading patch libraries;</li>
-<li>☐ loading <code>.l6t</code> and <code>.lib</code> files;</li>
-<li>☑ support for POD 2.0/POD Pro device;</li>
-<li>☑ support for Pocket POD device;</li>
-<li>☑ support for PODxt/PODxt Pro/PODxt Live device <strong>★new in version 1.0.0★</strong>;</li>
-<li>☐ support for /Bass POD/other Line6 devices;</li>
+<li>clip indicator is not currently shown;</li>
+<li>PODxt Live Variax device controls not supported;</li>
+<li>Amp, FX presets cannot be edited in pod-ui;</li>
 </ul>
-<p>I would like to support other MIDI-based legacy Line6 products, such as
-Bass POD, Floor POD, etc. I do not own any of these and would need
-volunteers to test. If you would like to volunteer for this, please open
-an issue at the <a href="https://github.com/arteme/pod-ui/issues">issues page</a>. </p>
-<h2 id="development">Development</h2>
-<p>This is a GTK+-based app written in rust and distributed under GPLv3
-license. The sources can be found from <a href="https://github.com/arteme/pod-ui/">github</a>.
-Please feel free to open issues there in case of bugs or inconsistencies
-with Line6 Edit.</p>
-<p>The app is developed using MIDI controls references and SysEx protocol
-descriptions published by Line6 and my own POD device.</p>
-<p>The app is developed in Linux, pre-build binaries are provided for
-Windows and MacOS.</p>  </div>
+<h3 id="bass-podxt">Bass PODxt</h3>
+<p><strong>Bass PODxt</strong>, <strong>Bass PODxt Pro</strong>, <strong>Bass PODxt Live</strong> devices can be
+supported as they are similar to the <strong>PODxt</strong> family of devices. Testers
+needed.</p>
+<h3 id="pod-x3">POD X3</h3>
+<p><strong>POD X3</strong> device does not support MIDI controls and cannot be supported.
+Other devices in the POD X3 family -- <strong>POD X3 Live</strong>, <strong>POD X3 Pro</strong> --
+support MIDI controls and can, therefore, be supported. Testers needed.</p>
+<h3 id="pocket-pod">Pocket POD</h3>
+<p><strong>Pocket POD</strong> device is fully supported. <strong>Pocket POD Express</strong> device
+does not connect to a computer and as such cannot be controlled via
+MIDI, so it is not supported.</p>
+<h3 id="floor-pod">Floor POD</h3>
+<p><strong>Floor POD</strong> device does not have MIDI ports and cannot be supported.
+<strong>Floor POD Plus</strong> device has MIDI ports and can be supported. 
+Testers needed.</p>
+<h3 id="bass-floor-pod">Bass Floor POD</h3>
+<p><strong>Bass Floor POD</strong> device does not have MIDI ports and cannot be supported.</p>
+<h3 id="pod-hd-family">POD HD family</h3>
+<p><strong>POD HD</strong> family consists of many devices (<strong>POD HD Desktop</strong>, <strong>POD
+HD Pro</strong>, <strong>POD Pro X</strong>, <strong>POD HD 300/400/500/500X</strong>) and does have
+MIDI ports. These devices come with a separate edit software, POD HD Edit.
+Whether the POD HD devices communication is anyhow similar to that of
+POD/PODxt ans whether these devices can be supported is unknown.</p>
+<h3 id="hd147">HD147</h3>
+<p><strong>HD147</strong> is an amp head that has much in common with the POD modelling
+amps including the MIDI communication protocols. This device is likely
+possible to support in pod-ui. Testers needed.</p>
+<h3 id="vetta-ii-flextone-iii"><a name=other></a> Vetta II, Flextone III</h3>
+<p><strong>Vetta II</strong> family of devices and <strong>Flextone III</strong> family of device 
+are amps/heads that have much in common with the POD modelling amps
+including the MIDI communication protocols. These devices are likely
+possible to support in pod-ui. Testers needed.</p>
+<h3 id="dt-series">DT-series</h3>
+<p><strong>DT25</strong> and <strong>DT50</strong> series devices could possibly be supported in
+pod-ui much like the rest of the POD legacy products. </p>
+<p>Check out <a href="http://rome2.github.io/dtedit/">DT Edit</a> software for a
+modern control software for DT-series devices.</p>  </div>
 </article>
 
     <footer>
