@@ -47,6 +47,7 @@ CUSTOM_CSS = 'static/extra.css'
 MARKDOWN = {
         'extensions': {
 #            'markdown_checklist.extension': {},
+            'markdown.extensions.tables': {},
             'markdown.extensions.extra': {},
             'markdown.extensions.meta': {},
             'markdown.extensions.toc:' : { 'title': 'Table of Contents' },

@@ -14,14 +14,14 @@ For pre-built binaries check out the
 The app is a work-in-progress and many features may still missing,
 however I intended to get feature parity with **Line6 Edit** on things like:
 
- - [x] controlling the POD;
- - [x] up-/downloading individual patches;
- - [x] up-/downloading patch libraries;
- - [ ] loading `.l6t` and `.lib` files;
- - [x] support for POD 2.0/POD Pro device;
- - [x] support for Pocket POD device;
- - [x] support for PODxt/PODxt Pro/PODxt Live device **★new in version 1.0.0★**;
- - [ ] support for /Bass POD/other Line6 devices;
+ - ☑ controlling the POD;
+ - ☑ up-/downloading individual patches;
+ - ☑ up-/downloading patch libraries;
+ - ☐ loading `.l6t` and `.lib` files;
+ - ☑ support for POD 2.0/POD Pro device;
+ - ☑ support for Pocket POD device;
+ - ☑ support for PODxt/PODxt Pro/PODxt Live device **★new in version 1.0.0★**;
+ - ☐ support for /Bass POD/other Line6 devices;
 
 I would like to support other MIDI-based legacy Line6 products, such as
 Bass POD, Floor POD, etc. I do not own any of these and would need
