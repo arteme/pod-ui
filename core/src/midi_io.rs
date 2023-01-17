@@ -145,7 +145,7 @@ pub trait  MidiOpen {
         Self::_new_for_port(class, port)
     }
 
-    fn new_for_address(port_addr: String) -> Result<Self::Out> {
+    fn new_for_address(port_addr: &str) -> Result<Self::Out> {
         let class = Self::_new()?;
 
         let port_n_re = Regex::new(r"\d+").unwrap();
@@ -379,11 +379,11 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
     Ok(channel)
 }
 
-pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
+pub async fn autodetect(channel: Option<u8>) -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
 
     let in_port_names = MidiIn::ports()?;
     let mut in_port_errors = vec![];
-    let mut in_ports = in_port_names.iter().enumerate()
+    let in_ports = in_port_names.iter().enumerate()
         .flat_map(|(i, name)| {
             MidiIn::new(Some(i)).map_err(|e| {
                 let error = format!("Failed to open MIDI in port {:?}: {}", name, e);
@@ -395,7 +395,7 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
 
     let out_port_names = MidiOut::ports()?;
     let mut out_port_errors = vec![];
-    let mut out_ports = out_port_names.iter().enumerate()
+    let out_ports = out_port_names.iter().enumerate()
         .flat_map(|(i, name)| {
             MidiOut::new(Some(i)).map_err(|e| {
                 let error = format!("Failed to open MIDI out port {:?}: {}", name, e);
@@ -404,8 +404,6 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
             }).ok()
         })
         .collect::<Vec<_>>();
-
-    let config: Option<&Config>;
 
     if in_ports.len() < 1 {
         if in_port_errors.len() < 1 {
@@ -418,9 +416,18 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
         if out_port_errors.len() < 1 {
             bail!("No MIDI output ports found")
         } else {
-            bail!("Failed to open any MIDI output ports: {}", in_port_errors.join(", "))
+            bail!("Failed to open any MIDI output ports: {}", out_port_errors.join(", "))
         }
     }
+
+    autodetect_with_ports(in_ports, out_ports, channel).await
+}
+
+pub async fn autodetect_with_ports(in_ports: Vec<MidiIn>, out_ports: Vec<MidiOut>,
+                                   channel: Option<u8>) -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
+    let config: Option<&Config>;
+    let mut in_ports = in_ports.into_iter().collect::<Vec<_>>();
+    let mut out_ports = out_ports.into_iter().collect::<Vec<_>>();
 
     // 1. find the input
     {
@@ -487,7 +494,15 @@ pub async fn autodetect() -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
     // 3. find the channel
     let mut in_port = in_ports.remove(0);
     let mut out_port = out_ports.remove(0);
-    let channel = detect_channel(&mut in_port, &mut out_port).await?;
+    let channel = match channel {
+        None => {
+            detect_channel(&mut in_port, &mut out_port).await?
+        },
+        Some(c) => {
+            warn!("MIDI channel {} set manually", c);
+            channel
+        }
+    };
     if channel.is_none() {
         bail!("Can't determine POD channel");
     }

@@ -164,7 +164,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
     settings.autodetect_button.clone().connect_clicked(move |button| {
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         tokio::spawn(async move {
-            let res = pod_core::midi_io::autodetect().await;
+            let res = pod_core::midi_io::autodetect(None).await;
             tx.send(res).ok();
         });
 

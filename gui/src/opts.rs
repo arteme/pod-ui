@@ -10,30 +10,32 @@ pub struct Opts {
     /// Select the MIDI port to be connected as input. <INPUT> must be an
     /// integer index of a MIDI input port present on this system. On Linux,
     /// this can also be an ALSA <client>:<port> pair, such as "20:0".
-    /// If either `-i` or `-o` option is omitted, the MIDI input/output port
-    /// pair will be auto-detected.
+    /// To select ports manually, both `-i` and `-o` options must be provided.
+    /// If both `-i` and `-o` are provided, port autodetect will be skipped.
+    /// If only `-i` is provided, an error will be reported.
     pub input: Option<String>,
 
     #[clap(short, long)]
     /// Select the MIDI port to be connected as output. <OUTPUT> must be an
     /// integer index of a MIDI output port present on this system. On Linux,
     /// this can also be an ALSA <client>:<port> pair, such as "20:0".
-    /// If either `-i` or `-o` option is omitted, the MIDI input/output port
-    /// pair will be auto-detected.
+    /// If both `-i` and `-o` are provided, port autodetect will be skipped.
+    /// If only `-o` is provided, an error will be reported.
     pub output: Option<String>,
 
     #[clap(short, long)]
     /// Select the MIDI channel the POD is configured on. 0 means "all",
-    /// values 1 - 15 configure individual channels. If either `-i` or `-o`
-    /// is omitted, the MIDI channel will be auto-detected. This setting
-    /// may not be relevant for all different devices supported.
+    /// values 1 - 16 configure individual channels. This option also affects
+    /// which MIDI channel the pod-ui application will listen on.
+    /// This setting may not be relevant for all different devices supported.
     pub channel: Option<u8>,
 
     #[clap(short, long)]
     /// Select the model of the device. <MODEL> must be either an
     /// integer index of a supported device model or a string name
     /// of the model in question. Only used when both `-i` and `-o`
-    /// are given.
+    /// are given. If `-i` and `-o` options are given, but `-m` is
+    /// omitted, the device model on specified ports will be detected.
     pub model: Option<String>,
 }
 
