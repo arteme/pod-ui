@@ -282,7 +282,9 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
 
     let config_changed = match (config, state.config) {
         (Some(a), Some(b)) => { *a != *b }
-        (Some(_), None) => { true }
+        // for now, disallow setting None config because the code generally
+        // (and especially below) assumes a config is present
+        // (Some(_), None) => { true }
         _ => { false }
     };
     if config_changed {
@@ -293,8 +295,8 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         state.config.replace(config);
     }
 
-    //let quirks = state.config.read().unwrap().midi_quirks;
-    let quirks = MidiQuirks::empty();
+    let quirks = state.config.map(|c| c.midi_quirks)
+        .unwrap_or_else(|| MidiQuirks::empty());
     midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks, config_changed);
 
     config_changed
