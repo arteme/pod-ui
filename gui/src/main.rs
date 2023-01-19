@@ -147,7 +147,11 @@ pub fn midi_in_out_start(state: &mut State,
     let notify = |state: &mut State| {
         sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
 
-        let e = NewConfigEvent { midi_changed: true, config_changed };
+        let e = NewConfigEvent {
+            midi_changed: true,
+            midi_channel: state.midi_channel_num,
+            config_changed
+        };
         state.app_event_tx.send_or_warn(AppEvent::NewConfig(e));
     };
 
@@ -743,6 +747,9 @@ async fn main() -> Result<()> {
                     // new config & shutdown
                     AppEvent::NewConfig(event) => {
                         if event.midi_changed {
+                            if let Some(ctx) = &ctx {
+                                ctx.set_midi_channel(event.midi_channel);
+                            }
                             ui_event_tx.send_or_warn(UIEvent::NewMidiConnection);
                         }
                         if event.config_changed {

@@ -116,6 +116,7 @@ pub struct DeviceDetectedEvent {
 #[derive(Clone, Debug)]
 pub struct NewConfigEvent {
     pub midi_changed: bool,
+    pub midi_channel: u8,
     pub config_changed: bool
 }
 
