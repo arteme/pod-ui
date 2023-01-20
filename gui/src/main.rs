@@ -284,7 +284,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
         (Some(a), Some(b)) => { *a != *b }
         // for now, disallow setting None config because the code generally
         // (and especially below) assumes a config is present
-        // (Some(_), None) => { true }
+        (Some(_), None) => { true }
         _ => { false }
     };
     if config_changed {
@@ -556,6 +556,7 @@ async fn main() -> Result<()> {
     register_module(pod_mod_pod2::module())?;
     register_module(pod_mod_pocket::module())?;
     register_module(pod_mod_xt::module())?;
+    register_module(pod_mod_x3::module())?;
 
     let help_text = generate_help_text()?;
     let cli = Command::new("Pod UI")

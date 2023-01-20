@@ -1353,6 +1353,7 @@ dependencies = [
  "pod-gtk",
  "pod-mod-pocket",
  "pod-mod-pod2",
+ "pod-mod-x3",
  "pod-mod-xt",
  "regex",
  "reqwest",
@@ -1388,6 +1389,21 @@ dependencies = [
  "once_cell",
  "pod-core",
  "pod-gtk",
+ "tokio",
+]
+
+[[package]]
+name = "pod-mod-x3"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "hibitset",
+ "log",
+ "maplit",
+ "once_cell",
+ "pod-core",
+ "pod-gtk",
+ "pod-mod-pod2",
  "tokio",
 ]
 
