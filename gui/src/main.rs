@@ -282,9 +282,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
 
     let config_changed = match (config, state.config) {
         (Some(a), Some(b)) => { *a != *b }
-        // for now, disallow setting None config because the code generally
-        // (and especially below) assumes a config is present
-        // (Some(_), None) => { true }
+        (Some(_), None) => { true }
         _ => { false }
     };
     if config_changed {
