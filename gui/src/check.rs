@@ -2,7 +2,7 @@ use anyhow::*;
 use core::result::Result::Ok;
 use std::env;
 use log::{debug, error};
-use pod_core::event::{AppEvent, EventSender, SenderExt};
+use pod_core::event::{AppEvent, EventSender, NotificationEvent, SenderExt};
 
 async fn get_latest_release(platform: &str) -> Result<String> {
     let releases = reqwest::get("https://arteme.github.io/pod-ui/static/latest.txt").await?
@@ -75,7 +75,8 @@ pub fn new_release_check(app_event_tx: &EventSender) {
 
         if new_version_available {
             let msg = format!("New release <b>{}</b> is available!", rel);
-            app_event_tx.send_or_warn(AppEvent::Notification(msg));
+            let e = NotificationEvent { msg, id: None };
+            app_event_tx.send_or_warn(AppEvent::Notification(e));
         }
     });
 }

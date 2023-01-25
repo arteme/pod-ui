@@ -29,7 +29,7 @@ pub fn animate(objs: &ObjectList, control_name: &str, control_value: u16) {
     let prefix2 = format!("{}:", control_value);
     let catchall = "*:";
     //debug!(target: "animate", "Animate: {:?}?", control_name);
-    objs.widgets_by_class_match(&|class_name| class_name.starts_with(prefix1.as_str()))
+    objs.widgets_by_class_match(|class_name| class_name.starts_with(prefix1.as_str()))
         .flat_map(|(widget, classes)| {
             let get_classes = |suffix: &str| {
                 let full_len = prefix1.len() + suffix.len();

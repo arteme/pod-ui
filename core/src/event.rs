@@ -114,6 +114,18 @@ pub struct DeviceDetectedEvent {
 }
 
 #[derive(Clone, Debug)]
+pub struct NotificationEvent {
+    pub msg: String,
+    pub id: Option<String>
+}
+
+impl NotificationEvent {
+    pub fn msg(msg: String) -> Self {
+        Self { msg, id: None }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct NewConfigEvent {
     pub midi_changed: bool,
     pub midi_channel: u8,
@@ -141,7 +153,7 @@ pub enum AppEvent {
     NewConfig(NewConfigEvent),
     NewCtx,
     Shutdown,
-    Notification(String),
+    Notification(NotificationEvent),
 
     Marker(u32)
 }

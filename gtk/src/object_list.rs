@@ -65,9 +65,9 @@ impl ObjectList {
             .filter(|v| !v.is_empty())
     }
 
-    pub fn widgets_by_class_match<'a, F>(&'a self, filter: &'a F) -> impl Iterator<Item=(&Widget, Vec<String>)>
+    pub fn widgets_by_class_match<'a, F>(&'a self, filter: F) -> impl Iterator<Item=(&Widget, Vec<String>)>
         where
-            F: Fn(&String) -> bool
+            F: Fn(&String) -> bool + 'a
     {
         self.objects.iter()
             .filter_map(|obj| obj.dynamic_cast_ref::<Widget>())
@@ -75,7 +75,7 @@ impl ObjectList {
                 let style_context = widget.style_context();
                 let classes = style_context.list_classes();
                 let classes = classes.iter().map(|p| p.as_str().to_string());
-                let m = classes.filter(filter).collect::<Vec<_>>();
+                let m = classes.filter(&filter).collect::<Vec<_>>();
                 if !m.is_empty() { Some((widget, m)) } else { None }
             })
     }

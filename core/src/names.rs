@@ -11,7 +11,11 @@ pub struct ProgramNames {
 
 impl ProgramNames {
     pub fn new(config: &Config) -> Self {
-        let names = Strings::new(config.program_num);
+        Self::new_with_size(config, config.program_num)
+    }
+
+    pub fn new_with_size(config: &Config, size: usize) -> Self {
+        let names = Strings::new(size);
         let encoder = StrEncoder::new(&config);
 
         Self { names, encoder }

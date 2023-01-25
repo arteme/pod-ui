@@ -351,7 +351,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
 pub fn wire_frames(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<()> {
     const TOGGLE_PREFIX: &str = "toggle:";
 
-    objs.widgets_by_class_match(&|class_name| class_name.starts_with(TOGGLE_PREFIX))
+    objs.widgets_by_class_match(|class_name| class_name.starts_with(TOGGLE_PREFIX))
         .for_each(|(w, class_names)| {
             for class_name in class_names.iter().filter(|n| n.starts_with(TOGGLE_PREFIX)) {
                 let toggle = class_name.chars().skip(TOGGLE_PREFIX.len()).collect::<String>();

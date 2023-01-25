@@ -13,7 +13,8 @@ use pod_core::generic;
 use pod_core::generic::num_program;
 use pod_core::handler::Handler;
 use pod_core::midi::MidiMessage;
-use pod_core::model::AbstractControl;
+use pod_core::model::{AbstractControl, Config};
+use pod_core::names::ProgramNames;
 use crate::tuner::Tuner;
 
 /// A marker to send MidiMessage::XtPatchDumpEnd
@@ -32,7 +33,9 @@ struct Inner {
     /// A JoinHandle for the currently running thread waiting for the
     /// timeout of the XtStoreStatus message
     store_status_timeout_handler: Option<tokio::task::JoinHandle<()>>,
-    tuner: Option<Tuner>
+    tuner: Option<Tuner>,
+    /// Effects
+    effects: ProgramNames
 }
 
 pub(crate) struct PodXtHandler {
@@ -40,13 +43,14 @@ pub(crate) struct PodXtHandler {
 }
 
 impl PodXtHandler {
-    pub fn new() -> Self {
+    pub fn new(config: &Config) -> Self {
         let inner = Inner {
             midi_out_queue: VecDeque::new(),
             need_store_ack: false,
             store_programs: BitSet::with_capacity(128),
             store_status_timeout_handler: None,
             tuner: None,
+            effects: ProgramNames::new_with_size(config, 64)
         };
         Self { inner: RefCell::new(inner) }
     }
@@ -121,6 +125,20 @@ impl Handler for PodXtHandler {
             }
         }
 
+        if event.name.as_str() == "effect_select" && event.origin == StoreOrigin::MIDI {
+            let inner = self.inner.borrow();
+            let name = inner.effects.get(event.value as usize).unwrap_or_default();
+            let num = event.value + 1;
+
+            let msg = if !name.is_empty() {
+                format!("Effect select: {} - {}", num, name)
+            } else {
+                format!("Effect select: {}", num)
+            };
+            let e = NotificationEvent { msg, id: Some("effect_select".into()) };
+            ctx.app_event_tx.send_or_warn(AppEvent::Notification(e));
+        }
+
         generic::cc_handler(ctx, event);
 
     }
@@ -157,8 +175,13 @@ impl Handler for PodXtHandler {
                         self.queue_send(ctx);
                     }
                     Buffer::All => {
+                        // Request patches
                         for v in 0 .. ctx.config.program_num {
                             self.queue_push(MidiMessage::XtPatchDumpRequest { patch: v as u16 });
+                        }
+                        // Request effects
+                        for v in 0 .. 64 {
+                            self.queue_push(MidiMessage::XtPatchDumpRequest { patch: 0x0200 | v as u16 });
                         }
                         self.queue_send(ctx);
                     }
@@ -184,6 +207,17 @@ impl Handler for PodXtHandler {
                 if event.request == MIDI {
                     // patch dump `03 71` messages need to be acknowledged
                     self.set_need_store_ack(true)
+                }
+
+                // Collect effects names
+                match event.buffer {
+                    Buffer::Program(p) if p >= 0x0200 => {
+                        let num = p & 0xff;
+
+                        let mut inner = self.inner.borrow_mut();
+                        inner.effects.update_from_data(num, event.data.as_slice(), StoreOrigin::MIDI);
+                    }
+                    _ => {}
                 }
             }
             UI => {
@@ -338,7 +372,8 @@ impl Handler for PodXtHandler {
                 } else {
                     let msg = format!("Storing programs to the device failed!");
                     error!("{}", msg);
-                    ctx.app_event_tx.send_or_warn(AppEvent::Notification(msg));
+                    let e = NotificationEvent { msg, id: None };
+                    ctx.app_event_tx.send_or_warn(AppEvent::Notification(e));
 
                     inner.store_programs.clear();
                 }

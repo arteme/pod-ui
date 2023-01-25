@@ -58,7 +58,7 @@ pub enum UIEvent {
     Panic,
     Modified(usize, bool),
     Name(usize, String),
-    Notification(String),
+    Notification(String, Option<String>),
     Shutdown,
     Quit
 }
@@ -741,8 +741,8 @@ async fn main() -> Result<()> {
                         ui_event_tx.send_or_warn(UIEvent::DeviceDetected(event.clone()));
                     }
                     // forward notification messages to the UI thread
-                    AppEvent::Notification(msg) => {
-                        ui_event_tx.send_or_warn(UIEvent::Notification(msg.clone()));
+                    AppEvent::Notification(event) => {
+                        ui_event_tx.send_or_warn(UIEvent::Notification(event.msg.clone(), event.id.clone()));
                     }
                     // new config & shutdown
                     AppEvent::NewConfig(event) => {
@@ -1034,8 +1034,15 @@ async fn main() -> Result<()> {
 
                     header_bar.set_subtitle(Some(&subtitle));
                 }
-                UIEvent::Notification(msg) => {
-                    overlay.add_notification(msg.as_str());
+                UIEvent::Notification(msg, id) => {
+                    if let Some(id) = id.as_ref() {
+                        let updated = overlay.update_notification_with_id(msg.as_str(), id);
+                        if !updated {
+                            overlay.add_notification_with_id(msg.as_str(), id);
+                        }
+                    } else {
+                        overlay.add_notification(msg.as_str());
+                    }
                 }
                 UIEvent::Shutdown if !shutting_down => {
                     header_bar.set_subtitle(Some("Shutting down..."));

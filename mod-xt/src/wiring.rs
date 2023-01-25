@@ -370,7 +370,7 @@ pub fn resolve_footswitch_mode_show(objs: &ObjectList, config: &Config) -> Resul
     // For some reason, hiding these particular controls wia `widget.hide()` leaves
     // extra space in the gtk::Frame, which I can't get rid of. Instead, we remove
     // them from the UI altogether.
-    objs.widgets_by_class_match(&|class_name| class_name.starts_with("footswitch_mode:show"))
+    objs.widgets_by_class_match(|class_name| class_name.starts_with("footswitch_mode:show"))
         .for_each(|(widget, _)| {
             let container = widget.parent()
                 .and_then(|w| w.dynamic_cast::<gtk::Container>().ok())
