@@ -752,6 +752,7 @@
                     <style>
                       <class name="noise_gate_enable=1:enable"/>
                       <class name="noise_gate_enable=0:disable"/>
+                      <class name="toggle:noise_gate_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -984,6 +985,7 @@
                     <style>
                       <class name="reverb_enable=1:enable"/>
                       <class name="reverb_enable=0:disable"/>
+                      <class name="toggle:reverb_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1375,6 +1377,7 @@
                     <style>
                       <class name="delay_enable=1:enable"/>
                       <class name="delay_enable=0:disable"/>
+                      <class name="toggle:delay_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1902,6 +1905,9 @@
                         <property name="label" translatable="yes">FX</property>
                       </object>
                     </child>
+                    <style>
+                      <class name="toggle:effect_enable"/>
+                    </style>
                   </object>
                   <packing>
                     <property name="expand">False</property>

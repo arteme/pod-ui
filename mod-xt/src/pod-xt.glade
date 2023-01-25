@@ -958,6 +958,9 @@
                         <property name="label" translatable="yes">Preamp</property>
                       </object>
                     </child>
+                    <style>
+                      <class name="toggle:amp_enable"/>
+                    </style>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -1189,6 +1192,7 @@
                     <style>
                       <class name="noise_gate_enable=1:enable"/>
                       <class name="noise_gate_enable=0:disable"/>
+                      <class name="toggle:noise_gate_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1290,6 +1294,7 @@
                     <style>
                       <class name="compressor_enable=1:enable"/>
                       <class name="compressor_enable=0:disable"/>
+                      <class name="toggle:compressor_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1525,6 +1530,7 @@
                     <style>
                       <class name="reverb_enable=1:enable"/>
                       <class name="reverb_enable=0:disable"/>
+                      <class name="toggle:reverb_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1813,6 +1819,7 @@
                     <style>
                       <class name="eq_enable=1:enable"/>
                       <class name="eq_enable=0:disable"/>
+                      <class name="toggle:eq_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -2334,6 +2341,7 @@
                     <style>
                       <class name="delay_enable=1:enable"/>
                       <class name="delay_enable=0:disable"/>
+                      <class name="toggle:delay_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -2691,6 +2699,7 @@
                     <style>
                       <class name="stomp_enable=1:enable"/>
                       <class name="stomp_enable=0:disable"/>
+                      <class name="toggle:stomp_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -2921,6 +2930,7 @@
                     <style>
                       <class name="mod_enable=1:enable"/>
                       <class name="mod_enable=0:disable"/>
+                      <class name="toggle:mod_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -3004,6 +3014,7 @@
                     <style>
                       <class name="wah_enable=1:enable"/>
                       <class name="wah_enable=0:disable"/>
+                      <class name="toggle:wah_enable"/>
                     </style>
                   </object>
                   <packing>

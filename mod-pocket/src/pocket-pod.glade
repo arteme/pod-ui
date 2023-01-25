@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.38.2 -->
+<!-- Generated with glade 3.40.0 -->
 <interface>
   <requires lib="gtk+" version="3.22"/>
   <object class="GtkSizeGroup">
@@ -760,6 +760,7 @@
                     <style>
                       <class name="noise_gate_enable=1:enable"/>
                       <class name="noise_gate_enable=0:disable"/>
+                      <class name="toggle:noise_gate_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -992,6 +993,7 @@
                     <style>
                       <class name="reverb_enable=1:enable"/>
                       <class name="reverb_enable=0:disable"/>
+                      <class name="toggle:reverb_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1310,6 +1312,7 @@
                     <style>
                       <class name="delay_enable=1:enable"/>
                       <class name="delay_enable=0:disable"/>
+                      <class name="toggle:delay_enable"/>
                     </style>
                   </object>
                   <packing>
@@ -1837,6 +1840,9 @@
                         <property name="label" translatable="yes">FX</property>
                       </object>
                     </child>
+                    <style>
+                      <class name="toggle:effect_enable"/>
+                    </style>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -2130,6 +2136,7 @@
                     <style>
                       <class name="wah_enable=1:enable"/>
                       <class name="wah_enable=0:disable"/>
+                      <class name="toggle:wah_enable"/>
                     </style>
                   </object>
                   <packing>

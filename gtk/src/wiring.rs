@@ -344,5 +344,69 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
             });
         });
 
+    wire_frames(controller, objs)?;
     Ok(())
+}
+
+pub fn wire_frames(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<()> {
+    const TOGGLE_PREFIX: &str = "toggle:";
+
+    objs.widgets_by_class_match(&|class_name| class_name.starts_with(TOGGLE_PREFIX))
+        .for_each(|(w, class_names)| {
+            for class_name in class_names.iter().filter(|n| n.starts_with(TOGGLE_PREFIX)) {
+                let toggle = class_name.chars().skip(TOGGLE_PREFIX.len()).collect::<String>();
+
+                let controller = controller.clone();
+                let callback = move || {
+                    if let Some(v) = controller.get(&toggle) {
+                        let v = if v > 0 { 0 } else { 1 };
+                        controller.set(&toggle, v, UI);
+                    } else {
+                        warn!("Control value for {:?} not found", &toggle);
+                    }
+                    false
+                };
+
+                let Some(frame) = w.dynamic_cast_ref::<gtk::Frame>() else {
+                    warn!("Widget {:?} with class {:?} is not a gtk:Frame", w, class_name);
+                    return;
+                };
+
+                wire_frame_double_click(frame, callback);
+            }
+        });
+    Ok(())
+}
+
+fn wire_frame_double_click<F>(frame: &gtk::Frame, callback: F)
+where
+    F: Fn() -> bool + 'static,
+{
+    let Some(parent) = frame.parent() else {
+        warn!("Not wiring {:?}: no parent", frame);
+        return;
+    };
+    let Some(b) = parent.dynamic_cast_ref::<gtk::Box>() else {
+        warn!("Not wiring {:?}: parent {:?} not a gtk::Box", frame, parent);
+        return;
+    };
+
+    let pos = b.child_position(frame);
+    let (expand, fill, padding, pack_type) = b.query_child_packing(frame);
+    b.remove(frame);
+
+    let event_box = gtk::EventBox::new();
+    event_box.show();
+    event_box.add(frame);
+
+    b.add(&event_box);
+    b.set_child_packing(&event_box, expand, fill, padding, pack_type);
+    b.set_child_position(&event_box, pos);
+
+    event_box.connect_button_press_event(move |frame, event| {
+        if event.event_type() != gdk::EventType::DoubleButtonPress { return Inhibit(false) }
+        let inhibit = callback();
+        Inhibit(inhibit)
+    });
+    event_box.add_events(gdk::EventMask::BUTTON_PRESS_MASK);
 }
