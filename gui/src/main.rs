@@ -383,18 +383,16 @@ fn wire_open_button(ui: &gtk::Builder, window: &gtk::Window) {
     });
 }
 
-async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
-                                  controller: &Arc<Mutex<Controller>>,
+async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String,u16>>,
                                   objs: &ObjectList, callbacks: &Callbacks,
                                   f: F) -> bool
     where F: Fn(String, u16, StoreOrigin) -> ()
 {
-    let (name, origin) = match rx.recv().await {
-        Ok(Event { key, origin, .. }) => { (key, origin) }
+    let (name, value, origin) = match rx.recv().await {
+        Ok(Event { key, value, origin, .. }) => { (key, value, origin) }
         Err(RecvError::Closed) => { return true; }
         Err(RecvError::Lagged(_)) => { return false; }
     };
-    //println!("got {}", name);
 
     let vec = callbacks.get_vec(&name);
     match vec {
@@ -403,7 +401,6 @@ async fn controller_rx_handler<F>(rx: &mut broadcast::Receiver<Event<String>>,
             cb()
         }
     }
-    let value = controller.get(&name).unwrap();
     animate(&objs, &name, value);
 
     f(name, value, origin);
@@ -421,8 +418,7 @@ fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
                           f: F)
     where F: Fn(String, u16, StoreOrigin) -> () + 'static
 {
-    let controller = controller.clone();
-    let (tx, mut rx) = broadcast::channel::<Event<String>>(MIDI_OUT_CHANNEL_CAPACITY);
+    let (tx, mut rx) = broadcast::channel::<Event<String,u16>>(MIDI_OUT_CHANNEL_CAPACITY);
     controller.broadcast(Some(tx));
 
     glib::MainContext::default()
@@ -432,24 +428,22 @@ fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
                 let id = next_thread_id();
                 info!("Controller RX thread {:?} start", id);
                 loop {
-                    let stop = controller_rx_handler(&mut rx, &controller, &objs, &callbacks, &f).await;
+                    let stop = controller_rx_handler(&mut rx, &objs, &callbacks, &f).await;
                     if stop { break; }
                 }
                 info!("Controller RX thread {:?} stop", id);
             });
 }
 
-async fn names_rx_handler(rx: &mut broadcast::Receiver<Event<usize>>,
-                          ui_tx: &glib::Sender<UIEvent>,
-                          dump: &Arc<Mutex<ProgramsDump>>) -> bool
+async fn names_rx_handler(rx: &mut broadcast::Receiver<Event<usize,String>>,
+                          ui_tx: &glib::Sender<UIEvent>) -> bool
 {
-    let idx = match rx.recv().await {
-        Ok(Event { key, .. }) => { key }
+    let (idx, name) = match rx.recv().await {
+        Ok(Event { key, value, .. }) => { (key, value) }
         Err(RecvError::Closed) => { return true; }
         Err(RecvError::Lagged(_)) => { return false; }
     };
 
-    let name = dump.lock().unwrap().name(idx).unwrap();
     ui_tx.send(UIEvent::Name(idx, name)).unwrap();
 
     false
@@ -458,15 +452,14 @@ async fn names_rx_handler(rx: &mut broadcast::Receiver<Event<usize>>,
 fn start_names_rx(ui_tx: glib::Sender<UIEvent>,
                   names: Arc<Mutex<ProgramsDump>>)
 {
-    let dump = names.clone();
-    let (tx, mut rx) = broadcast::channel::<Event<usize>>(MIDI_OUT_CHANNEL_CAPACITY);
-    dump.lock().unwrap().broadcast_names(Some(tx));
+    let (tx, mut rx) = broadcast::channel::<Event<usize,String>>(MIDI_OUT_CHANNEL_CAPACITY);
+    names.lock().unwrap().broadcast_names(Some(tx));
 
     tokio::spawn(async move {
         let id = next_thread_id();
         info!("Program names RX thread {:?} start", id);
         loop {
-            let stop = names_rx_handler(&mut rx, &ui_tx, &dump).await;
+            let stop = names_rx_handler(&mut rx, &ui_tx).await;
             if stop { break; }
         }
         info!("Program names RX thread {:?} stop", id);

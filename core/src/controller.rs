@@ -10,7 +10,7 @@ pub use crate::store::{Store, StoreSetIm, Signal, Event};
 pub use crate::store::{Origin as StoreOrigin};
 
 pub struct Controller {
-    store: StoreBase<String>,
+    store: StoreBase<String, u16>,
     pub controls: HashMap<String, Control>,
     values: HashMap<String, (u16, Origin)>,
 }
@@ -78,7 +78,7 @@ impl Store<&str, u16, String> for Controller {
                 v.1 = origin;
             }
 
-            store.send_signal(name.to_string(), value_changed, origin, signal);
+            store.send_signal(name.to_string(), value, value_changed, origin, signal);
             value_changed
         }).unwrap_or_else(|| {
             warn!("No control {:?} defined", name);
@@ -86,7 +86,7 @@ impl Store<&str, u16, String> for Controller {
         })
     }
 
-    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<String>>>) {
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<String, u16>>>) {
         self.store.broadcast(tx)
     }
 }

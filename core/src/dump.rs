@@ -23,7 +23,7 @@ impl ProgramsDump {
         Self { program_num, program_size, data, modified, names }
     }
 
-    pub fn broadcast_names(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+    pub fn broadcast_names(&mut self, tx: Option<broadcast::Sender<Event<usize,String>>>) {
         self.names.broadcast(tx)
     }
 

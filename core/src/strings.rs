@@ -3,7 +3,7 @@ use log::*;
 use tokio::sync::broadcast;
 
 pub struct Strings {
-    store: StoreBase<usize>,
+    store: StoreBase<usize, String>,
     values: Box<[String]>
 }
 
@@ -33,13 +33,13 @@ impl Store<usize, String, usize> for Strings {
         }
 
         let value_changed = prev.unwrap() != &val;
-        self.values[idx] = val;
+        self.values[idx] = val.clone();
 
-        self.store.send_signal(idx, value_changed, origin, signal);
+        self.store.send_signal(idx, val, value_changed, origin, signal);
         value_changed
     }
 
-    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<usize,String>>>) {
         self.store.broadcast(tx)
     }
 }

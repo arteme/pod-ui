@@ -4,7 +4,7 @@ use log::*;
 use crate::store::*;
 
 pub struct Raw {
-    store: StoreBase<usize>,
+    store: StoreBase<usize, u8>,
     pub page: usize,
     pub num_pages: usize,
     pub page_size: usize,
@@ -38,7 +38,7 @@ impl Raw {
             let new = self.values[self.page * self.page_size + i];
 
             let value_changed = old != new;
-            self.store.send_signal(i, value_changed, origin, signal.clone());
+            self.store.send_signal(i, new, value_changed, origin, signal.clone());
         }
 
         Ok(())
@@ -85,11 +85,11 @@ impl Store<usize, u8, usize> for Raw {
         }
 
         let value_changed = prev.unwrap() != val;
-        self.store.send_signal(idx, value_changed, origin, signal);
+        self.store.send_signal(idx, val, value_changed, origin, signal);
         value_changed
     }
 
-    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<usize>>>) {
+    fn broadcast(&mut self, tx: Option<broadcast::Sender<Event<usize,u8>>>) {
         self.store.broadcast(tx)
     }
 }
