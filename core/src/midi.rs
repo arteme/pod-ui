@@ -1,4 +1,5 @@
-use anyhow::{Result, Context};
+use anyhow::*;
+use arrayref::array_ref;
 use log::warn;
 use crate::util::*;
 
@@ -199,6 +200,8 @@ impl MidiMessage {
         }
     }
 
+    // This is technically not needed since midir 0.9.0 fixed sysex size
+    // in winrt, but let's keep it for possible other broken platforms
     fn sysex_length(bytes: &Vec<u8>) -> (bool, usize) {
         let mut canceled = true;
         let mut len = bytes.len();

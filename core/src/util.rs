@@ -1,3 +1,4 @@
+use arrayref::{array_mut_ref, array_ref};
 use log::*;
 
 pub fn nibble_to_u8(bytes: &[u8; 2]) -> u8 {

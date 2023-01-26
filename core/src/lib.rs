@@ -1,14 +1,5 @@
-extern crate serde;
-extern crate midir;
-
-#[macro_use]
-extern crate anyhow;
-#[macro_use]
-extern crate arrayref;
-
 pub mod midi;
 mod util;
-
 pub use util::def;
 
 pub mod store;

@@ -1,5 +1,5 @@
 use midir::*;
-use anyhow::{Result, Context};
+use anyhow::*;
 use regex::Regex;
 use std::str::FromStr;
 use std::time::Duration;
