@@ -6,6 +6,7 @@ use crate::{Callbacks, ObjectList};
 
 pub struct LogicBuilder<'c> {
     controller: Arc<Mutex<Controller>>,
+    #[allow(dead_code)] // will be used some day
     objs: ObjectList,
     callbacks: &'c mut Callbacks
 }

@@ -403,7 +403,7 @@ where
     b.set_child_packing(&event_box, expand, fill, padding, pack_type);
     b.set_child_position(&event_box, pos);
 
-    event_box.connect_button_press_event(move |frame, event| {
+    event_box.connect_button_press_event(move |_, event| {
         if event.event_type() != gdk::EventType::DoubleButtonPress { return Inhibit(false) }
         let inhibit = callback();
         Inhibit(inhibit)
