@@ -646,13 +646,13 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "xt_packs"
         )),
 
-        // request edit buffer dump after setting 'amp select' CC 12, 'effect select' CC 19,
-        // 'reverb select' CC 37, 'mod select' CC 58, 'stomp select' CC 75, 'delay select' CC 88,
-        // 'wah select' CC 91
-        out_cc_edit_buffer_dump_req: vec![ 12, 19, 37, 58, 75, 88, 91 ],
+        // request edit buffer dump after setting 'amp select' CC 11, 'amp select w/o defaults'
+        // CC 12, 'effect select' CC 19, 'reverb select' CC 37, 'mod select' CC 58,
+        // 'stomp select' CC 75, 'delay select' CC 88, 'wah select' CC 91
+        out_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 58, 75, 88, 91 ],
 
-        // request edit buffer dump after receiving 'effect select' CC 19, 'tap tempo' CC 64
-        in_cc_edit_buffer_dump_req: vec![ 19, 64 ],
+        // request edit buffer dump after receiving all of the above + 'tap tempo' CC 64
+        in_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 64, 75, 88, 91 ],
 
         flags: DeviceFlags::empty(),
         midi_quirks: MidiQuirks::empty(),
