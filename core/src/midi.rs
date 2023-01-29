@@ -36,6 +36,8 @@ pub enum MidiMessage {
     XtTunerOffset { offset: u16 },
     XtProgramNumberRequest,
     XtProgramNumber { program: u16 },
+    XtProgramEditStateRequest,
+    XtProgramEditState { edited: bool },
 
     ControlChange { channel: u8, control: u8, value: u8 },
     ProgramChange { channel: u8, program: u8 }
@@ -192,6 +194,14 @@ impl MidiMessage {
                 let (p1, p2, p3, p4) = u16_to_4_u4(*program);
                 [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x11, p1, p2, p3, p4, 0xf7].to_vec()
             }
+            MidiMessage::XtProgramEditStateRequest => {
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x57, 0x1c, 0xf7].to_vec()
+            }
+            MidiMessage::XtProgramEditState { edited } => {
+                let v: u16 = if *edited { 1 } else { 0 };
+                let (p1, p2, p3, p4) = u16_to_4_u4(v);
+                [0xf0, 0x00, 0x01, 0x0c, 0x03, 0x56, 0x1c, p1, p2, p3, p4, 0xf7].to_vec()
+            }
 
             MidiMessage::ControlChange { channel, control, value } =>
                 [0xb0 | *channel & 0x0f, *control, *value].to_vec(),
@@ -325,6 +335,11 @@ impl MidiMessage {
                             [0x03, 0x56, 0x11, p1, p2, p3, p4] => {
                                 let program = u16_from_4_u4(*p1, *p2, *p3, *p4);
                                 Ok(MidiMessage::XtProgramNumber { program })
+                            }
+                            [0x03, 0x57, 0x1c] => Ok(MidiMessage::XtProgramEditStateRequest),
+                            [0x03, 0x56, 0x1c, p1, p2, p3, p4] => {
+                                let v = u16_from_4_u4(*p1, *p2, *p3, *p4);
+                                Ok(MidiMessage::XtProgramEditState { edited: v > 0 })
                             }
 
 

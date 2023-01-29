@@ -21,6 +21,8 @@ use crate::tuner::Tuner;
 const MARKER_PATCH_DUMP_END: u32 = 0x0001;
 /// A marker that store status hasn't been received (timed out)
 const MARKER_STORE_STATUS_TIMEOUT: u32 = 0x0002;
+/// A marker that program number & edit status should be requested
+const MARKER_REQUEST_PROGRAM_NUMBER: u32 = 0x0003;
 
 struct Inner {
     midi_out_queue: VecDeque<MidiMessage>,
@@ -35,7 +37,9 @@ struct Inner {
     store_status_timeout_handler: Option<tokio::task::JoinHandle<()>>,
     tuner: Option<Tuner>,
     /// Effects
-    effects: ProgramNames
+    effects: ProgramNames,
+    /// The latest received XtProgramNumber
+    reported_program_number: Option<usize>
 }
 
 pub(crate) struct PodXtHandler {
@@ -50,7 +54,8 @@ impl PodXtHandler {
             store_programs: BitSet::with_capacity(128),
             store_status_timeout_handler: None,
             tuner: None,
-            effects: ProgramNames::new_with_size(config, 64)
+            effects: ProgramNames::new_with_size(config, 64),
+            reported_program_number: None,
         };
         Self { inner: RefCell::new(inner) }
     }
@@ -404,6 +409,39 @@ impl Handler for PodXtHandler {
             }
             MidiMessage::XtProgramNumber { program } => {
                 ctx.set_program(Program::Program(*program), MIDI);
+                self.inner.borrow_mut().reported_program_number = Some(*program as usize);
+
+                // TODO: this is not a very good way to queue up messages
+                // there must me an XtProgramEditState queued up, send it
+                self.queue_pop();
+                self.queue_send(ctx);
+            }
+            MidiMessage::XtProgramEditStateRequest => {
+                if let Some(program) = num_program(&ctx.program()) {
+                    let edited = ctx.dump.lock().unwrap().modified(program);
+                    let msg = MidiMessage::XtProgramEditState { edited };
+                    ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+                }
+            }
+            MidiMessage::XtProgramEditState { edited } => {
+                if let Some(p) = self.inner.borrow().reported_program_number {
+                    let e = ModifiedEvent {
+                        buffer: Buffer::Program(p),
+                        origin: MIDI,
+                        modified: *edited
+                    };
+                    ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+
+                    if ctx.program() == Program::Program(p as u16) {
+                        // same program selected in the app as in the device,
+                        // request the edit buffer dump
+                        let e = BufferLoadEvent {
+                            buffer: Buffer::EditBuffer,
+                            origin: UI
+                        };
+                        ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
+                    }
+                }
             }
             // TODO: handle XtSaved
             _ => {}
@@ -416,6 +454,10 @@ impl Handler for PodXtHandler {
         // detect installed packs
         let msg = MidiMessage::XtInstalledPacksRequest;
         ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+
+        // request selected program number & edit status,
+        // but defer this to the end of the queue by sending a marker
+        ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_REQUEST_PROGRAM_NUMBER));
     }
 
     fn marker_handler(&self, ctx: &Ctx, marker: u32) {
@@ -443,7 +485,16 @@ impl Handler for PodXtHandler {
                 inner.store_status_timeout_handler.take();
                 // TODO: show error in UI?
             }
-            _ => {}
+            MARKER_REQUEST_PROGRAM_NUMBER => {
+                // Queue program number request and edit status request messages
+                let msg = MidiMessage::XtProgramNumberRequest;
+                self.queue_push(msg);
+                let msg = MidiMessage::XtProgramEditStateRequest;
+                self.queue_push(msg);
+            }
+            _ => {
+                error!("Marker {} not handled!", marker);
+            }
         }
     }
 

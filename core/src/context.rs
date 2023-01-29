@@ -44,10 +44,6 @@ impl Ctx {
     pub fn set_program_prev(&self, program: Program, origin: Origin) {
         self.ui_controller.set("program:prev", program.into(), origin.into());
     }
-
-    pub fn program_num(&self) -> usize {
-        self.ui_controller.get("program_num").unwrap() as usize
-    }
 }
 
 impl Debug for Ctx {
