@@ -1,7 +1,7 @@
 #!/bin/bash
 V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V
-DIST=debug
+DIST=release
 DIR=target/appdir
 TOOLS_DIR=$(dirname $0)
 LINUXDEPLOY=../build/linux/linuxdeploy-x86_64.AppImage
@@ -9,7 +9,7 @@ LINUXDEPLOY=../build/linux/linuxdeploy-x86_64.AppImage
 rm -rf $DIR
 
 mkdir -p $DIR/usr/bin
-cp target/$DIST/pod-gui $DIR/usr/bin
+cp target/$DIST/pod-gui{,.debug} $DIR/usr/bin
 sed "s|@VERSION@|$V|;s|@EXEC@|pod-gui|" \
        < build/linux/pod-ui.desktop.in > target/pod-ui.desktop
 cp gui/resources/icon.png target/pod-ui.png
@@ -39,4 +39,4 @@ $LINUXDEPLOY --appdir ../$DIR \
 popd
 
 echo "!!! $DIR"
-ls -sh target/*.AppImage | grep "$V"
+find target/ -name '*.AppImage' -exec ls -sh \{} \; | grep "$V"

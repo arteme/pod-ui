@@ -18,7 +18,8 @@ build_debug_linux() {
     export RELEASE_PLATFORM="linux"
     if [[ -n "$DOCKER_POD_UI_BUILD" ]];
     then
-        cargo build
+        cargo build --release
+	./build/linux-split-debuginfo.sh target/release/pod-gui
         ./build/mk-appimage-dist.sh
     else
         ./build/mk-appimage-dist-docker.sh

@@ -17,4 +17,4 @@ docker run -it \
        	pod-ui-appimage-build-base:latest /bin/bash -l ./build/release.sh
 
 echo "!!! $DIR"
-ls -sh target/*.AppImage | grep "$V"
+find target/ -name '*.AppImage' -exec ls -sh \{} \; | grep "$V"
