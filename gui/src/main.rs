@@ -1093,15 +1093,15 @@ async fn main() -> Result<()> {
         }
     });
 
-    // panic indicator testing in debug builds
-    if cfg!(debug_assertions) && std::env::var_os("PANIC").is_some() {
-        info!("Panic indicator testing...");
-        glib::timeout_add_local_once(
-            Duration::from_millis(10000),
-            move || {
-                ui_event_tx.send(UIEvent::Panic).unwrap();
-                info!("Panic indicator set!");
-            });
+    // crash testing
+    if let Some(duration) = std::env::var_os("PODUI_CRASH_TEST")
+        .and_then(|str| str.into_string().ok())
+        .and_then(|str| str.parse::<u64>().ok()) {
+        info!("THREAD CRASH TESTING");
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(duration)).await;
+            let _ = 1 / 0;
+        });
     }
 
     // show the window and do init stuff...
