@@ -8,10 +8,8 @@ export SIGN=1
 
 build_debug_osx() {
     export RELEASE_PLATFORM="osx"
-    export RUSTFLAGS="-C split-debuginfo=packed"
     cargo build --release
     ./build/mk-osx-dist.sh
-    ./build/sentry-upload-dsyms.sh
 }
 
 build_debug_linux() {
