@@ -2,7 +2,7 @@
 
 V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V-osx
-DIST=debug
+DIST=release
 DIR=target/$N
 TOOLS_DIR=$(dirname $0)
 
@@ -85,4 +85,4 @@ xcnotary notarize "target/$N.dmg" \
 xcrun stapler staple -v "target/$N.dmg"
 
 echo "!!! $DIR"
-ls -sh $target/$N*.dmg
+find target/ -name '*.dmg' -exec ls -sh \{} \; | grep "$V"

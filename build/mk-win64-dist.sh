@@ -6,7 +6,7 @@ T=${2:-target}
 
 V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V-win64$EXTRA
-DIST=debug
+DIST=release
 DIR=$T/$N
 TOOLS_DIR=$(dirname $0)
 
