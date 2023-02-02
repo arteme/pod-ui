@@ -9,7 +9,7 @@ LINUXDEPLOY=../build/linux/linuxdeploy-x86_64.AppImage
 rm -rf $DIR
 
 mkdir -p $DIR/usr/bin
-cp target/$DIST/pod-gui{,.debug} $DIR/usr/bin
+cp target/$DIST/pod-gui $DIR/usr/bin
 sed "s|@VERSION@|$V|;s|@EXEC@|pod-gui|" \
        < build/linux/pod-ui.desktop.in > target/pod-ui.desktop
 cp gui/resources/icon.png target/pod-ui.png

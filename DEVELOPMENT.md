@@ -39,7 +39,7 @@ or use `rustup` with MSYS2, but this has not been tested. Instead, we'll use
 
 After installing MSYS2, open `MSYS2 Mingw x64` terminal from the Start menu:
 ```shell
-pacman -S base_devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-rust mingw-w64-x86_64-gtk3
+pacman -S git zip mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rust mingw-w64-x86_64-gtk3
 ```
 
 ### MacOS
