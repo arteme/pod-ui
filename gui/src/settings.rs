@@ -53,7 +53,7 @@ impl SettingsDialog {
     fn set_message(&self, icon: &str, message: &str) {
         let icon = if icon.is_empty() { None } else { Some(icon) };
         self.message_image.set_from_icon_name(icon, IconSize::Dialog);
-        self.message_label.set_label(message);
+        self.message_label.set_markup(message);
     }
 
     fn clear_message(&self) {
@@ -186,7 +186,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
                 }
                 Err(e) => {
                     error!("Settings MIDI autodetect failed: {}", e);
-                    let msg = format!("Autodetect failed:\n{}", e);
+                    let msg = format!("Autodetect failed:\n\n{}", e);
                     settings.work_finish("dialog-error", &msg);
                 }
             };
@@ -241,7 +241,7 @@ fn wire_test_button(settings: &SettingsDialog) {
                 }
                 Err(e) => {
                     error!("Settings MIDI test failed: {}", e);
-                    let msg = format!("Test failed:\n{}", e);
+                    let msg = format!("Test failed:\n\n{}", e);
                     settings.work_finish("dialog-error", &msg);
                 }
             };

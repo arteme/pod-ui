@@ -541,11 +541,11 @@ fn check_for_broken_drivers(port_name: &String, bytes: &Vec<u8>) -> Option<Strin
 
         let error = String::new() +
             "We've detected that you have a PODxt device connected via " +
-            "USB. Unfortunately, the Line6 USB driver is buggy and this " +
-            "won't work. Please connect the device to a sound card with " +
-            "MIDI cables. The patch for this bug has been sent to the " +
-            "kernel developers. There's nothing else to do but wait " +
-            "that it makes it to the mainline kernel soon...";
+            "USB. Unfortunately, your Linux kernel is old and contains " +
+            "a broken PODxt driver. Please check <a href=\"https://github.com/arteme/pod-ui/issues/19\">" +
+            "this tracking issue</a> for the kernel versions that have been " +
+            "fixed and update your kernel accordingly. In the meantime, please " +
+            "connect the device to a sound card using MIDI cables.";
         return Some(error)
     }
 

@@ -118,6 +118,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                         gtk::ButtonsType::Ok,
                         "Autodetect encountered errors:"
                     );
+                    m.set_secondary_use_markup(true);
                     m.set_secondary_text(Some(e.to_string().as_str()));
                     m.connect_response(|dialog, _| {
                         dialog.close();
