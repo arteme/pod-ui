@@ -9,7 +9,7 @@ V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V
 DIST=debug
 
-docker run -it \
+docker run -it --rm \
 	--user "$(id -u)":"$(id -g)" \
 	-v `pwd`:/build -w /build \
 	-v ~/.cargo:/.cargo -e CARGO_HOME=/.cargo \

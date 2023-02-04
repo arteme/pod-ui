@@ -8,6 +8,7 @@ ENV RUSTUP_HOME=/opt/rust
 ENV CARGO_HOME=/opt/cargo
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+ && curl -sL https://sentry.io/get-cli/ | sh \
  && :
 
 RUN echo 'source /opt/cargo/env' > /etc/profile.d/10-rusrtup.sh \
