@@ -1,7 +1,9 @@
 use std::cell::Cell;
 use std::time::Duration;
+use log::warn;
 use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
+use pod_gtk::prelude::glib::subclass::Signal;
 use super::program_button::{ProgramButton, ProgramButtonExt};
 
 const NUM_BUTTONS_PER_PAGE: usize = 36;
@@ -13,6 +15,16 @@ glib::wrapper! {
     @extends gtk::Box, gtk::Container, gtk::Widget;
 }
 
+#[derive(Clone, Debug, glib::Boxed)]
+#[boxed_type(name = "ProgramGridAction")]
+pub enum ProgramGridAction {
+    Load { program: usize },
+    LoadUnmodified { program: usize },
+    Store { program: usize },
+    LoadDevice { program: usize },
+    StoreDevice { program: usize }
+}
+
 #[derive(Clone, Debug)]
 struct Widgets {
     size_group: gtk::SizeGroup,
@@ -22,6 +34,7 @@ struct Widgets {
     adj: gtk::Adjustment,
     left: Option<gtk::Button>,
     right: Option<gtk::Button>,
+    right_click_menu: gtk::Menu
 }
 
 pub struct ProgramGridPriv {
@@ -29,6 +42,7 @@ pub struct ProgramGridPriv {
     num_pages: Cell<usize>,
     cur_page: Cell<usize>,
     is_open: Cell<bool>,
+    right_click_target: Cell<i32>,
     widgets: OnceCell<Widgets>
 }
 
@@ -186,6 +200,42 @@ impl ProgramGridPriv {
         self.program_button(program_idx)
             .map(|p| p.program_name())
     }
+
+    fn show_right_click_menu<T: IsA<gtk::Widget>>(&self, program_idx: usize, widget: &T, event: &gdk::Event) {
+        if let Some(w) = self.widgets.get() {
+            w.right_click_menu.set_attach_widget(Some(widget));
+            w.right_click_menu.show_all();
+
+            let modified = self.program_modified(program_idx).unwrap_or(false);
+            w.right_click_menu.children().get(1) // "Load unmodified to edit buffer"
+                .map(|w| if modified { w.show() } else { w.hide() });
+
+            w.right_click_menu.popup_at_pointer(Some(event));
+            self.right_click_target.set(program_idx as i32);
+        }
+    }
+
+    fn right_click_menu_action(&self, idx: usize) {
+        let program = self.right_click_target.get();
+        if program < 0 {
+            return;
+        }
+        let program = program as usize;
+
+        let action = match idx {
+            0 => ProgramGridAction::Load { program },
+            1 => ProgramGridAction::LoadUnmodified { program },
+            2 => ProgramGridAction::Store { program },
+            4 => ProgramGridAction::LoadDevice { program },
+            5 => ProgramGridAction::StoreDevice { program },
+            _ => {
+                warn!("Unknown right-click menu action: {}", idx);
+                return;
+            }
+        };
+
+        self.instance().emit_by_name::<()>("action", &[&action]);
+    }
 }
 
 #[glib::object_subclass]
@@ -204,6 +254,7 @@ impl ObjectSubclass for ProgramGridPriv {
             num_pages: Cell::new(NUM_PAGES_DEFAULT),
             cur_page: Cell::new(0),
             is_open: Cell::new(false),
+            right_click_target: Cell::new(-1),
             widgets: OnceCell::new()
         }
     }
@@ -243,9 +294,20 @@ impl ObjectImpl for ProgramGridPriv {
         PROPERTIES.as_ref()
     }
 
-//    fn signals() -> &'static [Signal] {
-//        todo!()
-//    }
+    fn signals() -> &'static [Signal] {
+        static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+            vec![
+                Signal::builder(
+                    "action",
+                    &[ProgramGridAction::static_type().into()],
+                    <()>::static_type().into()
+                )
+                .run_last()
+                .build()
+            ]
+        });
+        SIGNALS.as_ref()
+    }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         fn v<'a, T: FromValue<'a>>(value: &'a Value) -> T {
@@ -328,6 +390,15 @@ impl ObjectImpl for ProgramGridPriv {
                         p.show_page_if_different(page);
                     }
                 }));
+                b.connect_button_press_event(glib::clone!(@weak obj =>
+                    @default-return Inhibit(false),move |button, event| {
+                        if event.button() != 3 { return Inhibit(false) }
+
+                        let p = ProgramGridPriv::from_instance(&obj);
+                        p.show_right_click_menu(i, button, event);
+                        Inhibit(true)
+                   })
+                );
 
                 b
             } else {
@@ -376,12 +447,28 @@ impl ObjectImpl for ProgramGridPriv {
             (Some(left), Some(right))
         };
 
+        let menu = gtk::Menu::new();
+        menu.add(&gtk::MenuItem::with_label("Load to edit buffer"));
+        menu.add(&gtk::MenuItem::with_label("Load unmodified to edit buffer"));
+        menu.add(&gtk::MenuItem::with_label("Store from edit buffer"));
+        menu.add(&gtk::SeparatorMenuItem::new());
+        menu.add(&gtk::MenuItem::with_label("Load from device"));
+        menu.add(&gtk::MenuItem::with_label("Store to device"));
+        for (i, w) in menu.children().iter().enumerate() {
+            let Some(item) = w.dynamic_cast_ref::<gtk::MenuItem>() else { continue };
+            item.connect_activate(glib::clone!(@weak obj => move |_| {
+                let p = ProgramGridPriv::from_instance(&obj);
+                p.right_click_menu_action(i);
+            }));
+        }
+
         self.widgets.set(Widgets {
             size_group,
             buttons,
             pages,
             grid,
             adj: adj.clone(),
+            right_click_menu: menu,
             left, right
         }).expect("Setting widgets failed");
 
@@ -425,6 +512,9 @@ pub trait ProgramGridExt {
 
     fn num_pages(&self) -> usize;
     fn num_buttons(&self) -> usize;
+
+    fn connect_action<F>(&self, callback: F) -> glib::SignalHandlerId
+        where F: Fn(ProgramGridAction) + Sync + Send + 'static;
 }
 
 impl ProgramGridExt for ProgramGrid {
@@ -476,5 +566,21 @@ impl ProgramGridExt for ProgramGrid {
     fn num_buttons(&self) -> usize {
         let p = ProgramGridPriv::from_instance(self);
         p.num_buttons()
+    }
+
+    fn connect_action<F>(&self, callback: F) -> glib::SignalHandlerId
+        where F: Fn(ProgramGridAction) + Sync + Send + 'static
+    {
+        self.connect("action", true, move |values| {
+            let Some(action) = values.get(1).ok_or("Failed to get argument".to_string())
+                .and_then(|v| v.get::<ProgramGridAction>().map_err(|e| e.to_string()))
+                .map_err(|e| { warn!("Failed to get ProgramGridAction: {}", e) })
+                .ok() else {
+                return None
+            };
+
+            callback(action);
+            None
+        })
     }
 }

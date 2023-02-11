@@ -7,6 +7,7 @@ glib::wrapper! {
     @extends gtk::Bin, gtk::Container, gtk::Widget;
 }
 
+#[derive(Debug)]
 struct Widgets {
     program_id_label: gtk::Label,
     program_name_label: gtk::Label
@@ -24,11 +25,9 @@ impl ProgramButtonPriv {
         let program_id_label: gtk::Label = ui.object("program_id_label").unwrap();
         let program_name_label: gtk::Label = ui.object("program_name_label").unwrap();
 
-        if self.widgets.set(Widgets {
+        self.widgets.set(Widgets {
             program_id_label, program_name_label
-        }).is_err() {
-            // TODO
-        }
+        }).expect("Setting widgets failed");
 
         obj.add(&widget);
         obj.set_halign(gtk::Align::Fill);
