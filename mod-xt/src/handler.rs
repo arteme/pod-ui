@@ -411,10 +411,14 @@ impl Handler for PodXtHandler {
                 ctx.set_program(Program::Program(*program), MIDI);
                 self.inner.borrow_mut().reported_program_number = Some(*program as usize);
 
-                // TODO: this is not a very good way to queue up messages
-                // there must me an XtProgramEditState queued up, send it
-                self.queue_pop();
-                self.queue_send(ctx);
+                // If this was a reply to an XtProgramNumberRequest, advance the message queue
+                match self.queue_peek() {
+                    Some(MidiMessage::XtProgramNumberRequest) => {
+                        self.queue_pop();
+                        self.queue_send(ctx);
+                    }
+                    _ => {}
+                }
             }
             MidiMessage::XtProgramEditStateRequest => {
                 if let Some(program) = num_program(&ctx.program()) {
@@ -441,6 +445,15 @@ impl Handler for PodXtHandler {
                         };
                         ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
                     }
+                }
+
+                // If this was a reply to an XtProgramEditStateRequest, advance the message queue
+                match self.queue_peek() {
+                    Some(MidiMessage::XtProgramEditStateRequest) => {
+                        self.queue_pop();
+                        self.queue_send(ctx);
+                    }
+                    _ => {}
                 }
             }
             // TODO: handle XtSaved
