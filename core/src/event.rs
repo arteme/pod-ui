@@ -66,7 +66,7 @@ pub struct ControlChangeEvent {
     pub origin: StoreOrigin,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Buffer {
     EditBuffer,
     Current,
@@ -90,6 +90,12 @@ pub struct BufferLoadEvent {
 pub struct BufferStoreEvent {
     pub buffer: Buffer,
     pub origin: Origin,
+}
+
+#[derive(Clone, Debug)]
+pub struct BufferCopyEvent {
+    pub from: Buffer,
+    pub to: Buffer,
 }
 
 #[derive(Clone, Debug)]
@@ -146,6 +152,7 @@ pub enum AppEvent {
     ProgramChange(ProgramChangeEvent),
     Load(BufferLoadEvent),
     Store(BufferStoreEvent),
+    Copy(BufferCopyEvent),
     BufferData(BufferDataEvent),
     Modified(ModifiedEvent),
 

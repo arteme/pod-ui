@@ -1,7 +1,32 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
 use log::*;
+use once_cell::sync::Lazy;
 use crate::context::Ctx;
 use crate::event::*;
 use crate::midi::{Channel, MidiMessage};
+
+/// DISPATCH_BUFFER_REROUTE is a hash map of Buffer -> Buffer routing,
+/// used when an unmodified program (load from device) is requested into
+/// the edit buffer (possibly, into a different program) from a program
+/// that is not the current program.
+static DISPATCH_BUFFER_REROUTE: Lazy<Mutex<HashMap<Buffer, Buffer>>> = Lazy::new(|| {
+    Mutex::new(HashMap::new())
+});
+
+pub fn dispatch_buffer_set(from: Buffer, to: Buffer) {
+    DISPATCH_BUFFER_REROUTE.lock().unwrap().insert(from, to);
+}
+
+pub fn dispatch_buffer_get(from: &Buffer) -> Option<Buffer> {
+    DISPATCH_BUFFER_REROUTE.lock().unwrap().remove(from)
+}
+
+pub fn dispatch_buffer_clear() {
+    DISPATCH_BUFFER_REROUTE.lock().unwrap().clear()
+}
+
+// -------------------------------------------------------------
 
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
     ctx.handler.cc_handler(ctx, event)
@@ -56,6 +81,7 @@ pub fn midi_pc_out_handler(ctx: &Ctx, midi_message: &MidiMessage) {
 }
 
 pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
+    dispatch_buffer_clear();
     ctx.handler.pc_handler(ctx, event);
 }
 
@@ -89,7 +115,18 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
 }
 
 pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
-    ctx.handler.buffer_handler(ctx, event)
+    match dispatch_buffer_get(&event.buffer) {
+        Some(buffer) => {
+            // reroute buffer event to a new buffer
+            let mut event = event.clone();
+            event.buffer = buffer;
+            ctx.handler.buffer_handler(ctx, &event)
+        }
+        None => {
+            // process buffer data event as-is
+            ctx.handler.buffer_handler(ctx, event)
+        }
+    }
 }
 
 pub fn midi_udi_handler(ctx: &Ctx, midi_message: &MidiMessage) {

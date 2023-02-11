@@ -809,6 +809,8 @@ async fn main() -> Result<()> {
         move |event| {
             match event {
                 UIEvent::NewConfig => {
+                    dispatch_buffer_clear();
+
                     let state = state.lock().unwrap();
                     let config = state.config.unwrap();
 
@@ -904,6 +906,40 @@ async fn main() -> Result<()> {
                     let program_num = config.program_num;
                     let g = ProgramGrid::new(program_num);
                     grid.attach(&g, 0, 1, 2, 18);
+                    g.connect_action({
+                        let app_event_tx = app_event_tx.clone();
+                        move |action| {
+                            match action {
+                                ProgramGridAction::Load { program } => {
+                                    let e = BufferCopyEvent {
+                                        from: Buffer::Program(program),
+                                        to: Buffer::EditBuffer
+                                    };
+                                    app_event_tx.send_or_warn(AppEvent::Copy(e));
+                                }
+                                ProgramGridAction::LoadUnmodified { program } => {
+                                    dispatch_buffer_set(Buffer::Program(program), Buffer::EditBuffer);
+                                    let e = BufferLoadEvent { buffer: Buffer::Program(program), origin: Origin::UI };
+                                    app_event_tx.send_or_warn(AppEvent::Load(e));
+                                }
+                                ProgramGridAction::Store { program } => {
+                                    let e = BufferCopyEvent {
+                                        from: Buffer::EditBuffer,
+                                        to: Buffer::Program(program),
+                                    };
+                                    app_event_tx.send_or_warn(AppEvent::Copy(e));
+                                }
+                                ProgramGridAction::LoadDevice { program } => {
+                                    let e = BufferLoadEvent { buffer: Buffer::Program(program), origin: Origin::UI };
+                                    app_event_tx.send_or_warn(AppEvent::Load(e));
+                                }
+                                ProgramGridAction::StoreDevice { program } => {
+                                    let e = BufferStoreEvent { buffer: Buffer::Program(program), origin: Origin::UI };
+                                    app_event_tx.send_or_warn(AppEvent::Store(e));
+                                }
+                            };
+                        }
+                    });
                     g.show_all();
 
                     // join the main program radio group
