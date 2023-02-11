@@ -117,6 +117,7 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
 pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
     match dispatch_buffer_get(&event.buffer) {
         Some(buffer) => {
+            info!("Dispatch buffer rerouted: {:?} -> {:?}", event.buffer, buffer);
             // reroute buffer event to a new buffer
             let mut event = event.clone();
             event.buffer = buffer;
