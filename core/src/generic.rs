@@ -310,7 +310,7 @@ pub fn load_handler(ctx: &Ctx, event: &BufferLoadEvent) {
     }
 }
 
-pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
+pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) -> bool {
     // Store request origin
     let request = event.origin;
     let origin = UI;
@@ -328,7 +328,10 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
         }
         Buffer::Current => {
             let patch = num_program(&ctx.program());
-            let Some(patch) = patch else { return };
+            let Some(patch) = patch else {
+                warn!("Program {:?}, current buffer store discarded", ctx.program());
+                return false;
+            };
             let e = BufferDataEvent {
                 request,
                 origin,
@@ -370,6 +373,7 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
             }
         }
     }
+    true
 }
 
 pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {

@@ -45,7 +45,7 @@ pub trait Handler {
     }
     /// Handler for buffer store requests (UI)
     fn store_handler(&self, ctx: &Ctx, event: &BufferStoreEvent) {
-        generic::store_handler(ctx, event)
+        generic::store_handler(ctx, event);
     }
     /// Handler for buffer data received through MIDI
     fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {

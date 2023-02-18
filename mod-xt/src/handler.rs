@@ -197,10 +197,11 @@ impl Handler for PodXtHandler {
 
     fn store_handler(&self, ctx: &Ctx, event: &BufferStoreEvent) {
         if self.inner.borrow().store_status_timeout_handler.is_none() {
-            generic::store_handler(ctx, event);
-            // The generic handler sends 1..N buffer dump messages.
-            // Send a marker that an XtPatchDumpEnd is needed to be sent.
-            ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
+            if generic::store_handler(ctx, event) {
+                // The generic handler sends 1..N buffer dump messages.
+                // Send a marker that an XtPatchDumpEnd is needed to be sent.
+                ctx.app_event_tx.send_or_warn(AppEvent::Marker(MARKER_PATCH_DUMP_END));
+            }
         }
     }
 
@@ -226,9 +227,6 @@ impl Handler for PodXtHandler {
                 }
             }
             UI => {
-                if event.request == UI {
-                    error!("Store events from UI not implemented")
-                }
                 let patch = match event.buffer {
                     Buffer::Current | Buffer::All => {
                         // Buffer::Current is already converted into Buffer::Program(_)
@@ -252,7 +250,7 @@ impl Handler for PodXtHandler {
                 };
 
                 let msg = if let Some(patch) = patch {
-                    // record that store (patch dump) was senta for patch
+                    // record that store (patch dump) was sent for patch
                     self.inner.borrow_mut().store_programs.add(patch as u32);
                     // send a patch dump
                     MidiMessage::XtPatchDump {
