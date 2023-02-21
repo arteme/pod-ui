@@ -60,7 +60,7 @@ impl EditBuffer {
 
     pub fn set_name(&mut self, str: &str) {
         let mut raw = self.raw.lock().unwrap();
-        let modified = self.encoder.str_from_buffer(&raw).as_str() != str;
+        let modified = self.encoder.str_from_buffer(&raw).as_str() != str.trim();
         if modified {
             self.encoder.str_to_buffer(str, &mut raw);
             self.controller.set_full("name_change", 1, Origin::UI, Signal::Force);
