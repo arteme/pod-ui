@@ -40,7 +40,6 @@ struct Widgets {
 pub struct ProgramGridPriv {
     num_buttons: Cell<usize>,
     num_pages: Cell<usize>,
-    cur_page: Cell<usize>,
     is_open: Cell<bool>,
     right_click_target: Cell<i32>,
     widgets: OnceCell<Widgets>
@@ -90,7 +89,9 @@ impl ProgramGridPriv {
                 }
                 w.left.as_ref().map(|b| b.show());
                 w.right.as_ref().map(|b| b.show());
-                self.show_page(self.cur_page.get());
+                // This doesn't signal adj's "value-changed", run the inner handler instead:
+                //   self.show_page(w.adj.value() as usize);
+                self.show_page_inner(w.adj.value() as usize);
             }
 
         }
@@ -101,29 +102,19 @@ impl ProgramGridPriv {
     }
 
     fn adj_value_changed(&self, adj: &gtk::Adjustment) {
-        let value = adj.value();
-        let page_size = adj.page_size();
-        let upper = adj.upper();
-
-        if let Some(w) = self.widgets.get() {
-            w.left.as_ref().map(|l| l.set_sensitive(value > 0.0) );
-            w.right.as_ref().map(|r| r.set_sensitive(value < upper - page_size) );
-            self.show_page(value as usize);
-        }
+        self.show_page_inner(adj.value() as usize);
     }
 
     fn left_button_clicked(&self) {
         if let Some(w) = self.widgets.get() {
-            let v = w.adj.value();
-            let v = f64::max(0.0, v - w.adj.page_size());
+            let v = w.adj.value() - w.adj.page_size();
             w.adj.set_value(v);
         }
     }
 
     fn right_button_clicked(&self) {
         if let Some(w) = self.widgets.get() {
-            let v = w.adj.value();
-            let v = f64::min(w.adj.upper(), v + w.adj.page_size());
+            let v = w.adj.value() + w.adj.page_size();
             w.adj.set_value(v);
         }
     }
@@ -140,8 +131,7 @@ impl ProgramGridPriv {
         (p, x as i32, y as i32)
     }
 
-    fn show_page(&self, page: usize) {
-        self.cur_page.set(page as usize);
+    fn show_page_inner(&self, page: usize) {
         if let Some(w) = self.widgets.get() {
             if !self.is_open.get() {
                 for (i, p) in w.pages.iter().enumerate() {
@@ -156,13 +146,18 @@ impl ProgramGridPriv {
                         p.set_opacity(0.0);
                     }
                 }
+
+                let left_sensitive = page > 0;
+                let right_sensitive = page < w.pages.len() - 1;
+                w.left.as_ref().map(|l| l.set_sensitive(left_sensitive));
+                w.right.as_ref().map(|r| r.set_sensitive(right_sensitive));
             }
         }
     }
 
-    fn show_page_if_different(&self, page: usize) {
-        if self.cur_page.get() != page {
-            self.show_page(page);
+    fn show_page(&self, page: usize) {
+        if let Some(w) = self.widgets.get() {
+            w.adj.set_value(page as f64)
         }
     }
 
@@ -252,7 +247,6 @@ impl ObjectSubclass for ProgramGridPriv {
         Self {
             num_buttons: Cell::new(NUM_BUTTONS_DEFAULT),
             num_pages: Cell::new(NUM_PAGES_DEFAULT),
-            cur_page: Cell::new(0),
             is_open: Cell::new(false),
             right_click_target: Cell::new(-1),
             widgets: OnceCell::new()
@@ -387,7 +381,7 @@ impl ObjectImpl for ProgramGridPriv {
                 b.connect_toggled(glib::clone!(@weak obj => move |button| {
                     let p = ProgramGridPriv::from_instance(&obj);
                     if button.is_active() {
-                        p.show_page_if_different(page);
+                        p.show_page(page);
                     }
                 }));
                 b.connect_button_press_event(glib::clone!(@weak obj =>
