@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::*;
@@ -102,6 +103,35 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
 
     let handler;
 
+    // override insert-text handler to filter out unsupported characters
+    {
+        let handler: Rc<RefCell<Option<glib::SignalHandlerId>>> = Rc::new(RefCell::new(None));
+        let h = entry.connect_insert_text({
+            let handler = handler.clone();
+            move |entry, text, pos| {
+                entry.stop_signal_emission_by_name("insert-text");
+
+                // filter out characters [0,32), 96, (122,) from the text
+                // L6E replaces 0 -> 32, 96 -> 95, ..31, 123.. -> 95, we'll just drop them
+                let text = text.chars()
+                    .filter(|c| match c {
+                        '\0' ..= '\u{1f}' | '\u{60}' | '\u{7b}' .. => false,
+                        _ => true
+                    })
+                    .collect::<String>();
+
+                if !text.is_empty() {
+                    let borrow = (*handler).borrow();
+                    let Some(handler) = borrow.as_ref() else { return };
+                    entry.block_signal(handler);
+                    entry.insert_text(&text, pos);
+                    entry.unblock_signal(handler);
+                }
+            }
+        });
+        handler.borrow_mut().replace(h);
+    }
+
     // gui -> controller
     {
         let edit = edit.clone();
@@ -120,7 +150,10 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
             name.clone(),
             Rc::new(move || {
                 let name = edit.lock().unwrap().name();
-                handler.blocked(|| entry.set_text(&name));
+                let cur = entry.text().to_string();
+                if cur.trim() != name {
+                    handler.blocked(|| entry.set_text(&name));
+                }
             })
         )
     };
