@@ -221,8 +221,8 @@ impl ProgramGridPriv {
             0 => ProgramGridAction::Load { program },
             1 => ProgramGridAction::LoadUnmodified { program },
             2 => ProgramGridAction::Store { program },
-            4 => ProgramGridAction::LoadDevice { program },
-            5 => ProgramGridAction::StoreDevice { program },
+            3 => ProgramGridAction::LoadDevice { program },
+            4 => ProgramGridAction::StoreDevice { program },
             _ => {
                 warn!("Unknown right-click menu action: {}", idx);
                 return;
@@ -442,19 +442,42 @@ impl ObjectImpl for ProgramGridPriv {
         };
 
         let menu = gtk::Menu::new();
-        menu.add(&gtk::MenuItem::with_label("Load to edit buffer"));
-        menu.add(&gtk::MenuItem::with_label("Load unmodified to edit buffer"));
-        menu.add(&gtk::MenuItem::with_label("Store from edit buffer"));
-        menu.add(&gtk::SeparatorMenuItem::new());
-        menu.add(&gtk::MenuItem::with_label("Load from device"));
-        menu.add(&gtk::MenuItem::with_label("Store to device"));
-        for (i, w) in menu.children().iter().enumerate() {
-            let Some(item) = w.dynamic_cast_ref::<gtk::MenuItem>() else { continue };
+
+        let add_menu_item = |i: usize, label: &str, tooltip: &str| {
+            let item = gtk::MenuItem::builder().label(label).tooltip_text(tooltip).build();
             item.connect_activate(glib::clone!(@weak obj => move |_| {
                 let p = ProgramGridPriv::from_instance(&obj);
                 p.right_click_menu_action(i);
             }));
-        }
+            menu.add(&item);
+        };
+
+        add_menu_item(
+            0,
+            "Load to edit buffer",
+            "Copy this patch to the edit buffer"
+        );
+        add_menu_item(
+            1,
+            "Load unmodified to edit buffer",
+            "Load this patch from the device to the edit buffer"
+        );
+        add_menu_item(
+            2,
+            "Store from edit buffer",
+            "Copy the edit buffer to this patch slot"
+        );
+        menu.add(&gtk::SeparatorMenuItem::new());
+        add_menu_item(
+            3,
+            "Load from device",
+            "Load this patch from device"
+        );
+        add_menu_item(
+            4,
+            "Store to device",
+            "Store this patch to device"
+        );
 
         self.widgets.set(Widgets {
             size_group,
