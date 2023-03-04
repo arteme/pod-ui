@@ -400,10 +400,18 @@ impl Handler for PodXtHandler {
                 ctx.controller.set("tuner_offset", *offset, MIDI.into());
             }
             MidiMessage::XtProgramNumberRequest => {
+                // For now, always answer with a program number, 1, is unknown.
+                // TODO: fix this after there's some ttl in the output buffer that
+                //       unanswered XtProgramNumberRequest is dropped
+                /*
                 if let Some(program) = num_program(&ctx.program()) {
                     let msg = MidiMessage::XtProgramNumber { program: program as u16 };
                     ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
                 }
+                 */
+                let program = num_program(&ctx.program()).unwrap_or(0);
+                let msg = MidiMessage::XtProgramNumber { program: program as u16 };
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
             }
             MidiMessage::XtProgramNumber { program } => {
                 ctx.set_program(Program::Program(*program), MIDI);
