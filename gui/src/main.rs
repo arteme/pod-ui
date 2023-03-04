@@ -689,6 +689,9 @@ async fn main() -> Result<()> {
                         AppEvent::Store(event) => {
                             store_handler(ctx, event)
                         }
+                        AppEvent::Copy(event) => {
+                            copy_handler(ctx, event)
+                        }
                         AppEvent::BufferData(event) => {
                             buffer_handler(ctx, event)
                         }

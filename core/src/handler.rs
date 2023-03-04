@@ -47,10 +47,15 @@ pub trait Handler {
     fn store_handler(&self, ctx: &Ctx, event: &BufferStoreEvent) {
         generic::store_handler(ctx, event);
     }
+    /// Handler for copy requests (UI)
+    fn copy_handler(&self, ctx: &Ctx, event: &BufferCopyEvent) {
+        generic::copy_handler(ctx, event)
+    }
+
     /// Handler for buffer data received through MIDI
-    fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent) {
+    fn buffer_handler(&self, ctx: &Ctx, event: &BufferDataEvent, rerouted: bool) {
         generic::buffer_handler(ctx, event);
-        generic::buffer_modified_handler(ctx, event);
+        generic::buffer_modified_handler(ctx, event, rerouted);
     }
 
     /// Handler for program "modified" status changes

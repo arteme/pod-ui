@@ -7,6 +7,7 @@ use crate::midi::{Channel, MidiMessage};
 use crate::model::{AbstractControl, DeviceFlags};
 use crate::{config, program};
 use crate::cc_values::*;
+use crate::dispatch::dispatch_buffer_set;
 
 fn update_edit_buffer(ctx: &Ctx, event: &ControlChangeEvent) {
     let controller = &ctx.controller.lock().unwrap();
@@ -376,6 +377,15 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) -> bool {
     true
 }
 
+pub fn copy_handler(ctx: &Ctx, event: &BufferCopyEvent) {
+    dispatch_buffer_set(event.from.clone(), event.to.clone());
+    let e = BufferStoreEvent {
+        buffer: event.from.clone(),
+        origin: UI
+    };
+    ctx.app_event_tx.send_or_warn(AppEvent::Store(e));
+}
+
 pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
     let value_fn = |controller: &mut Controller, name: &str, buffer: &[u8]| {
         ctx.handler.control_value_from_buffer(controller, name, buffer)
@@ -460,10 +470,30 @@ pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
 }
 
 /// A generic handler that converts BufferData events into Modified events
-pub fn buffer_modified_handler(ctx: &Ctx, event: &BufferDataEvent) {
+pub fn buffer_modified_handler(ctx: &Ctx, event: &BufferDataEvent, rerouted: bool) {
     match event.buffer {
         Buffer::EditBuffer => {
-            // not touching edit buffer modified status?
+            // buffer data event directed to the edit buffer should always set
+            // the `modified` flag because it is either one of:
+            // - an edit buffer load from incoming CC event (knob switched on the device)
+            // - an edit buffer load from outgoing CC event (select modified in the UI)
+            // - a "load this program into the edit buffer" event, which modifies the
+            //   current edit buffer
+            let e = ModifiedEvent {
+                buffer: event.buffer.clone(),
+                origin: event.origin,
+                modified: true,
+            };
+            ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
+            // if the event is a rerouted buffer event (#3 cause as described above)
+            // make sure the edit buffer is also sent to the device
+            if rerouted {
+                let e = BufferStoreEvent {
+                    buffer: Buffer::EditBuffer,
+                    origin: UI
+                };
+                ctx.app_event_tx.send_or_warn(AppEvent::Store(e));
+            }
         }
         Buffer::Current => {
             // devices do not send "current" buffer dumps, only numbered ones
@@ -471,10 +501,13 @@ pub fn buffer_modified_handler(ctx: &Ctx, event: &BufferDataEvent) {
             return;
         }
         Buffer::Program(_) | Buffer::All => {
+            // buffer data event directed to a specific buffer should always clear
+            // the `modified` unless it's a reroute (store from edit buffer or
+            // other program via UI request)
             let e = ModifiedEvent {
                 buffer: event.buffer.clone(),
                 origin: event.origin,
-                modified: false,
+                modified: rerouted,
             };
             ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
         }

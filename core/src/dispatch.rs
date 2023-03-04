@@ -114,18 +114,29 @@ pub fn store_handler(ctx: &Ctx, event: &BufferStoreEvent) {
     ctx.handler.store_handler(ctx, event)
 }
 
+pub fn copy_handler(ctx: &Ctx, event: &BufferCopyEvent) {
+    ctx.handler.copy_handler(ctx, event)
+}
+
 pub fn buffer_handler(ctx: &Ctx, event: &BufferDataEvent) {
     match dispatch_buffer_get(&event.buffer) {
         Some(buffer) => {
-            info!("Dispatch buffer rerouted: {:?} -> {:?}", event.buffer, buffer);
-            // reroute buffer event to a new buffer
+            // As part of a copy, we must also rewrite the origin so that the
+            // data looks like it is coming from the MIDI side, so that the
+            // buffer handler stores it to the buffer and now sends it out as
+            // MIDI messages
+            let origin = Origin::MIDI;
+            info!("Dispatch buffer rerouted: {:?}/{:?} -> {:?}/{:?}",
+                event.buffer, event.origin, buffer, origin);
+            // reroute buffer event to a new buffer/origin
             let mut event = event.clone();
             event.buffer = buffer;
-            ctx.handler.buffer_handler(ctx, &event)
+            event.origin = origin;
+            ctx.handler.buffer_handler(ctx, &event, true)
         }
         None => {
             // process buffer data event as-is
-            ctx.handler.buffer_handler(ctx, event)
+            ctx.handler.buffer_handler(ctx, event, false)
         }
     }
 }
