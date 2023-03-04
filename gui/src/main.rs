@@ -96,6 +96,8 @@ static UI_CONTROLS: Lazy<HashMap<String, Control>> = Lazy::new(|| {
 
         // Set if device config contains DeviceFlags::MANUAL_MODE
         "manual_mode_present" => VirtualSelect::default(),
+        // This will be always-on for now
+        "tuner_present" => VirtualSelect::default(),
     ))
 });
 
@@ -961,6 +963,8 @@ async fn main() -> Result<()> {
                     ui_controller.set_full("manual_mode_present",
                                            state.config.unwrap().flags.contains(DeviceFlags::MANUAL_MODE) as u16,
                                            StoreOrigin::NONE, Signal::Force);
+                    ui_controller.set_full("tuner_present",
+                                           1, StoreOrigin::NONE, Signal::Force);
                     // activate the hidden "program:1000" button, deactivating
                     // all other program buttons
                     ui_controller.set_full("program",

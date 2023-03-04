@@ -57,10 +57,9 @@
               <object class="GtkRadioButton">
                 <property name="label" translatable="yes">Manual</property>
                 <property name="name">program:998</property>
-                <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">False</property>
-                <property name="active">True</property>
+                <property name="no-show-all">True</property>
                 <property name="draw-indicator">False</property>
                 <property name="group">program</property>
                 <style>
@@ -78,14 +77,15 @@
               <object class="GtkRadioButton">
                 <property name="label" translatable="yes">Tuner</property>
                 <property name="name">program:999</property>
-                <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">False</property>
-                <property name="active">True</property>
+                <property name="no-show-all">True</property>
                 <property name="draw-indicator">False</property>
                 <property name="group">program</property>
                 <style>
                   <class name="no_program_name"/>
+                  <class name="tuner_present=1:show"/>
+                  <class name="tuner_present=0:hide"/>
                 </style>
               </object>
               <packing>
