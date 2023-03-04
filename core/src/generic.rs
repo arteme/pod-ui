@@ -16,6 +16,15 @@ fn update_edit_buffer(ctx: &Ctx, event: &ControlChangeEvent) {
     ctx.handler.control_value_to_buffer(controller, event.name.as_str(), &mut raw);
 }
 
+fn update_current_program_name(ctx: &Ctx) -> bool {
+    let Some(program) = num_program(&ctx.program()) else {
+        return false;
+    };
+
+    let name = ctx.edit.lock().unwrap().name();
+    ctx.dump.lock().unwrap().set_name(program, name, UI)
+}
+
 fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
     let ControlChangeEvent { name, value, origin } = event;
     if *origin != StoreOrigin::UI {
@@ -42,13 +51,17 @@ fn send_midi_cc(ctx: &Ctx, event: &ControlChangeEvent) {
 
 pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
     // Only controls that have an address in the buffer should trigger
-    // a "buffer modified" event
+    // a "buffer modified" event. Also name change triggers "buffer modified"
     let has_addr = ctx.controller.get_config(&event.name)
         .and_then(|c| c.get_addr()).is_some();
+    let is_name_change = event.name == "name_change";
     let modified = match event.origin {
         StoreOrigin::MIDI => {
             update_edit_buffer(ctx, event);
             has_addr
+        }
+        _ if is_name_change => {
+            update_current_program_name(ctx)
         }
         StoreOrigin::UI => {
             update_edit_buffer(ctx, event);
@@ -60,7 +73,9 @@ pub fn cc_handler(ctx: &Ctx, event: &ControlChangeEvent) {
     if modified {
         let e = ModifiedEvent {
             buffer: Buffer::Current,
-            origin: Origin::try_from(event.origin).unwrap(),
+            // event.origin may be StoreOrigin::None if this is a name change,
+            // override it with MIDI in that case
+            origin: Origin::try_from(event.origin).unwrap_or(MIDI),
             modified: true,
         };
         ctx.app_event_tx.send_or_warn(AppEvent::Modified(e));
