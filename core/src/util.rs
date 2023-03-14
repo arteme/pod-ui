@@ -77,3 +77,22 @@ pub fn u16_from_4_u4(v1: u8, v2: u8, v3: u8, v4: u8) -> u16 {
 pub fn def<T: Default>() -> T {
     Default::default()
 }
+
+/// Check if the character is a valid printable ASCII character. This follows
+/// Line6 Edit logic as the latter will replace problem characters in program
+/// names as:
+///
+/// ```noformat
+///   0 <NUL>   -> 32 <SPACE>
+///   1..31     -> 95 <_>
+///   96 <`>    -> 95 <_>
+///   123..255  -> 95 <_>
+/// ```
+/// Anything inside the non-substituted `[32..95,97..122]` range is considered
+/// valid, everything outside -- invalid.
+pub fn is_valid_char(c: char) -> bool {
+    match c {
+        '\0' ..= '\u{1f}' | '\u{60}' | '\u{7b}' .. => false,
+        _ => true
+    }
+}

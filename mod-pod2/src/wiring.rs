@@ -6,6 +6,7 @@ use anyhow::*;
 use pod_core::controller::*;
 use pod_core::controller::StoreOrigin::{MIDI, NONE, UI};
 use pod_core::edit::EditBuffer;
+use pod_core::is_valid_char;
 use pod_core::model::*;
 use pod_core::store::Origin;
 use pod_gtk::logic::LogicBuilder;
@@ -113,12 +114,7 @@ pub fn wire_name_change(edit: Arc<Mutex<EditBuffer>>, config: &Config, objs: &Ob
 
                 // filter out characters [0,32), 96, (122,) from the text
                 // L6E replaces 0 -> 32, 96 -> 95, ..31, 123.. -> 95, we'll just drop them
-                let text = text.chars()
-                    .filter(|c| match c {
-                        '\0' ..= '\u{1f}' | '\u{60}' | '\u{7b}' .. => false,
-                        _ => true
-                    })
-                    .collect::<String>();
+                let text = text.chars().filter(|c| is_valid_char(*c)).collect::<String>();
 
                 if !text.is_empty() {
                     let borrow = (*handler).borrow();
