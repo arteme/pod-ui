@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.40.0 -->
+<interface>
+  <requires lib="gtk+" version="3.24"/>
+  <object class="GtkMenu">
+    <property name="visible">True</property>
+    <property name="can-focus">False</property>
+    <child>
+      <object class="GtkMenuItem" id="load">
+        <property name="name">load</property>
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="tooltip-text" translatable="yes">Copy patch {{program_id}} to the edit buffer</property>
+        <property name="label" translatable="yes">Load to edit buffer</property>
+        <property name="use-underline">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="load-unmodified">
+        <property name="name">load-unmodified</property>
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="tooltip-text" translatable="yes">Load stored patch {{program_id}} from the device to the edit buffer</property>
+        <property name="label" translatable="yes">Load unmodified to edit buffer</property>
+        <property name="use-underline">True</property>
+        <style>
+          <class name="show_if_modified"/>
+        </style>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="store">
+        <property name="name">store</property>
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="tooltip-text" translatable="yes">Copy the edit buffer to patch slot {{program_id}}</property>
+        <property name="label" translatable="yes">Store from edit buffer</property>
+        <property name="use-underline">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="load-device">
+        <property name="name">load-device</property>
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="tooltip-text" translatable="yes">Load stored patch {{program_id}} from device</property>
+        <property name="label" translatable="yes">Load from device</property>
+        <property name="use-underline">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="store-device">
+        <property name="name">store-device</property>
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="tooltip-text" translatable="yes">Store patch {{program_id}} to device</property>
+        <property name="label" translatable="yes">Store to device</property>
+        <property name="use-underline">True</property>
+      </object>
+    </child>
+  </object>
+</interface>

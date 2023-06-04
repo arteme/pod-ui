@@ -1373,6 +1373,7 @@ dependencies = [
  "semver 1.0.16",
  "sentry",
  "simple_logger",
+ "string_template",
  "tokio",
  "winres",
 ]
@@ -1886,6 +1887,15 @@ name = "strfmt"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b278b244ef7aa5852b277f52dd0c6cac3a109919e1f6d699adde63251227a30f"
+
+[[package]]
+name = "string_template"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc6f2c6b2c3fa950895c9aeb0c3cb9271d7eb580662af9af2b711b593f446320"
+dependencies = [
+ "regex",
+]
 
 [[package]]
 name = "strsim"

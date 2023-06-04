@@ -1,8 +1,11 @@
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::time::Duration;
 use log::warn;
+use maplit::hashmap;
 use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
+use string_template::Template;
 use pod_gtk::prelude::glib::subclass::Signal;
 use super::program_button::{ProgramButton, ProgramButtonExt};
 
@@ -34,7 +37,8 @@ struct Widgets {
     adj: gtk::Adjustment,
     left: Option<gtk::Button>,
     right: Option<gtk::Button>,
-    right_click_menu: gtk::Menu
+    right_click_menu: gtk::Menu,
+    right_click_menu_labels: HashMap<String, MenuItemDef>
 }
 
 pub struct ProgramGridPriv {
@@ -45,7 +49,11 @@ pub struct ProgramGridPriv {
     widgets: OnceCell<Widgets>
 }
 
-
+#[derive(Clone, Debug)]
+struct MenuItemDef {
+    label: String,
+    tooltip: String,
+}
 
 impl ProgramGridPriv {
     fn set_num_buttons(&self, value: &usize) {
@@ -196,35 +204,58 @@ impl ProgramGridPriv {
             .map(|p| p.program_name())
     }
 
-    fn show_right_click_menu<T: IsA<gtk::Widget>>(&self, program_idx: usize, widget: &T, event: &gdk::Event) {
+    fn show_right_click_menu<T: IsA<gtk::Widget>>(&self, program_idx: usize, widget: &T, event: &gdk::Event, program_id: &str) {
         if let Some(w) = self.widgets.get() {
             w.right_click_menu.set_attach_widget(Some(widget));
             w.right_click_menu.show_all();
 
             let modified = self.program_modified(program_idx).unwrap_or(false);
-            w.right_click_menu.children().get(1) // "Load unmodified to edit buffer"
-                .map(|w| if modified { w.show() } else { w.hide() });
+            let show_if_modified = |widget:  &gtk::Widget| {
+                let style_context = widget.style_context();
+                let classes = style_context.list_classes();
+                if classes.iter().any(|c| c == "show_if_modified") {
+                    if modified { widget.show() } else { widget.hide() }
+                }
+            };
+
+            let h = hashmap! { "program_id" => program_id };
+            ObjectList::from_widget(&w.right_click_menu)
+                .objects_by_type::<gtk::MenuItem>()
+                .for_each(|item| {
+                    show_if_modified(item.as_ref());
+
+                    let name = item.widget_name();
+                    let labels = w.right_click_menu_labels.get(name.as_str()).unwrap();
+
+                    let t = Template::new(labels.label.as_str());
+                    let label = t.render(&h);
+                    item.set_label(label.as_str());
+
+                    let t = Template::new(labels.tooltip.as_str());
+                    let tooltip = t.render(&h);
+                    item.set_tooltip_text(Some(tooltip.as_str()));
+                });
 
             w.right_click_menu.popup_at_pointer(Some(event));
             self.right_click_target.set(program_idx as i32);
         }
     }
 
-    fn right_click_menu_action(&self, idx: usize) {
+    fn right_click_menu_action(&self, action: &str) {
         let program = self.right_click_target.get();
         if program < 0 {
             return;
         }
         let program = program as usize;
 
-        let action = match idx {
-            0 => ProgramGridAction::Load { program },
-            1 => ProgramGridAction::LoadUnmodified { program },
-            2 => ProgramGridAction::Store { program },
-            3 => ProgramGridAction::LoadDevice { program },
-            4 => ProgramGridAction::StoreDevice { program },
+        let action = match action {
+            "load" => ProgramGridAction::Load { program },
+            "load-unmodified" => ProgramGridAction::LoadUnmodified { program },
+            "store" => ProgramGridAction::Store { program },
+            "load-device" => ProgramGridAction::LoadDevice { program },
+            "store-device" => ProgramGridAction::StoreDevice { program },
             _ => {
-                warn!("Unknown right-click menu action: {}", idx);
+                warn!("Unknown right-click menu action: {}", action);
                 return;
             }
         };
@@ -389,7 +420,7 @@ impl ObjectImpl for ProgramGridPriv {
                         if event.button() != 3 { return Inhibit(false) }
 
                         let p = ProgramGridPriv::from_instance(&obj);
-                        p.show_right_click_menu(i, button, event);
+                        p.show_right_click_menu(i, button, event, program_id.as_str());
                         Inhibit(true)
                    })
                 );
@@ -441,43 +472,27 @@ impl ObjectImpl for ProgramGridPriv {
             (Some(left), Some(right))
         };
 
-        let menu = gtk::Menu::new();
+        let menu_ui = gtk::Builder::from_string(include_str!("program_grid_menu.glade"));
+        let menu = menu_ui.objects()[0].clone().dynamic_cast::<gtk::Menu>().unwrap();
+        let mut menu_labels = HashMap::new();
 
-        let add_menu_item = |i: usize, label: &str, tooltip: &str| {
-            let item = gtk::MenuItem::builder().label(label).tooltip_text(tooltip).build();
-            item.connect_activate(glib::clone!(@weak obj => move |_| {
-                let p = ProgramGridPriv::from_instance(&obj);
-                p.right_click_menu_action(i);
-            }));
-            menu.add(&item);
-        };
+        ObjectList::from_widget(&menu)
+            .objects_by_type::<gtk::MenuItem>()
+            .for_each(|item| {
+                let name = item.widget_name().to_string();
+                menu_labels.insert(
+                    name.clone(),
+                    MenuItemDef {
+                        label: item.label().map(|s| s.to_string()).unwrap_or_default(),
+                        tooltip: item.tooltip_text().map(|s| s.to_string()).unwrap_or_default()
+                    }
+                );
 
-        add_menu_item(
-            0,
-            "Load to edit buffer",
-            "Copy this patch to the edit buffer"
-        );
-        add_menu_item(
-            1,
-            "Load unmodified to edit buffer",
-            "Load this patch from the device to the edit buffer"
-        );
-        add_menu_item(
-            2,
-            "Store from edit buffer",
-            "Copy the edit buffer to this patch slot"
-        );
-        menu.add(&gtk::SeparatorMenuItem::new());
-        add_menu_item(
-            3,
-            "Load from device",
-            "Load this patch from device"
-        );
-        add_menu_item(
-            4,
-            "Store to device",
-            "Store this patch to device"
-        );
+                item.connect_activate(glib::clone!(@weak obj => move |_| {
+                    let p = ProgramGridPriv::from_instance(&obj);
+                    p.right_click_menu_action(name.as_str());
+                }));
+            });
 
         self.widgets.set(Widgets {
             size_group,
@@ -486,6 +501,7 @@ impl ObjectImpl for ProgramGridPriv {
             grid,
             adj: adj.clone(),
             right_click_menu: menu,
+            right_click_menu_labels: menu_labels,
             left, right
         }).expect("Setting widgets failed");
 
