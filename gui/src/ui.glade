@@ -166,7 +166,13 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Load the currently-selected patch (unmodified) from the device into the selected pod-ui patch slot</property>
+                <property name="tooltip-text" translatable="yes">Load currently-selected patch {{program}} (unmodified) from the device into pod-ui</property>
+                <style>
+                  <class name="program=1000:disable"/>
+                  <class name="program=999:disable"/>
+                  <class name="program=998:disable"/>
+                  <class name="program=*:enable"/>
+                </style>
               </object>
               <packing>
                 <property name="left-attach">0</property>
@@ -180,7 +186,13 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Store the currently-selected patch from pod-ui to the currently-selected patch slot on the device</property>
+                <property name="tooltip-text" translatable="yes">Store currently-selected patch {{program}} from pod-ui to the device</property>
+                <style>
+                  <class name="program=1000:disable"/>
+                  <class name="program=999:disable"/>
+                  <class name="program=998:disable"/>
+                  <class name="program=*:enable"/>
+                </style>
               </object>
               <packing>
                 <property name="left-attach">1</property>

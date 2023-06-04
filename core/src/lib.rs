@@ -1,6 +1,6 @@
 pub mod midi;
 mod util;
-pub use util::{def, is_valid_char};
+pub use util::{def, is_valid_char, program_id_string};
 
 pub mod store;
 pub mod model;

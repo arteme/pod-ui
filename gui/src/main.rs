@@ -33,6 +33,7 @@ use pod_core::dispatch::*;
 use pod_core::dump::ProgramsDump;
 use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
+use pod_core::program_id_string;
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
 use crate::check::new_release_check;
@@ -43,6 +44,7 @@ use crate::registry::*;
 use crate::settings::*;
 use crate::util::{next_thread_id, SenderExt as SenderExt2};
 use crate::widgets::*;
+use crate::widgets::templated::Templated;
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const CLOSE_QUIET_DURATION_MS: u64 = 1000;
@@ -311,6 +313,35 @@ fn wire_ui_controls(
     // set defaults
     controller.set("program", Program::ManualMode.into(), StoreOrigin::NONE);
     controller.set("program:prev", Program::ManualMode.into(), StoreOrigin::NONE);
+
+    let load_patch_button =
+        objs.obj_by_name("load_patch_button").ok().unwrap()
+            .dynamic_cast::<gtk::Button>().unwrap();
+    let store_patch_button =
+        objs.obj_by_name("store_patch_button").ok().unwrap()
+            .dynamic_cast::<gtk::Button>().unwrap();
+
+    Templated::init_template(&load_patch_button);
+    Templated::init_template(&store_patch_button);
+
+    let mut builder = LogicBuilder::new(controller.clone(), objs.clone(), callbacks);
+    builder
+        .data((load_patch_button, store_patch_button))
+        .on("program")
+        .run(move |v, _, _, (load_patch_button,store_patch_button)| {
+            let s = program_id_string(v as usize);
+            let h = hashmap! { "program" => s.as_str() };
+            load_patch_button.render_template(&h);
+            store_patch_button.render_template(&h);
+            if v > 900 {
+                // This is a hacky way of blanket-selecting all the special
+                // buttons. The real HACK is that we know that the patch
+                // buttons are disabled in this case and we change the tooltip
+                let t = "Not available in this mode";
+                load_patch_button.set_tooltip_text(Some(t));
+                store_patch_button.set_tooltip_text(Some(t));
+            }
+        });
 
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     builder

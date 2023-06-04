@@ -64,7 +64,29 @@ trait TemplatedOps {
     fn update(&self, t: &TemplatePriv);
 }
 
+// TODO: `self.label()` comes from concrete class extensions (GtkMenuItemExt,
+//       ButtonExt) and `self.tooltip_text()` from WidgetExt. Label is probably
+//       available as a text property, so this can be generalized as:
+//       impl<T: IsA<gtk::Widget>> TemplatedOps for T
+
 impl TemplatedOps for gtk::MenuItem {
+    fn new(&self) -> TemplatePriv {
+        let label = self.label().map(|s| s.to_string());
+        let tooltip = self.tooltip_text().map(|s| s.to_string());
+        TemplatePriv { label, tooltip }
+    }
+
+    fn update(&self, t: &TemplatePriv) {
+        if let Some(s) = &t.label {
+            self.set_label(s.as_str());
+        }
+        if let Some(s) = &t.tooltip {
+            self.set_tooltip_text(Some(s.as_str()));
+        }
+    }
+}
+
+impl TemplatedOps for gtk::Button {
     fn new(&self) -> TemplatePriv {
         let label = self.label().map(|s| s.to_string());
         let tooltip = self.tooltip_text().map(|s| s.to_string());
@@ -84,10 +106,17 @@ impl TemplatedOps for gtk::MenuItem {
 // ---
 
 pub trait Templated {
+    fn init_template(&self);
     fn render_template(&self, data: &HashMap<&str, &str>);
 }
 
 impl<T: IsA<Widget> + TemplatedOps> Templated for T {
+    fn init_template(&self) {
+        // TODO: this does not re-initialize the underlying `TemplatePriv`
+        //       if it was already initialized!
+        get_or_new_template_priv(self);
+    }
+
     fn render_template(&self, data: &HashMap<&str, &str>) {
         let t = get_or_new_template_priv(self);
         let r = t.render_template(data);

@@ -96,3 +96,11 @@ pub fn is_valid_char(c: char) -> bool {
         _ => true
     }
 }
+
+/// Convert usize program id to a string representation. Program id `0 = "1A",
+/// 35 = "9D", ..., 127 = "32D"`
+///
+pub fn program_id_string(i: usize) -> String {
+    let (a, b) = (i / 4, i % 4);
+    format!("{}{}", a + 1, char::from_u32('A' as u32 + b as u32).unwrap())
+}

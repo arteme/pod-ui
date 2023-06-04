@@ -4,6 +4,7 @@ use log::warn;
 use maplit::hashmap;
 use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
+use pod_core::program_id_string;
 use pod_gtk::prelude::glib::subclass::Signal;
 use super::program_button::{ProgramButton, ProgramButtonExt};
 use super::templated::Templated;
@@ -379,11 +380,9 @@ impl ObjectImpl for ProgramGridPriv {
             let is_spacer = i >= num_buttons;
             let button = if !is_spacer {
                 // real button
-                let (a, b) = (i / 4, i % 4);
-
                 let name = format!("program:{}", i);
                 let pb = ProgramButton::new();
-                let program_id = format!("{}{}", a + 1, char::from_u32('A' as u32 + b as u32).unwrap());
+                let program_id = program_id_string(i);
                 pb.set_program_id(&program_id);
 
                 let b = gtk::RadioButton::builder()
