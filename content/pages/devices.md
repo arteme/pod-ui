@@ -92,10 +92,10 @@ Testers needed.
 ### POD HD family
 
 **POD HD** family consists of many devices (**POD HD Desktop**, **POD
-HD Pro**, **POD Pro X**, **POD HD 300/400/500/500X**) and does have
-MIDI ports. These devices come with a separate edit software, POD HD Edit.
+HD Pro**, **POD Pro X**, **POD HD 300/400/500/500X**) some of which have
+MIDI ports. These devices come with own edit software, POD HD Edit.
 Whether the POD HD devices communication is anyhow similar to that of
-POD/PODxt ans whether these devices can be supported is unknown.
+POD/PODxt and whether these devices can be supported is unknown.
 
 ### HD147
 

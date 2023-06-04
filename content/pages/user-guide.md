@@ -9,7 +9,7 @@ title: User Guide
 
 The application UI is rather straight-forward and functional. Unlike
 **Line6 Edit** and popular guitar processors, it does not borrow from
-the "knobs and switches" theme of guitar gadgets. Instead it is a
+the "knobs and switches" theme of guitar gadgets. Instead, it is a
 clean, if conservative, all-in-your-face UI.
 
 The UI has a title bar, a program list and the actual device controls.  
@@ -133,7 +133,7 @@ The following actions are available:
   application overwriting any modifications done in the application and
   resetting their modified statues;
 
-- **Store** &mdash; send the edit buffer from the application to the deice.
+- **Store** &mdash; send the edit buffer from the application to the device.
   This does not modify any stored programs, only affecting the edit buffer;
 
 - **Store Patch** &mdash; store the selected program from the application

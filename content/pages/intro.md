@@ -5,13 +5,13 @@ save_as: index.html
 ![Screenshot]({static}/images/pod-ui-v1.0.0-podxt.jpg)
 
 **pod-ui** is a modern cross-platform app to control Line6 POD family
-of guitar modelling amps via MIDI. Currently it supports **POD 2.0**,
+of guitar modelling amps via MIDI. Currently, it supports **POD 2.0**,
 **POD Pro**, **PocketPOD** and a family of **PODxt** devices (PODxt,
 PODxt Pro, PODxt Live).
 For pre-built binaries check out the 
 [releases page](https://github.com/arteme/pod-ui/releases).
 
-The app is a work-in-progress and many features may still missing,
+The app is a work-in-progress and many features may still be missing,
 however I intended to get feature parity with **Line6 Edit** on things like:
 
  - ☑ controlling the POD;
@@ -21,7 +21,7 @@ however I intended to get feature parity with **Line6 Edit** on things like:
  - ☑ support for POD 2.0/POD Pro device;
  - ☑ support for Pocket POD device;
  - ☑ support for PODxt/PODxt Pro/PODxt Live device **★new in version 1.0.0★**;
- - ☐ support for /Bass POD/other Line6 devices;
+ - ☐ support for Bass POD/other Line6 devices;
 
 I would like to support other MIDI-based legacy Line6 products, such as
 Bass POD, Floor POD, etc. I do not own any of these and would need

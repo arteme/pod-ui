@@ -25,7 +25,7 @@ If you don't have the time to be a tester, consider the possibility
 of sending me your device. It is usually faster if I have access to
 the device myself and can test things locally.
 
-Please let me know, if it is possible for you to send your device to
+Please let me know if it is possible for you to send your device to
 Finland for testing, I will return the device once the software is
 working.
 
