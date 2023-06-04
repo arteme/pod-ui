@@ -48,7 +48,7 @@
         <property name="margin-bottom">5</property>
         <property name="spacing">5</property>
         <child>
-          <!-- n-columns=2 n-rows=23 -->
+          <!-- n-columns=2 n-rows=25 -->
           <object class="GtkGrid" id="program_grid">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
@@ -95,30 +95,16 @@
             </child>
             <child>
               <object class="GtkButton">
-                <property name="label" translatable="yes">Load</property>
-                <property name="name">load_button</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Load the edit buffer from the device (send an edit buffer dump request)</property>
-              </object>
-              <packing>
-                <property name="left-attach">0</property>
-                <property name="top-attach">20</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkButton">
-                <property name="label" translatable="yes">Store</property>
+                <property name="label" translatable="yes">Send</property>
                 <property name="name">store_button</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Send the edit buffer to the device without storing it to a patch on the device (send an edit buffer dump)</property>
+                <property name="tooltip-text" translatable="yes">Send the edit buffer to the device edit buffer without storing it to a patch on the device</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
-                <property name="top-attach">20</property>
+                <property name="top-attach">21</property>
               </packing>
             </child>
             <child>
@@ -128,11 +114,11 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Load all patches from the device (send an all programs dump request)</property>
+                <property name="tooltip-text" translatable="yes">Load all unmodified patches from the device into pod-ui</property>
               </object>
               <packing>
                 <property name="left-attach">0</property>
-                <property name="top-attach">22</property>
+                <property name="top-attach">24</property>
               </packing>
             </child>
             <child>
@@ -142,11 +128,11 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Store all patches to the device (send an all programs dump)</property>
+                <property name="tooltip-text" translatable="yes">Store all patches from pod-ui to the device</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
-                <property name="top-attach">22</property>
+                <property name="top-attach">24</property>
               </packing>
             </child>
             <child>
@@ -180,11 +166,11 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Load the currently-selected patch from the device (send a program dump request)</property>
+                <property name="tooltip-text" translatable="yes">Load the currently-selected patch (unmodified) from the device into the selected pod-ui patch slot</property>
               </object>
               <packing>
                 <property name="left-attach">0</property>
-                <property name="top-attach">21</property>
+                <property name="top-attach">23</property>
               </packing>
             </child>
             <child>
@@ -194,11 +180,95 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="tooltip-text" translatable="yes">Store the currently-selected patch to the device (send a program dump)</property>
+                <property name="tooltip-text" translatable="yes">Store the currently-selected patch from pod-ui to the currently-selected patch slot on the device</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
+                <property name="top-attach">23</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Get</property>
+                <property name="name">load_button</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+                <property name="tooltip-text" translatable="yes">Get the edit buffer from the device into the selected patch slot in pod-ui</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
                 <property name="top-attach">21</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label" translatable="yes">Edit Buffer</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkSeparator">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="valign">center</property>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">20</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label" translatable="yes">Patch</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkSeparator">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="valign">center</property>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">22</property>
+                <property name="width">2</property>
               </packing>
             </child>
             <child>

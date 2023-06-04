@@ -74,7 +74,7 @@ impl ObjectList {
             .filter_map(move |widget| {
                 let style_context = widget.style_context();
                 let classes = style_context.list_classes();
-                let classes = classes.iter().map(|p| p.as_str().to_string());
+                let classes = classes.iter().map(|p| p.to_string());
                 let m = classes.filter(&filter).collect::<Vec<_>>();
                 if !m.is_empty() { Some((widget, m)) } else { None }
             })
