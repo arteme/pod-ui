@@ -1,13 +1,12 @@
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::time::Duration;
 use log::warn;
 use maplit::hashmap;
 use pod_gtk::prelude::subclass::*;
 use once_cell::sync::{Lazy, OnceCell};
-use string_template::Template;
 use pod_gtk::prelude::glib::subclass::Signal;
 use super::program_button::{ProgramButton, ProgramButtonExt};
+use super::templated::Templated;
 
 const NUM_BUTTONS_PER_PAGE: usize = 36;
 const NUM_BUTTONS_DEFAULT: usize = NUM_BUTTONS_PER_PAGE;
@@ -38,7 +37,6 @@ struct Widgets {
     left: Option<gtk::Button>,
     right: Option<gtk::Button>,
     right_click_menu: gtk::Menu,
-    right_click_menu_labels: HashMap<String, MenuItemDef>
 }
 
 pub struct ProgramGridPriv {
@@ -47,12 +45,6 @@ pub struct ProgramGridPriv {
     is_open: Cell<bool>,
     right_click_target: Cell<i32>,
     widgets: OnceCell<Widgets>
-}
-
-#[derive(Clone, Debug)]
-struct MenuItemDef {
-    label: String,
-    tooltip: String,
 }
 
 impl ProgramGridPriv {
@@ -223,17 +215,7 @@ impl ProgramGridPriv {
                 .objects_by_type::<gtk::MenuItem>()
                 .for_each(|item| {
                     show_if_modified(item.as_ref());
-
-                    let name = item.widget_name();
-                    let labels = w.right_click_menu_labels.get(name.as_str()).unwrap();
-
-                    let t = Template::new(labels.label.as_str());
-                    let label = t.render(&h);
-                    item.set_label(label.as_str());
-
-                    let t = Template::new(labels.tooltip.as_str());
-                    let tooltip = t.render(&h);
-                    item.set_tooltip_text(Some(tooltip.as_str()));
+                    item.render_template(&h);
                 });
 
             w.right_click_menu.popup_at_pointer(Some(event));
@@ -474,20 +456,11 @@ impl ObjectImpl for ProgramGridPriv {
 
         let menu_ui = gtk::Builder::from_string(include_str!("program_grid_menu.glade"));
         let menu = menu_ui.objects()[0].clone().dynamic_cast::<gtk::Menu>().unwrap();
-        let mut menu_labels = HashMap::new();
 
         ObjectList::from_widget(&menu)
             .objects_by_type::<gtk::MenuItem>()
             .for_each(|item| {
                 let name = item.widget_name().to_string();
-                menu_labels.insert(
-                    name.clone(),
-                    MenuItemDef {
-                        label: item.label().map(|s| s.to_string()).unwrap_or_default(),
-                        tooltip: item.tooltip_text().map(|s| s.to_string()).unwrap_or_default()
-                    }
-                );
-
                 item.connect_activate(glib::clone!(@weak obj => move |_| {
                     let p = ProgramGridPriv::from_instance(&obj);
                     p.right_click_menu_action(name.as_str());
@@ -501,7 +474,6 @@ impl ObjectImpl for ProgramGridPriv {
             grid,
             adj: adj.clone(),
             right_click_menu: menu,
-            right_click_menu_labels: menu_labels,
             left, right
         }).expect("Setting widgets failed");
 
