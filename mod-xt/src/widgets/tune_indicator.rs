@@ -143,28 +143,24 @@ impl ObjectImpl for TuneIndicatorPriv {
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: Lazy<Vec<ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpecDouble::new(
-                    "pos",
-                    "Position",
-                    "Tune indicator position",
-                    -1.0,
-                    1.0,
-                    0.0,
-                    glib::ParamFlags::READWRITE
-                ),
-                glib::ParamSpecBoolean::new(
-                    "indicator",
-                    "Indicator",
-                    "Show indicator",
-                    false,
-                    glib::ParamFlags::READWRITE
-                )
+                glib::ParamSpecDouble::builder("pos")
+                    .nick("Position")
+                    .blurb("Tune indicator position")
+                    .minimum(-1.0)
+                    .maximum(1.0)
+                    .default_value(0.0)
+                    .build(),
+                glib::ParamSpecBoolean::builder("indicator")
+                    .nick("Indicator")
+                    .blurb("Show indicator")
+                    .default_value(false)
+                    .build(),
             ]
         });
         PROPERTIES.as_ref()
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+    fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
         fn v<'a, T: FromValue<'a>>(value: &'a Value) -> T {
             value.get().expect("type conformity checked by `Object::set_property`")
         }
@@ -175,7 +171,7 @@ impl ObjectImpl for TuneIndicatorPriv {
         }
     }
 
-    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+    fn property(&self, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "pos" => self.pos().to_value(),
             "indicator" => self.indicator().to_value(),
@@ -183,31 +179,31 @@ impl ObjectImpl for TuneIndicatorPriv {
         }
     }
 
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
+    fn constructed(&self) {
+        self.parent_constructed();
     }
 }
 
 impl WidgetImpl for TuneIndicatorPriv {
-    fn draw(&self, widget: &Self::Type, cr: &Context) -> Inhibit {
-        self.draw(cr, &widget.style_context()).ok();
+    fn draw(&self, cr: &Context) -> Inhibit {
+        self.draw(cr, &self.obj().style_context()).ok();
         Inhibit(true)
     }
 
-    fn preferred_width(&self, _widget: &Self::Type) -> (i32, i32) {
+    fn preferred_width(&self) -> (i32, i32) {
         // TODO: calculate min width for selected font height in a cairo
         //       context, computed x1,x2,y1,y2 and resulting rombus dimensions
         (100, 1000)
     }
 
-    fn preferred_height(&self, _widget: &Self::Type) -> (i32, i32) {
+    fn preferred_height(&self) -> (i32, i32) {
         // TODO: calculate max width based on vexpand attribute
         (50, 50)
     }
 
 
-    fn size_allocate(&self, widget: &Self::Type, allocation: &gtk::Allocation) {
-        self.parent_size_allocate(widget, allocation);
+    fn size_allocate(&self, allocation: &gtk::Allocation) {
+        self.parent_size_allocate(allocation);
         self.allocation_changed(allocation);
     }
 }
@@ -215,8 +211,7 @@ impl DrawingAreaImpl for TuneIndicatorPriv {}
 
 impl TuneIndicator {
     pub fn new() -> Self {
-        glib::Object::new(&[])
-            .expect("Failed to create TuneIndicator")
+        glib::Object::builder().build()
     }
 }
 

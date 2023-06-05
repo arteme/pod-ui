@@ -223,11 +223,10 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                             let controller = controller.clone();
                             let name = name.clone();
                             let radio_name = ObjectList::object_name(&radio);
-                            if radio_name.is_none() {
+                            if radio_name.is_empty() {
                                 // skip buttons without names
                                 continue;
                             }
-                            let radio_name = radio_name.unwrap();
                             let value = radio_name.find(':')
                                 .map(|pos| &radio_name[pos+1..]).map(|str| str.parse::<u16>().unwrap());
                             if value.is_none() {
@@ -265,7 +264,7 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
                             };
                             let item_name = format!("{}:{}", name, v);
                             radio.group().iter()
-                                .find(|radio| ObjectList::object_name(*radio).unwrap_or_default() == item_name)
+                                .find(|radio| ObjectList::object_name(*radio) == item_name)
                                 .and_then(|item| {
                                     let handlers = handlers.lock().unwrap();
                                     handlers.blocked(|| item.set_active(true));

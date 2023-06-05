@@ -272,31 +272,28 @@ impl ObjectImpl for ProgramGridPriv {
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: Lazy<Vec<ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpecUInt::new(
-                    "num-buttons",
-                    "Number of buttons",
-                    "Number of buttons",
-                    32,
-                    128,
-                    NUM_BUTTONS_DEFAULT as u32,
-                    glib::ParamFlags::WRITABLE | glib::ParamFlags::CONSTRUCT_ONLY
-                ),
-                glib::ParamSpecUInt::new(
-                    "num-pages",
-                    "Number of pages",
-                    "Number of pages",
-                    1,
-                    10,
-                    NUM_PAGES_DEFAULT as u32,
-                    glib::ParamFlags::READABLE
-                ),
-                glib::ParamSpecBoolean::new(
-                    "open",
-                    "Expanded",
-                    "Expanded",
-                    false,
-                    glib::ParamFlags::READWRITE
-                ),
+                glib::ParamSpecUInt::builder("num-buttons")
+                    .nick("Number of buttons")
+                    .blurb("Number of buttons")
+                    .minimum(32)
+                    .maximum(128)
+                    .default_value(NUM_BUTTONS_DEFAULT as u32)
+                    .write_only()
+                    .construct_only()
+                    .build(),
+                glib::ParamSpecUInt::builder("num-pages")
+                    .nick("Number of pages")
+                    .blurb("Number of pages")
+                    .minimum(1)
+                    .maximum(10)
+                    .default_value(NUM_PAGES_DEFAULT as u32)
+                    .read_only()
+                    .build(),
+                glib::ParamSpecBoolean::builder("open")
+                    .nick("Expanded")
+                    .blurb("Expanded")
+                    .default_value(false)
+                    .build(),
             ]
         });
         PROPERTIES.as_ref()
@@ -305,19 +302,16 @@ impl ObjectImpl for ProgramGridPriv {
     fn signals() -> &'static [Signal] {
         static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
             vec![
-                Signal::builder(
-                    "action",
-                    &[ProgramGridAction::static_type().into()],
-                    <()>::static_type().into()
-                )
-                .run_last()
-                .build()
+                Signal::builder("action")
+                    .param_types([ProgramGridAction::static_type()])
+                    .run_last()
+                    .build()
             ]
         });
         SIGNALS.as_ref()
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+    fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
         fn v<'a, T: FromValue<'a>>(value: &'a Value) -> T {
             value.get().expect("type conformity checked by `Object::set_property`")
         }
@@ -328,7 +322,7 @@ impl ObjectImpl for ProgramGridPriv {
         }
     }
 
-    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+    fn property(&self, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "open" => self.open().to_value(),
             "num-buttons" => (self.num_buttons() as u32).to_value(),
@@ -337,10 +331,11 @@ impl ObjectImpl for ProgramGridPriv {
         }
     }
 
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
+    fn constructed(&self) {
+        self.parent_constructed();
+        let obj = self.obj();
 
-        let p = ProgramGridPriv::from_instance(obj);
+        let p = ProgramGridPriv::from_instance(&obj);
         let num_buttons = p.num_buttons.get();
         let num_pages = p.num_pages.get();
 
@@ -352,8 +347,7 @@ impl ObjectImpl for ProgramGridPriv {
         obj.set_valign(gtk::Align::Fill);
 
         let adj = gtk::Adjustment::new(0.0, 0.0, 4.0, 1.0, 1.0, 1.0);
-        adj.connect_value_changed(glib::clone!(@weak obj => move |adj| {
-            let p = ProgramGridPriv::from_instance(&obj);
+        adj.connect_value_changed(glib::clone!(@weak self as p => move |adj| {
             p.adj_value_changed(adj);
         }));
 
@@ -390,17 +384,15 @@ impl ObjectImpl for ProgramGridPriv {
                     .name(&name)
                     .child(&pb)
                     .build();
-                b.connect_toggled(glib::clone!(@weak obj => move |button| {
-                    let p = ProgramGridPriv::from_instance(&obj);
+                b.connect_toggled(glib::clone!(@weak self as p => move |button| {
                     if button.is_active() {
                         p.show_page(page);
                     }
                 }));
-                b.connect_button_press_event(glib::clone!(@weak obj =>
+                b.connect_button_press_event(glib::clone!(@weak self as p =>
                     @default-return Inhibit(false),move |button, event| {
                         if event.button() != 3 { return Inhibit(false) }
 
-                        let p = ProgramGridPriv::from_instance(&obj);
                         p.show_right_click_menu(i, button, event, program_id.as_str());
                         Inhibit(true)
                    })
@@ -437,15 +429,13 @@ impl ObjectImpl for ProgramGridPriv {
             (None, None)
         } else {
             let left = gtk::Button::with_label("<");
-            left.connect_clicked(glib::clone!(@weak obj => move |_| {
-                let p = ProgramGridPriv::from_instance(&obj);
+            left.connect_clicked(glib::clone!(@weak self as p => move |_| {
                 p.left_button_clicked();
             }));
             grid.attach(&left, 0, 1, 1, 1);
 
             let right = gtk::Button::with_label(">");
-            right.connect_clicked(glib::clone!(@weak obj => move |_| {
-                let p = ProgramGridPriv::from_instance(&obj);
+            right.connect_clicked(glib::clone!(@weak self as p => move |_| {
                 p.right_button_clicked();
             }));
             grid.attach(&right, 1, 1, 1, 1);
@@ -460,8 +450,7 @@ impl ObjectImpl for ProgramGridPriv {
             .objects_by_type::<gtk::MenuItem>()
             .for_each(|item| {
                 let name = item.widget_name().to_string();
-                item.connect_activate(glib::clone!(@weak obj => move |_| {
-                    let p = ProgramGridPriv::from_instance(&obj);
+                item.connect_activate(glib::clone!(@weak self as p => move |_| {
                     p.right_click_menu_action(name.as_str());
                 }));
             });
@@ -491,13 +480,11 @@ impl BoxImpl for ProgramGridPriv {}
 
 impl ProgramGrid {
     pub fn new(num_buttons: usize) -> Self {
-
-        glib::Object::new(&[
-            ("num-buttons", &(num_buttons as u32)),
-            ("homogeneous", &true), // gtk::Box properties
-            ("spacing", &0)
-        ])
-        .expect("Failed to create ProgramGrid")
+        glib::Object::builder()
+            .property("num-buttons", num_buttons as u32)
+            .property("homogeneous", true) // gtk::Box properties
+            .property("spacing", 0)
+            .build()
     }
 }
 

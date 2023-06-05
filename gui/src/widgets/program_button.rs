@@ -99,41 +99,33 @@ impl ObjectSubclass for ProgramButtonPriv {
 }
 
 impl ObjectImpl for ProgramButtonPriv {
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
-        self.init(obj);
+    fn constructed(&self) {
+        self.parent_constructed();
+        self.init(&self.obj());
     }
 
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: Lazy<Vec<ParamSpec>> = Lazy::new(|| {
            vec![
-               glib::ParamSpecString::new(
-                   "program-id",
-                   "Program Id",
-                   "The id of the program",
-                   None,
-                   glib::ParamFlags::READWRITE
-               ),
-               glib::ParamSpecString::new(
-                   "program-name",
-                   "Program Name",
-                   "The name of the program",
-                   None,
-                   glib::ParamFlags::READWRITE
-               ),
-               glib::ParamSpecBoolean::new(
-                   "modified",
-                   "Modified",
-                   "The modified flag",
-                   false,
-                   glib::ParamFlags::READWRITE
-               ),
+               glib::ParamSpecString::builder("program-id")
+                   .nick("Program id")
+                   .blurb("The id of the program")
+                   .build(),
+               glib::ParamSpecString::builder("program-name")
+                   .nick("Program name")
+                   .blurb("The name of the program")
+                   .build(),
+               glib::ParamSpecBoolean::builder("modified")
+                   .nick("Modified")
+                   .blurb("Whether the program is modified")
+                   .default_value(false)
+                   .build(),
            ]
         });
         PROPERTIES.as_ref()
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+    fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
         fn v<'a, T: FromValue<'a>>(value: &'a Value) -> T {
             value.get().expect("type conformity checked by `Object::set_property`")
         }
@@ -145,7 +137,7 @@ impl ObjectImpl for ProgramButtonPriv {
         }
     }
 
-    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+    fn property(&self, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "program-id" => self.program_id().to_value(),
             "program-name" => self.program_name().to_value(),
@@ -161,8 +153,7 @@ impl BinImpl for ProgramButtonPriv {}
 
 impl ProgramButton {
     pub fn new() -> Self {
-        glib::Object::new(&[])
-            .expect("Failed to create ProgramButton")
+        glib::Object::builder().build()
     }
 }
 

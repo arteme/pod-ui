@@ -61,8 +61,9 @@ impl ObjectSubclass for TunerPriv {
 }
 
 impl ObjectImpl for TunerPriv {
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
+    fn constructed(&self) {
+        self.parent_constructed();
+        let obj = self.obj();
 
         let left = gtk::Label::builder()
             .use_markup(true)
@@ -109,8 +110,7 @@ impl BoxImpl for TunerPriv {}
 
 impl Tuner {
     pub fn new() -> Self {
-        glib::Object::new(&[])
-        .expect("Failed to create Tuner")
+        glib::Object::builder().build()
     }
 }
 

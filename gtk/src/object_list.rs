@@ -4,6 +4,7 @@ use glib::Object;
 use gtk::{Builder, Widget};
 use std::iter::Iterator;
 use std::ops::Add;
+use pod_core::def;
 
 pub struct ObjectList {
     objects: Vec<Object>
@@ -36,7 +37,7 @@ impl ObjectList {
 
     pub fn obj_by_name(&self, name: &str) -> Result<Object> {
         self.objects.iter()
-            .find(|o| ObjectList::object_name(*o).unwrap_or("".into()) == name)
+            .find(|o| ObjectList::object_name(*o) == name)
             .with_context(|| format!("Object not found by name {:?}", name))
             .map(|obj| obj.clone())
     }
@@ -51,7 +52,10 @@ impl ObjectList {
 
     pub fn named_objects(&self) -> impl Iterator<Item=(&Object, String)> {
         self.objects.iter()
-            .flat_map(|obj| ObjectList::object_name(obj).map(|name| (obj, name)))
+            .map(|obj| {
+                let name = ObjectList::object_name(obj);
+                (obj, name)
+            })
     }
 
     pub fn objects_by_type<T: ObjectType>(&self) -> impl Iterator<Item=&T> {
@@ -59,10 +63,12 @@ impl ObjectList {
             .filter_map(|w| w.dynamic_cast_ref::<T>())
     }
 
-    pub fn object_name<T: ObjectType>(obj: &T) -> Option<String> {
-        obj.try_property::<String>("name")
-            .ok()
-            .filter(|v| !v.is_empty())
+    pub fn object_name<T: ObjectType>(obj: &T) -> String {
+        if let Some(_) = obj.find_property("name") {
+            obj.property::<String>("name")
+        } else {
+            def()
+        }
     }
 
     pub fn widgets_by_class_match<'a, F>(&'a self, filter: F) -> impl Iterator<Item=(&Widget, Vec<String>)>
@@ -85,8 +91,9 @@ impl ObjectList {
         self.objects.iter()
             .for_each(|obj| {
                 let type_name = obj.type_().name();
-                let name = ObjectList::object_name(obj).map(|n| format!("{:?} ", n)).unwrap_or_default();
-                println!("{} {}{{", type_name, name);
+                let name = ObjectList::object_name(obj);
+                let space = if !name.is_empty() { " " } else { "" };
+                println!("{} {}{}{{", type_name, space, name);
                 /*
                 let props = obj.list_properties();
                 for p in props {

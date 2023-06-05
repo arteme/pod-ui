@@ -6,12 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-glib = "0.15.10"
-gdk = "0.15.4"
-gtk = { version = "0.15.5", features = ["v3_24"] }
-multimap = "=0.8.3"
-
-pin-project = "=0.4.29" # needed to get glib dep to comile :(
+glib = "0.16"
+gdk = "0.16"
+gtk = { version = "0.16", features = ["v3_24"] }
+multimap = "0.9.0"
 
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core

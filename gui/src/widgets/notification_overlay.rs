@@ -148,11 +148,11 @@ impl ObjectSubclass for NotificationOverlayPriv {
 }
 
 impl ObjectImpl for NotificationOverlayPriv {
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
+    fn constructed(&self) {
+        self.parent_constructed();
 
         let overlay = gtk::Overlay::new();
-        self.parent_add(&obj, &overlay.clone().upcast());
+        self.parent_add(&overlay.clone().upcast());
 
         let notifications_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
         notifications_box.set_valign(gtk::Align::Start); // not needed, strictly speaking
@@ -169,12 +169,12 @@ impl ObjectImpl for NotificationOverlayPriv {
 
 impl WidgetImpl for NotificationOverlayPriv {}
 impl ContainerImpl for NotificationOverlayPriv {
-    fn add(&self, _container: &Self::Type, widget: &Widget) {
+    fn add(&self, widget: &Widget) {
         let Some(w) = self.widgets.get() else { return; };
         w.overlay.add(widget);
     }
 
-    fn remove(&self, _container: &Self::Type, widget: &Widget) {
+    fn remove(&self, widget: &Widget) {
         let Some(w) = self.widgets.get() else { return; };
         w.overlay.remove(widget);
     }
@@ -183,8 +183,7 @@ impl BinImpl for NotificationOverlayPriv {}
 
 impl NotificationOverlay {
     pub fn new() -> Self {
-        glib::Object::new(&[])
-            .expect("Failed to create NotificationOverlay")
+        glib::Object::builder().build()
     }
 }
 
