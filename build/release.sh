@@ -15,20 +15,26 @@ build_release_osx() {
 }
 
 build_release_linux_real() {
-    export RELEASE_PLATFORM="linux"
+    export RELEASE_PLATFORM="linux$1"
     cargo build --release
     ./build/linux-split-debuginfo.sh target/release/pod-gui
-    ./build/mk-appimage-dist.sh
+    ./build/mk-appimage-dist.sh $1
     ./build/sentry-upload-dsyms.sh target/release/pod-gui{,.debug}
 }
 
-build_release_linux() {
+# When running inside a pod-ui docker build container, this will run one
+# single instance of "real linux release build" and the exit! When NOT
+# running inside a pod-ui docker build container, this does noting!
+build_release_linux_in_docker() {
     if [[ -n "$DOCKER_POD_UI_BUILD" ]];
     then
-        build_release_linux_real
-    else
-        ./build/mk-appimage-dist-docker.sh
+        build_release_linux_real $1
+        exit
     fi
+}
+
+build_release_linux() {
+    ./build/mk-appimage-dist-docker.sh $1
 }
 
 build_release_win64() {
@@ -46,7 +52,10 @@ case "$(uname)" in
         build_release_osx
         ;;
     Linux)
+        build_release_linux_in_docker $1
+
         build_release_linux
+        build_release_linux "-debian10"
         ;;
     MINGW64*)
         build_release_win64

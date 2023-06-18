@@ -1,4 +1,7 @@
 #!/bin/bash
+
+EXTRA=$1
+
 V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V
 DIST=release
@@ -22,7 +25,7 @@ sed "s|@LIBDIR@|$LIBDIR|g" < ./build/linux/linuxdeploy-plugin-gtk.sh > $DIR/appr
 
 pushd target 
 
-export VERSION=$V
+export VERSION=$V$EXTRA
 
 # make appimage
 $LINUXDEPLOY --appdir ../$DIR \
