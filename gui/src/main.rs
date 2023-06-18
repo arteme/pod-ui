@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 use anyhow::*;
 use clap::{Args, Command, FromArgMatches};
 use core::result::Result::Ok;
+use std::env;
 use std::rc::Rc;
 use futures_util::future::{join_all, JoinAll};
 use futures_util::FutureExt;
@@ -616,6 +617,14 @@ async fn main() -> Result<()> {
 
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
+
+    if let Some(path) = env::var("GTK_ADD_ICON_PATH").ok() {
+        let icon_theme = gtk::IconTheme::default().unwrap();
+        for path in path.split(":") {
+            debug!("Adding icon path: {}", path);
+            icon_theme.append_search_path(std::path::Path::new(path));
+        }
+    }
 
     let ui = gtk::Builder::from_string(include_str!("ui.glade"));
     let ui_objects = ObjectList::new(&ui);

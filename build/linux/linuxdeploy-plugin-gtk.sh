@@ -18,13 +18,18 @@ export GTK_DATA_PREFIX="$APPDIR"
 
 export GDK_BACKEND=x11 # Crash with Wayland backend on Wayland
 export XDG_DATA_DIRS="$APPDIR/usr/share:/usr/share:$XDG_DATA_DIRS" # g_get_system_data_dirs() from GLib
-export GSETTINGS_SCHEMA_DIR="$APPDIR//usr/share/glib-2.0/schemas"
-export GTK_EXE_PREFIX="$APPDIR//usr"
-export GTK_PATH="$APPDIR//usr/lib/gtk-3.0/modules"
-export GTK_IM_MODULE_DIR="$APPDIR//usr/lib/gtk-3.0/3.0.0/immodules"
+export GSETTINGS_SCHEMA_DIR="$APPDIR/usr/share/glib-2.0/schemas"
+export GTK_EXE_PREFIX="$APPDIR/usr"
+export GTK_PATH="$APPDIR/usr/lib/gtk-3.0/modules"
+export GTK_IM_MODULE_DIR="$APPDIR/usr/lib/gtk-3.0/3.0.0/immodules"
 export GTK_IM_MODULE_FILE="$CACHEDIR/immodules.cache"
-sed "s|@LIBDIR@/gtk-3.0|$APPDIR//usr/lib/gtk-3.0|g" "$APPDIR//usr/lib/gtk-3.0/3.0.0/immodules.cache" > "$GTK_IM_MODULE_FILE"
-export GDK_PIXBUF_MODULEDIR="$APPDIR//usr/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+sed "s|@LIBDIR@/gtk-3.0|$APPDIR/usr/lib/gtk-3.0|g" "$APPDIR/usr/lib/gtk-3.0/3.0.0/immodules.cache" > "$GTK_IM_MODULE_FILE"
+export GDK_PIXBUF_MODULEDIR="$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders"
 export GDK_PIXBUF_MODULE_FILE="$CACHEDIR/loaders.cache"
-sed "s|@LIBDIR@/gdk-pixbuf-2.0/2.10.0/loaders|$APPDIR//usr/lib/gdk-pixbuf-2.0/2.10.0/loaders|g" "$APPDIR//usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" > "$GDK_PIXBUF_MODULE_FILE"
+sed "s|@LIBDIR@/gdk-pixbuf-2.0/2.10.0/loaders|$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders|g" "$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" > "$GDK_PIXBUF_MODULE_FILE"
 export XDG_CONFIG_DIRS="$APPDIR/usr/etc:$XDG_CONFIG_DIRS"
+
+# a hackish way to add aplication-provided scaled icons as
+# fallback for whatever the platform doesn't provide
+base=usr/share/icons/Paper/scalable
+export GTK_ADD_ICON_PATH="$APPDIR/$base/actions:$APPDIR/$base/emblems"
