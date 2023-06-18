@@ -21,7 +21,7 @@ pub struct ProgramButtonPriv {
 impl ProgramButtonPriv {
     fn init(&self, obj: &ProgramButton) {
         let ui = gtk::Builder::from_string(include_str!("program_button.glade"));
-        let widget: gtk::Widget = ui.objects()[0].clone().dynamic_cast::<gtk::Widget>().unwrap();
+        let widget: gtk::Widget = ui.object("toplevel").unwrap();
         let program_id_label: gtk::Label = ui.object("program_id_label").unwrap();
         let program_name_label: gtk::Label = ui.object("program_name_label").unwrap();
 

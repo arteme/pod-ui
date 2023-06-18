@@ -444,7 +444,7 @@ impl ObjectImpl for ProgramGridPriv {
         };
 
         let menu_ui = gtk::Builder::from_string(include_str!("program_grid_menu.glade"));
-        let menu = menu_ui.objects()[0].clone().dynamic_cast::<gtk::Menu>().unwrap();
+        let menu: gtk::Menu = menu_ui.object("toplevel").unwrap();
 
         ObjectList::from_widget(&menu)
             .objects_by_type::<gtk::MenuItem>()

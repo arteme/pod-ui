@@ -18,6 +18,7 @@
       <w>rombus</w>
       <w>serde</w>
       <w>sysex</w>
+      <w>toplevel</w>
     </words>
   </dictionary>
 </component>
