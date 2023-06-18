@@ -610,6 +610,10 @@ async fn main() -> Result<()> {
 
     // UI
 
+    // glib::set_program_name needs to come before gtk::init!
+    let title = format!("POD UI {}", &*VERSION);
+    glib::set_program_name(Some(&title));
+
     gtk::init()
         .with_context(|| "Failed to initialize GTK")?;
 
@@ -617,8 +621,6 @@ async fn main() -> Result<()> {
     let ui_objects = ObjectList::new(&ui);
     let mut ui_callbacks = Callbacks::new();
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
-
-    let title = format!("POD UI {}", &*VERSION);
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
