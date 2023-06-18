@@ -52,9 +52,13 @@ impl ObjectList {
 
     pub fn named_objects(&self) -> impl Iterator<Item=(&Object, String)> {
         self.objects.iter()
-            .map(|obj| {
+            .flat_map(|obj| {
                 let name = ObjectList::object_name(obj);
-                (obj, name)
+                if !name.is_empty() {
+                    Some((obj, name))
+                } else {
+                    None
+                }
             })
     }
 
