@@ -37,7 +37,7 @@ use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualS
 use pod_core::program_id_string;
 use pod_gtk::logic::LogicBuilder;
 use pod_gtk::prelude::gtk::gdk;
-use crate::check::new_release_check;
+use crate::check::{current_platform, new_release_check};
 use crate::icon::set_app_icon;
 use crate::opts::*;
 use crate::panic::*;
@@ -578,6 +578,9 @@ async fn main() -> Result<()> {
         .env()
         .init()?;
 
+    let title = format!("POD UI {}", &*VERSION);
+    info!("Starting {} ({})", &title, &current_platform());
+
     register_module(pod_mod_pod2::module())?;
     register_module(pod_mod_pocket::module())?;
     register_module(pod_mod_xt::module())?;
@@ -612,7 +615,6 @@ async fn main() -> Result<()> {
     // UI
 
     // glib::set_program_name needs to come before gtk::init!
-    let title = format!("POD UI {}", &*VERSION);
     glib::set_program_name(Some(&title));
 
     gtk::init()

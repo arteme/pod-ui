@@ -41,7 +41,7 @@ fn current_tag() -> String {
         .unwrap_or("".into())
 }
 
-fn current_platform() -> String {
+pub fn current_platform() -> String {
     env::var("DEBUG_RELEASE_PLATFORM").ok()
         .or(option_env!("RELEASE_PLATFORM").map(|s| s.into()))
         .unwrap_or("".into())
