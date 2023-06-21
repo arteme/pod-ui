@@ -1,4 +1,5 @@
-linux v1.2.0
+linux v1.2.1
+linux-debian10 v1.2.1
 osx v1.2.0
 win64 v1.2.0
 win64-winrt v1.2.0
