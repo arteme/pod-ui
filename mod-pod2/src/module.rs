@@ -15,7 +15,7 @@ pub struct Pod2Module;
 
 impl Module for Pod2Module {
     fn config(&self) -> Box<[Config]> {
-        vec![POD2_CONFIG.clone(), PODPRO_CONFIG.clone()].into_boxed_slice()
+        vec![POD2_CONFIG.clone(), PODPRO_CONFIG.clone(), POD_CONFIG.clone()].into_boxed_slice()
     }
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {

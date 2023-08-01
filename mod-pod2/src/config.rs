@@ -378,3 +378,28 @@ pub static PODPRO_CONFIG: Lazy<Config> = Lazy::new(|| {
         ..pod2_config
     }
 });
+
+pub static POD_CONFIG: Lazy<Config> = Lazy::new(|| {
+    let pod2_config = POD2_CONFIG.clone();
+
+    // POD 1.0 has only 28 AMP models. Since both POD 1.0 and POD 2.0 handbooks
+    // mentioned "Rectified" in place of "Treadplate" amps, I assume Treadplate
+    // amps came in some POD 2.0 firmware update, so let's put the Rectified amps back.
+    let amp_models = pod2_config.amp_models.iter().take(28)
+        .map(|amp| {
+            let mut amp = amp.clone();
+            amp.name = amp.name.replace("Treadplate", "Rectified");
+            amp
+        })
+        .collect::<Vec<_>>();
+
+    Config {
+        name: "POD".to_string(),
+        family: 0x0000,
+        member: 0x0100,
+
+        amp_models,
+
+        ..pod2_config
+    }
+});
