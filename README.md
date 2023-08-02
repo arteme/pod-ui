@@ -14,10 +14,10 @@ The aim is to get feature parity with *Line6 Edit* on things like:
  - [x] up-/downloading individual patches;
  - [x] up-/downloading patch libraries;
  - [ ] loading .l6t and .lib files;
- - [x] support for POD 2.0, POD Pro device;
+ - [x] support for POD, POD 2.0, POD Pro devices;
  - [x] support for Pocket POD device;
- - [x] support for POD 2.0 device;
- - [ ] support for PODxt/Bass POD/other Line6 devices;
+ - [x] support for PODxt, PODxt Live, PODxt Pro devices;
+ - [ ] support for Bass POD/Bass PODxt/other Line6 devices;
 
 ### Why?
 
