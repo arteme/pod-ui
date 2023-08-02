@@ -215,77 +215,8 @@ pub fn send_edit_buffer_or_pc(ctx: &Ctx, modified: bool, pc: MidiMessage) {
 
 // other
 
+#[allow(unused_variables)]
 pub fn midi_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
-    match midi_message {
-        MidiMessage::ProgramPatchDumpRequest { patch } => {
-            let e = BufferLoadEvent { buffer: Buffer::Program(*patch as usize), origin: MIDI };
-            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
-        }
-        MidiMessage::ProgramPatchDump { patch, ver, data } => {
-            if *ver != 0 {
-                error!("Unsupported patch dump version: {}", ver);
-                return;
-            }
-            if data.len() != ctx.config.program_size {
-                error!("Program size mismatch: expected {}, got {}",
-                       ctx.config.program_size, data.len());
-                return;
-            }
-            let e = BufferDataEvent {
-                buffer: Buffer::Program(*patch as usize),
-                origin: MIDI,
-                request: MIDI,
-                data: data.clone()
-            };
-            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-        }
-        MidiMessage::ProgramEditBufferDumpRequest => {
-            let e = BufferLoadEvent { buffer: Buffer::EditBuffer, origin: MIDI };
-            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
-        }
-        MidiMessage::ProgramEditBufferDump { ver, data } => {
-            if *ver != 0 {
-                error!("Unsupported patch dump version: {}", ver);
-                return;
-            }
-            if data.len() != ctx.config.program_size {
-                error!("Program size mismatch: expected {}, got {}",
-                       ctx.config.program_size, data.len());
-                return;
-            }
-            let e = BufferDataEvent {
-                buffer: Buffer::EditBuffer,
-                origin: MIDI,
-                request: MIDI,
-                data: data.clone()
-            };
-            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-        }
-        MidiMessage::AllProgramsDumpRequest => {
-            let e = BufferLoadEvent { buffer: Buffer::All, origin: MIDI };
-            ctx.app_event_tx.send_or_warn(AppEvent::Load(e));
-        }
-        MidiMessage::AllProgramsDump { ver, data } => {
-            if *ver != 0 {
-                error!("Unsupported patch dump version: {}", ver);
-                return;
-            }
-            if data.len() != ctx.config.program_size {
-                error!("Program size mismatch: expected {}, got {}",
-                       ctx.config.program_size, data.len());
-                return;
-            }
-            let e = BufferDataEvent {
-                buffer: Buffer::All,
-                origin: MIDI,
-                request: MIDI,
-                data: data.clone()
-            };
-            ctx.app_event_tx.send_or_warn(AppEvent::BufferData(e));
-
-        }
-        _ => {}
-    }
 }
 
 #[allow(unused_variables)]
