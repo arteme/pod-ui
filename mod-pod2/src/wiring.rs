@@ -244,8 +244,8 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         .run(move |value, controller, origin, config| {
             if value != 0 {
                 let effect_select = controller.get("effect_select:raw").unwrap();
-                let (_, delay, idx) =
-                    effect_entry_for_value(&config, effect_select).unwrap();
+                let Some((_, delay, idx)) =
+                    effect_entry_for_value(&config, effect_select) else { return };
                 if !delay {
                     // if `delay_enable` was switched on in the UI and if coming from
                     // an effect which didn't have delay to begin with, check if it can
@@ -263,12 +263,9 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
         .on("effect_tweak").from(MIDI).from(NONE)
         .run(move |value, controller, origin, config| {
             let effect_select = controller.get("effect_select:raw").unwrap();
-            let (entry, _, _) =
-                effect_entry_for_value(&config, effect_select).unwrap();
+            let Some((entry, _, _)) =
+                effect_entry_for_value(&config, effect_select) else { return };
             let control_name = &entry.effect_tweak;
-            if control_name.is_empty() {
-                return;
-            }
 
             // HACK: as if everything's coming straight from MIDI
             let config = controller.get_config("effect_tweak").unwrap();
