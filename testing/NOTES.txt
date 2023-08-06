@@ -1,0 +1,8 @@
+To send "f0 00 01 0c 01 00 01 f7" sysex data to pod-ui, strip
+header (f0) / end (f7):
+
+  sendmidi dev "pod midi in conn" hex syx 00, 01, 0c, 01, 00, 01
+  sendmidi dev "pod midi in conn" hex syx 00 01 0c 01 00 01
+
+
+

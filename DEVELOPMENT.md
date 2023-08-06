@@ -37,12 +37,14 @@ to compile `pod-ui`. It may also be possible to use Visual Studio and `rustup`,
 or use `rustup` with MSYS2, but this has not been tested. Instead, we'll use
 `rust` from MSYS2.
 
+<img src="doc/msys2-mingw.png" align="right" style="padding-left: 2rem">
+
 MSYS contains multiple [environments](https://www.msys2.org/docs/environments/)
 that differ in toolchain, supported architecture and C/C++ library used. The
 official pod-ui Windows builds are made using the MINGW64 environment and these
 instructions reflect that. 
 
-After installing MSYS2, open `MSYS2 Mingw x64` terminal from the Start menu --
+After installing MSYS2, open `MSYS2 MinGW x64` terminal from the Start menu --
 the one with a white letter "M" on a **blue** background in the icon. You can
 verify that you have the right environment once you open the terminal, the prompt
 should contain `MINGW64`: 
