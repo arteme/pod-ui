@@ -8,6 +8,7 @@ use pod_core::handler::BoxedHandler;
 use pod_core::store::Origin::MIDI;
 use pod_mod_pod2::wiring::*;
 use pod_mod_xt::handler::PodXtHandler;
+use pod_mod_xt::widgets::Tuner;
 use pod_mod_xt::wiring::{*, init_combo};
 
 use crate::config;
@@ -105,11 +106,11 @@ impl Interface for BassPodXtInterface {
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
 
-        //let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
-        //let tuner = Tuner::new();
-        //tuner_box.add(&tuner);
-        //tuner.show();
-        //wire_tuner(tuner, controller.clone(), &self.objects, callbacks)?;
+        let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
+        let tuner = Tuner::new();
+        tuner_box.add(&tuner);
+        tuner.show();
+        wire_tuner(tuner, controller.clone(), &self.objects, callbacks)?;
 
         Ok(())
     }
