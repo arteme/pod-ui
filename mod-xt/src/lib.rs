@@ -1,10 +1,10 @@
 mod config;
 mod module;
-mod wiring;
-mod model;
-mod builders;
-mod handler;
-mod widgets;
-mod tuner;
+pub mod wiring;
+pub mod model;
+pub mod builders;
+pub mod handler;
+pub mod widgets;
+pub mod tuner;
 
 pub use module::*;

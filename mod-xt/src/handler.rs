@@ -42,7 +42,7 @@ struct Inner {
     reported_program_number: Option<usize>
 }
 
-pub(crate) struct PodXtHandler {
+pub struct PodXtHandler {
     inner: RefCell<Inner>
 }
 

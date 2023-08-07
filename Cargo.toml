@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "gtk", "gui", "mod-pod2", "mod-pocket", "mod-xt"]
+members = ["core", "gtk", "gui", "mod-pod2", "mod-pocket", "mod-xt", "mod-bassxt"]
 
 [workspace.package]
 version = "0.0.0"

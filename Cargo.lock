@@ -53,6 +53,9 @@ name = "anyhow"
 version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cb2f989d18dd141ab8ae82f64d1a8cdd37e0840f73a406896cf5e99502fab61"
+dependencies = [
+ "backtrace",
+]
 
 [[package]]
 name = "arrayref"
@@ -1350,6 +1353,7 @@ dependencies = [
  "once_cell",
  "pod-core",
  "pod-gtk",
+ "pod-mod-bassxt",
  "pod-mod-pocket",
  "pod-mod-pod2",
  "pod-mod-xt",
@@ -1362,6 +1366,22 @@ dependencies = [
  "string_template",
  "tokio",
  "winres",
+]
+
+[[package]]
+name = "pod-mod-bassxt"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "hibitset",
+ "log",
+ "maplit",
+ "once_cell",
+ "pod-core",
+ "pod-gtk",
+ "pod-mod-pod2",
+ "pod-mod-xt",
+ "tokio",
 ]
 
 [[package]]

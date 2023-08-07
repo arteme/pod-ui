@@ -7,25 +7,24 @@ use gtk::{Builder, Widget};
 use pod_core::handler::BoxedHandler;
 use pod_core::store::Origin::MIDI;
 use pod_mod_pod2::wiring::*;
+use pod_mod_xt::handler::PodXtHandler;
+use pod_mod_xt::wiring::{*, init_combo};
 
 use crate::config;
-use crate::handler::PodXtHandler;
-use crate::widgets::Tuner;
-use crate::wiring::{*, init_combo};
 
-struct PodXtModule;
+struct BassPodXtModule;
 
-impl Module for PodXtModule {
+impl Module for BassPodXtModule {
     fn config(&self) -> Box<[Config]> {
         vec![
-            config::PODXT_CONFIG.clone(),
-            config::PODXT_PRO_CONFIG.clone(),
-            config::PODXT_LIVE_CONFIG.clone(),
+            config::BASS_PODXT_CONFIG.clone(),
+            //config::PODXT_PRO_CONFIG.clone(),
+            //config::PODXT_LIVE_CONFIG.clone(),
         ].into_boxed_slice()
     }
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {
-        Box::new(PodXtInterface::new(config))
+        Box::new(BassPodXtInterface::new(config))
     }
 
     fn handler(&self, config: &'static Config) -> BoxedHandler {
@@ -33,15 +32,15 @@ impl Module for PodXtModule {
     }
 }
 
-struct PodXtInterface {
+struct BassPodXtInterface {
     config: &'static Config,
     widget: Widget,
     objects: ObjectList
 }
 
-impl PodXtInterface {
+impl BassPodXtInterface {
     fn new(config: &'static Config) -> Self {
-        let builder = Builder::from_string(include_str!("pod-xt.glade"));
+        let builder = Builder::from_string(include_str!("bass-pod-xt.glade"));
         let objects = ObjectList::new(&builder);
 
         let widow: gtk::Window = builder.object("app_win").unwrap();
@@ -52,7 +51,7 @@ impl PodXtInterface {
     }
 }
 
-impl Interface for PodXtInterface {
+impl Interface for BassPodXtInterface {
     fn widget(&self) -> Widget {
         self.widget.clone()
     }
@@ -110,11 +109,11 @@ impl Interface for PodXtInterface {
         wire_name_change(edit, config, &self.objects, callbacks)?;
         resolve_footswitch_mode_show(&self.objects, config)?;
 
-        let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
-        let tuner = Tuner::new();
-        tuner_box.add(&tuner);
-        tuner.show();
-        wire_tuner(tuner, controller.clone(), &self.objects, callbacks)?;
+        //let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
+        //let tuner = Tuner::new();
+        //tuner_box.add(&tuner);
+        //tuner.show();
+        //wire_tuner(tuner, controller.clone(), &self.objects, callbacks)?;
 
         Ok(())
     }
@@ -123,20 +122,20 @@ impl Interface for PodXtInterface {
         let controller = edit.lock().unwrap().controller();
 
         controller.set_full("amp_enable", 1, MIDI, Signal::Force);
+/*
         controller.set_full("di:show", 0, MIDI, Signal::Force);
         // say we have all packs, unless a real POD tells us otherwise
         controller.set_full("xt_packs", 0xf, MIDI, Signal::Force);
-
         let show = self.config.member == config::PODXT_PRO_CONFIG.member;
         controller.set_full("loop_enable:show", show as u16, MIDI, Signal::Force);
 
         let show = self.config.member == config::PODXT_LIVE_CONFIG.member;
         controller.set_full("footswitch_mode:show", show as u16, MIDI, Signal::Force);
-
+*/
         Ok(())
     }
 }
 
 pub fn module() -> impl Module {
-    PodXtModule
+    BassPodXtModule
 }
