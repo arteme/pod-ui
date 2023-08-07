@@ -28,7 +28,7 @@ impl Module for BassPodXtModule {
     }
 
     fn handler(&self, config: &'static Config) -> BoxedHandler {
-        Box::new(PodXtHandler::new(config))
+        Box::new(PodXtHandler::new(config, false))
     }
 }
 
@@ -69,7 +69,7 @@ impl Interface for BassPodXtInterface {
         init_combo(&self.objects, "cab_select",
                    &config.cab_models, |v| v.as_str())?;
         init_combo(&self.objects, "mic_select",
-                   &config::MIC_NAMES, |v| v.as_str())?;
+                   &config::BX_MIC_NAMES, |v| v.as_str())?;
         init_combo(&self.objects, "reverb_select",
                    &config::REVERB_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "stomp_select",
@@ -103,8 +103,6 @@ impl Interface for BassPodXtInterface {
                    "delay_time", "delay_time:msb", "delay_time:lsb",
                    true)?;
         wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
-        wire_xt_packs(controller.clone(), &self.objects, callbacks)?;
-        wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
         resolve_footswitch_mode_show(&self.objects, config)?;

@@ -43,11 +43,12 @@ struct Inner {
 }
 
 pub struct PodXtHandler {
+    has_xt_packs: bool,
     inner: RefCell<Inner>
 }
 
 impl PodXtHandler {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &Config, has_xt_packs: bool) -> Self {
         let inner = Inner {
             midi_out_queue: VecDeque::new(),
             need_store_ack: false,
@@ -57,7 +58,7 @@ impl PodXtHandler {
             effects: ProgramNames::new_with_size(config, 64),
             reported_program_number: None,
         };
-        Self { inner: RefCell::new(inner) }
+        Self { has_xt_packs, inner: RefCell::new(inner) }
     }
 
     pub fn queue_send(&self, ctx: &Ctx) -> bool {
@@ -275,12 +276,12 @@ impl Handler for PodXtHandler {
         generic::midi_in_handler(ctx, midi_message);
 
         match midi_message {
-            MidiMessage::XtInstalledPacksRequest => {
+            MidiMessage::XtInstalledPacksRequest if self.has_xt_packs => {
                 // when Line6 Edit asks, we report we have all packs
                 let msg = MidiMessage::XtInstalledPacks { packs: 0x0f };
                 ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
             }
-            MidiMessage::XtInstalledPacks { packs } => {
+            MidiMessage::XtInstalledPacks { packs } if self.has_xt_packs => {
                 ctx.controller.set("xt_packs", *packs as u16, MIDI.into());
             }
 
@@ -470,9 +471,11 @@ impl Handler for PodXtHandler {
     fn new_device_handler(&self, ctx: &Ctx) {
         generic::new_device_handler(ctx);
 
-        // detect installed packs
-        let msg = MidiMessage::XtInstalledPacksRequest;
-        ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        if self.has_xt_packs {
+            // detect installed packs
+            let msg = MidiMessage::XtInstalledPacksRequest;
+            ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg));
+        }
 
         // request selected program number & edit status,
         // but defer this to the end of the queue by sending a marker
