@@ -363,8 +363,7 @@ pub fn wire_pedal_assign(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
     Ok(())
 }
 
-pub fn resolve_footswitch_mode_show(objs: &ObjectList, config: &Config) -> Result<()> {
-    let show = config.member == config::PODXT_LIVE_CONFIG.member;
+pub fn resolve_footswitch_mode_show(objs: &ObjectList, show: bool) -> Result<()> {
     if show { return Ok(()); }
 
     // For some reason, hiding these particular controls wia `widget.hide()` leaves

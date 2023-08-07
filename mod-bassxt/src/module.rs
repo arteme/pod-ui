@@ -18,8 +18,8 @@ impl Module for BassPodXtModule {
     fn config(&self) -> Box<[Config]> {
         vec![
             config::BASS_PODXT_CONFIG.clone(),
-            //config::PODXT_PRO_CONFIG.clone(),
-            //config::PODXT_LIVE_CONFIG.clone(),
+            config::BASS_PODXT_PRO_CONFIG.clone(),
+            config::BASS_PODXT_LIVE_CONFIG.clone(),
         ].into_boxed_slice()
     }
 
@@ -102,10 +102,8 @@ impl Interface for BassPodXtInterface {
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "delay_time", "delay_time:msb", "delay_time:lsb",
                    true)?;
-        wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
-        resolve_footswitch_mode_show(&self.objects, config)?;
 
         //let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
         //let tuner = Tuner::new();
@@ -120,16 +118,14 @@ impl Interface for BassPodXtInterface {
         let controller = edit.lock().unwrap().controller();
 
         controller.set_full("amp_enable", 1, MIDI, Signal::Force);
-/*
-        controller.set_full("di:show", 0, MIDI, Signal::Force);
-        // say we have all packs, unless a real POD tells us otherwise
-        controller.set_full("xt_packs", 0xf, MIDI, Signal::Force);
-        let show = self.config.member == config::PODXT_PRO_CONFIG.member;
+
+        let show = self.config.member == config::BASS_PODXT_PRO_CONFIG.member;
         controller.set_full("loop_enable:show", show as u16, MIDI, Signal::Force);
 
-        let show = self.config.member == config::PODXT_LIVE_CONFIG.member;
+        let show = self.config.member == config::BASS_PODXT_LIVE_CONFIG.member;
         controller.set_full("footswitch_mode:show", show as u16, MIDI, Signal::Force);
-*/
+        resolve_footswitch_mode_show(&self.objects, show)?;
+
         Ok(())
     }
 }

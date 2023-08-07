@@ -432,7 +432,7 @@
           </packing>
         </child>
         <child>
-          <!-- n-columns=11 n-rows=2 -->
+          <!-- n-columns=10 n-rows=2 -->
           <object class="GtkGrid" id="toggles">
             <property name="name">toggles</property>
             <property name="visible">True</property>
@@ -500,7 +500,7 @@
             </child>
             <child>
               <object class="GtkCheckButton" id="delay_enable">
-                <property name="label" translatable="yes">Delay</property>
+                <property name="label" translatable="yes">Delay/Verb</property>
                 <property name="name">delay_enable</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
@@ -509,20 +509,6 @@
               </object>
               <packing>
                 <property name="left-attach">8</property>
-                <property name="top-attach">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkCheckButton" id="reverb_enable">
-                <property name="label" translatable="yes">Reverb</property>
-                <property name="name">reverb_enable</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">False</property>
-                <property name="draw-indicator">True</property>
-              </object>
-              <packing>
-                <property name="left-attach">9</property>
                 <property name="top-attach">1</property>
               </packing>
             </child>
@@ -597,12 +583,9 @@
                 </style>
               </object>
               <packing>
-                <property name="left-attach">10</property>
+                <property name="left-attach">9</property>
                 <property name="top-attach">1</property>
               </packing>
-            </child>
-            <child>
-              <placeholder/>
             </child>
             <child>
               <placeholder/>
@@ -3076,7 +3059,6 @@
                                 <property name="name">tweak_param_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
-                                <property name="valign">start</property>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -3089,7 +3071,6 @@
                                 <property name="name">pedal_assign_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
-                                <property name="valign">start</property>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -3099,6 +3080,7 @@
                             </child>
                             <child>
                               <object class="GtkLabel" id="label54">
+                                <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="no-show-all">True</property>
                                 <property name="halign">end</property>
@@ -3118,6 +3100,7 @@
                               <object class="GtkRadioButton">
                                 <property name="label" translatable="yes">Amp</property>
                                 <property name="name">footswitch_mode:0</property>
+                                <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="receives-default">False</property>
                                 <property name="no-show-all">True</property>
@@ -3137,6 +3120,7 @@
                               <object class="GtkRadioButton">
                                 <property name="label" translatable="yes">Comp</property>
                                 <property name="name">footswitch_mode:1</property>
+                                <property name="visible">True</property>
                                 <property name="can-focus">True</property>
                                 <property name="receives-default">False</property>
                                 <property name="no-show-all">True</property>

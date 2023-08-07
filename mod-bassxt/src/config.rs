@@ -173,8 +173,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "mod_enable" => SwitchControl { cc: 50, addr: 32 + 50, ..def() },
         "mod_position" => SwitchControl { cc: 57, addr: 32 + 57, ..def() },
         "delay_enable" => SwitchControl { cc: 28, addr: 32 + 28, ..def() },
-//        "amp_enable" => SwitchControl { cc: 111, addr: 32 + 111, inverted: true },
-//        "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, ..def()  },
+        "amp_enable" => SwitchControl { cc: 111, addr: 32 + 111, inverted: true },
+        "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, ..def()  },
         "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, ..def() },
         "eq_position" => SwitchControl { cc: 46, addr: 32 + 46, ..def() }, //n
 //        "tuner_enable" => MidiSwitchControl { cc: 69 },
@@ -430,12 +430,10 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "eq_6_gain" => RangeControl { cc: 119, addr: 32 + 119,
             format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
             ..def() },
-//
-//        "loop_enable:show" => VirtualSelect {},
-//        "di:show" => VirtualSelect {},
-//        "footswitch_mode:show" => VirtualSelect {},
-//        "xt_packs" => VirtualSelect {},
-//
+
+        "loop_enable:show" => VirtualSelect {},
+        "footswitch_mode:show" => VirtualSelect {},
+
 //        "tuner_note" => VirtualSelect {},
 //        "tuner_offset" => VirtualSelect {},
 
@@ -546,16 +544,14 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "stomp_enable",
             "mod_enable",
             "delay_enable",
-            //"amp_enable",
+            "amp_enable",
             "eq_enable",
             //"tuner_enable",
             // misc
             "stomp_param2_wave", // wonder, why?
             // show signals
-            //"loop_enable:show",
-            //"di:show",
-            //"footswitch_mode:show",
-            //"xt_packs"
+            "loop_enable:show",
+            "footswitch_mode:show",
         )),
 
         // request edit buffer dump after setting 'amp select' CC 11, 'amp select w/o defaults'
@@ -570,8 +566,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         midi_quirks: MidiQuirks::empty(),
     }
 });
-/*
-pub static PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
+
+pub static BASS_PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_config = BASS_PODXT_CONFIG.clone();
 
     let podxt_pro_controls: HashMap<String, Control> = convert_args!(hashmap!(
@@ -589,8 +585,8 @@ pub static PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
         .collect();
 
     Config {
-        name: "PODxt Pro".to_string(),
-        member: 0x0005,
+        name: "BassPODxt Pro (experimental)".to_string(),
+        member: 0x0007,
 
         toggles,
         controls,
@@ -599,7 +595,7 @@ pub static PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
     }
 });
 
-pub static PODXT_LIVE_CONFIG: Lazy<Config> = Lazy::new(|| {
+pub static BASS_PODXT_LIVE_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_config = BASS_PODXT_CONFIG.clone();
 
     let podxt_live_controls: HashMap<String, Control> = convert_args!(hashmap!(
@@ -618,8 +614,8 @@ pub static PODXT_LIVE_CONFIG: Lazy<Config> = Lazy::new(|| {
 
 
     Config {
-        name: "PODxt Live".to_string(),
-        member: 0x000a,
+        name: "BassPODxt Live (experimental)".to_string(),
+        member: 0x000b,
 
         controls,
         init_controls,
@@ -627,4 +623,3 @@ pub static PODXT_LIVE_CONFIG: Lazy<Config> = Lazy::new(|| {
         ..podxt_config
     }
 });
-*/

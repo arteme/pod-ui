@@ -108,7 +108,6 @@ impl Interface for PodXtInterface {
         wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
-        resolve_footswitch_mode_show(&self.objects, config)?;
 
         let tuner_box = self.objects.ref_by_name::<gtk::Box>("tuner_box").unwrap();
         let tuner = Tuner::new();
@@ -132,6 +131,7 @@ impl Interface for PodXtInterface {
 
         let show = self.config.member == config::PODXT_LIVE_CONFIG.member;
         controller.set_full("footswitch_mode:show", show as u16, MIDI, Signal::Force);
+        resolve_footswitch_mode_show(&self.objects, show)?;
 
         Ok(())
     }
