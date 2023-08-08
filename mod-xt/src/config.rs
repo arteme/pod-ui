@@ -437,6 +437,10 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         program_name_addr: 0,
         program_name_length: 16,
 
+        pc_manual_mode: None,
+        pc_tuner: None,
+        pc_offset: None,
+
         amp_models: convert_args!(vec!(
             amp("No Amp"),
             amp("Tube Preamp"),

@@ -113,6 +113,10 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
         program_size: 71,
         program_num: 36,
 
+        pc_manual_mode: Some(0),
+        pc_tuner: Some(37),
+        pc_offset: Some(1),
+
         amp_models: convert_args!(vec!(
             amp("Tube Preamp").room().presence(),
             amp("Line 6 Clean").room().presence().bright(),

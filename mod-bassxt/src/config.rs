@@ -446,10 +446,14 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         family: 0x0003,
         member: 0x0006,
 
-        program_num: 128,
+        program_num: 64,
         program_size: 72*2 + 16,
         program_name_addr: 0,
         program_name_length: 16,
+
+        pc_manual_mode: Some(0),
+        pc_tuner: Some(65),
+        pc_offset: Some(1),
 
         amp_models: convert_args!(vec!(
             amp("No Amp"),
@@ -562,7 +566,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         // request edit buffer dump after receiving all of the above + 'tap tempo' CC 64
         in_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 64, 75, 88, 91 ],
 
-        flags: DeviceFlags::empty(),
+        flags: DeviceFlags::MANUAL_MODE,
         midi_quirks: MidiQuirks::empty(),
     }
 });

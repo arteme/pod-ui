@@ -46,6 +46,10 @@ pub struct Config {
     pub program_size: usize,
     pub program_num: usize,
 
+    pub pc_manual_mode: Option<usize>,
+    pub pc_tuner: Option<usize>,
+    pub pc_offset: Option<usize>,
+
     pub toggles: Vec<Toggle>,
     pub amp_models: Vec<Amp>,
     pub cab_models: Vec<String>,
@@ -626,6 +630,9 @@ impl Config {
             member: 0,
             program_size: 0,
             program_num: 0,
+            pc_manual_mode: None,
+            pc_tuner: None,
+            pc_offset: None,
             toggles: vec![],
             amp_models: vec![],
             cab_models: vec![],
