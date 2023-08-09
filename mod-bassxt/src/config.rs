@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use log::error;
 use maplit::*;
 use once_cell::sync::Lazy;
 use pod_core::builders::shorthand::*;
@@ -10,8 +11,8 @@ use pod_mod_pod2::{short, long, fmt_percent};
 use pod_mod_xt::model::*;
 use pod_mod_xt::builders::*;
 
-pub static BX_MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
-    convert_args!(vec!("Tube 47 Close", "Tube 47 Far", "112 Dynamic", "20 Dynamic"))
+pub static MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
+    pod_mod_xt::config::BX_MIC_NAMES.to_vec()
 });
 
 pub static REVERB_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
@@ -57,40 +58,33 @@ pub static PEDAL_ASSIGN_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     ))
 });
 
+// Copy stomp configs from PODxt, only in a different order
 pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
-    convert_args!(vec!(
-        /*  0 */ stomp("Facial Fuzz").control("Drive").control("Gain").control("Tone"),
-        /*  1 */ stomp("Fuzz Pi").control("Drive").control("Gain").control("Tone"),
-        /*  2 */ stomp("Screamer").control("Drive").control("Gain").control("Tone"),
-        /*  3 */ stomp("Classic Dist").control("Drive").control("Gain").control("Tone"),
-        /*  4 */ stomp("Octave Fuzz").control("Drive").control("Gain").control("Tone"),
-        /*  5 */ stomp("Blue Comp").control("Sustain").control("Level"),
-        /*  6 */ stomp("Red Comp").control("Sustain").control("Level"),
-        /*  7 */ stomp("Vetta Comp").control("Sens").control("Level"),
-        /*  8 */ stomp("Auto Swell").control("Ramp").control("Depth"),
-        /*  9 */ stomp("Auto Wah").control("Sens").control("Q"),
-        /* 10 */ stomp("FX-Killer Z").control("Drive").control("Contour").control("Gain").control("Mid").control("Mid Freq"),
-        /* 11 */ stomp("FX-Tube Drive").control("Drive").control("Treble").control("Gain").control("Bass"),
-        /* 12 */ stomp("FX-Vetta Juice").control("Amount").control("Level"),
-        /* 13 */ stomp("FX-Boost + EQ").control("Gain").control("Bass").control("Treble").control("Mid").control("Mid Freq"),
-        /* 14 */ stomp("FX-Blue Comp Treb").control("Level").control("Sustain"),
-        /* 15 */ stomp("FX-Dingo-Tron").skip().control("Sens").control("Q"),
-        /* 16 */ stomp("FX-Clean Sweep").control("Decay").control("Sens").control("Q"),
-        /* 17 */ stomp("FX-Seismik Synth").wave("Wave").skip().skip().control("Mix"),
-        /* 18 */ stomp("FX-Double Bass").control("-1OCTG").control("-2OCTG").skip().control("Mix"),
-        /* 19 */ stomp("FX-Buzz Wave").wave("Wave").control("Filter").control("Decay").control("Mix"),
-        /* 20 */ stomp("FX-Rez Synth").wave("Wave").control("Filter").control("Decay").control("Mix"),
-        /* 21 */ stomp("FX-Saturn 5 Ring M").wave("Wave").skip().skip().control("Mix"),
-        /* 22 */ stomp("FX-Synth Analog").wave("Wave").control("Filter").control("Decay").control("Mix"),
-        /* 23 */ stomp("FX-Synth FX").wave("Wave").control("Filter").control("Decay").control("Mix"),
-        /* 24 */ stomp("FX-Synth Harmony").octave("1M335").octave("1457").control("Wave").control("Mix"),
-        /* 25 */ stomp("FX-Synth Lead").wave("Wave").control("Filter").control("Decay").control("Mix"),
-        /* 26 */ stomp("FX-Synth String").wave("Wave").control("Filter").control("Attack").control("Mix"),
-        /* 27 */ stomp("Bass Overdrive").control("Bass").control("Treble").control("Drive").control("Gain"),
-        /* 28 */ stomp("Bronze Master").control("Drive").control("Tone").skip().control("Blend"),
-        /* 29 */ stomp("Sub Octaves").control("-1OCTG").control("-2OCTG").skip().control("Mix"),
-        /* 30 */ stomp("Bender").control("Position").offset("Heel").offset("Toe").control("Mix"),
-    ))
+    let names = vec![
+        "Bass Overdrive", "Screamer", "Classic Dist", "Facial Fuzz",
+        "Fuzz Pi", "Octave Fuzz", "Bronze Master", "Blue Comp",
+        "Red Comp", "Vetta Comp", "Auto Wah", "Dingo-Tron", "Buzz Wave",
+        "Seismik Synth", "Rez Synth", "Saturn 5 Ring M", "Synth Analog",
+        "Synth FX", "Synth Harmony", "Synth Lead", "Synth String", "Sub Octaves",
+    ];
+
+    names.into_iter()
+        .map(|name| {
+            let stomp_config = pod_mod_xt::config::STOMP_CONFIG.iter()
+                .find(|stomp_config|
+                    stomp_config.name
+                        .strip_prefix("FX-")
+                        .unwrap_or(stomp_config.name.as_str()) == name);
+            let Some(stomp_config) = stomp_config else {
+                panic!("Stomp config {:?} not found from PODxt config", name);
+            };
+
+            let mut stomp_config = stomp_config.clone();
+            stomp_config.name = name.into();
+
+            stomp_config
+        })
+        .collect::<Vec<_>>()
 });
 
 pub static MOD_CONFIG: Lazy<Vec<ModConfig>> = Lazy::new(|| {
@@ -211,7 +205,6 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
 //            config: RangeConfig::Normal,
 //            ..def() },
         // stomp
-        // TODO: check params
         "stomp_select" => Select { cc: 75, addr: 32 + 75, ..def() },
         "stomp_param2" => RangeControl { cc: 79, addr: 32 + 79,
             config: RangeConfig::Normal,
@@ -434,8 +427,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "loop_enable:show" => VirtualSelect {},
         "footswitch_mode:show" => VirtualSelect {},
 
-//        "tuner_note" => VirtualSelect {},
-//        "tuner_offset" => VirtualSelect {},
+        "tuner_note" => VirtualSelect {},
+        "tuner_offset" => VirtualSelect {},
 
         // special used for ui wiring only
         "name_change" => Button {},

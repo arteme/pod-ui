@@ -70,7 +70,7 @@ impl Interface for BassPodXtInterface {
         init_combo(&self.objects, "cab_select",
                    &config.cab_models, |v| v.as_str())?;
         init_combo(&self.objects, "mic_select",
-                   &config::BX_MIC_NAMES, |v| v.as_str())?;
+                   &config::MIC_NAMES, |v| v.as_str())?;
         init_combo(&self.objects, "reverb_select",
                    &config::REVERB_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "stomp_select",
@@ -94,9 +94,12 @@ impl Interface for BassPodXtInterface {
 
         wire_toggles("toggles", &config.toggles,
                      controller.clone(), &self.objects, callbacks)?;
-        wire_stomp_select(controller.clone(), &self.objects, callbacks)?;
-        wire_mod_select(controller.clone(), &self.objects, callbacks)?;
-        wire_delay_select(controller.clone(), &self.objects, callbacks)?;
+        wire_stomp_select(&config::STOMP_CONFIG,
+                          controller.clone(), &self.objects, callbacks)?;
+        wire_mod_select(&config::MOD_CONFIG,
+                        controller.clone(), &self.objects, callbacks)?;
+        wire_delay_select(&config::DELAY_CONFIG,
+                          controller.clone(), &self.objects, callbacks)?;
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "mod_speed", "mod_speed:msb", "mod_speed:lsb",
                    true)?;

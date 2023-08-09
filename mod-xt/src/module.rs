@@ -94,9 +94,12 @@ impl Interface for PodXtInterface {
 
         wire_toggles("toggles", &config.toggles,
                      controller.clone(), &self.objects, callbacks)?;
-        wire_stomp_select(controller.clone(), &self.objects, callbacks)?;
-        wire_mod_select(controller.clone(), &self.objects, callbacks)?;
-        wire_delay_select(controller.clone(), &self.objects, callbacks)?;
+        wire_stomp_select(&config::STOMP_CONFIG,
+                          controller.clone(), &self.objects, callbacks)?;
+        wire_mod_select(&config::MOD_CONFIG,
+                        controller.clone(), &self.objects, callbacks)?;
+        wire_delay_select(&config::DELAY_CONFIG,
+                          controller.clone(), &self.objects, callbacks)?;
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "mod_speed", "mod_speed:msb", "mod_speed:lsb",
                    true)?;

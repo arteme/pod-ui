@@ -1,4 +1,4 @@
-mod config;
+pub mod config;
 mod module;
 pub mod wiring;
 pub mod model;

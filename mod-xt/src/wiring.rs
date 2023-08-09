@@ -8,6 +8,7 @@ use pod_core::controller::StoreOrigin::UI;
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
+use crate::model::{DelayConfig, ModConfig, StompConfig};
 use crate::widgets::*;
 
 
@@ -97,7 +98,8 @@ pub fn wire_di_show(controller: Arc<Mutex<Controller>>, config: &'static Config,
     Ok(())
 }
 
-pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+pub fn wire_stomp_select(stomp_config: &'static [StompConfig],
+                         controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let param_names = vec![
         "stomp_param2", "stomp_param2_wave", "stomp_param2_octave",
         "stomp_param3", "stomp_param3_octave", "stomp_param3_offset",
@@ -111,7 +113,7 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // wire `stomp_select` controller -> gui
         .on("stomp_select")
         .run(move |value, _, _| {
-            let stomp_config = &(*config::STOMP_CONFIG)[value as usize];
+            let stomp_config = &stomp_config[value as usize];
 
             for param in param_names.iter() {
                 let label_name = format!("{}_label", param);
@@ -197,7 +199,8 @@ pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
     Ok(())
 }
 
-pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+pub fn wire_mod_select(mod_config: &'static [ModConfig],
+                       controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let param_names = vec!["mod_param2", "mod_param3", "mod_param4"];
 
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
@@ -206,7 +209,7 @@ pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, ca
         // wire `mod_select` controller -> gui
         .on("mod_select")
         .run(move |value, _, _| {
-            let mod_config = &(*config::MOD_CONFIG)[value as usize];
+            let mod_config = &mod_config[value as usize];
 
             for param in param_names.iter() {
                 let label_name = format!("{}_label", param);
@@ -227,7 +230,8 @@ pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, ca
     Ok(())
 }
 
-pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+pub fn wire_delay_select(delay_config: &'static [DelayConfig],
+                         controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
     let param_names = vec![
         "delay_param2",
         "delay_param3", "delay_param3_heads",
@@ -240,7 +244,7 @@ pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
         // wire `delay_select` controller -> gui
         .on("delay_select")
         .run(move |value, _, _| {
-            let config = &(*config::DELAY_CONFIG)[value as usize];
+            let config = &delay_config[value as usize];
 
             for param in param_names.iter() {
                 let label_name = format!("{}_label", param);

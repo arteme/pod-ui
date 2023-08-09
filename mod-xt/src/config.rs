@@ -30,7 +30,7 @@ pub static BX_MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
 
 pub static REVERB_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     convert_args!(vec!(
-        "Lux Spring", "Std Sping", "King Spring",
+        "Lux Spring", "Std Spring", "King Spring",
         "Small Room", "Tiled Room", "Brite Room",
         "Dark Hall", "Medium Hall", "Large Hall",
         "Rich Chamber", "Chamber", "Cavernous",
