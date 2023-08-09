@@ -266,6 +266,7 @@ pub fn wire_effect_select(config: &Config, controller: Arc<Mutex<Controller>>, c
             let Some((entry, _, _)) =
                 effect_entry_for_value(&config, effect_select) else { return };
             let control_name = &entry.effect_tweak;
+            if control_name.is_empty() { return }
 
             // HACK: as if everything's coming straight from MIDI
             let config = controller.get_config("effect_tweak").unwrap();
