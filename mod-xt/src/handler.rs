@@ -529,7 +529,7 @@ impl Handler for PodXtHandler {
         let addr = match control.get_addr() {
             Some((addr, len)) if len == 1 => addr,
             Some((_, len)) => {
-                error!("PODxt control_value_to_buffer: len={} for control {:?} not supported!", len, name);
+                error!("PODxt control_value_from_buffer: len={} for control {:?} not supported!", len, name);
                 return;
             }
             None => {
@@ -551,7 +551,7 @@ impl Handler for PodXtHandler {
         let Some(control) = controller.get_config(name) else {
             return;
         };
-        let Some(cc) = control.get_cc() else {
+        let Some(_cc) = control.get_cc() else {
             // skip virtual controls
             return;
         };
@@ -567,10 +567,11 @@ impl Handler for PodXtHandler {
             }
         };
 
-        let Some(value) = controller.get_cc_value(cc) else {
-            error!("No raw CC value for CC={}", cc);
+        let Some(value) = controller.get(name) else {
+            error!("No value for control {:?} found", name);
             return;
         };
+        let value = control.value_to_midi(value);
         buffer[addr as usize] = value;
     }
 
