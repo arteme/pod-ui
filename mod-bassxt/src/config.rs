@@ -194,15 +194,15 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "amp_enable" => SwitchControl { cc: 111, addr: 32 + 111, inverted: true },
         "compressor_enable" => SwitchControl { cc: 26, addr: 32 + 26, ..def()  },
         "eq_enable" => SwitchControl { cc: 63, addr: 32 + 63, ..def() },
-        "eq_position" => SwitchControl { cc: 46, addr: 32 + 46, ..def() }, //n
+        "eq_position" => SwitchControl { cc: 46, addr: 32 + 46, ..def() },
         "tuner_enable" => MidiSwitchControl { cc: 69 },
         // preamp
         "amp_select" => Select { cc: 11, addr: 32 + 12 , ..def() },
         "amp_select:no_def" => MidiSelect { cc: 12 }, // TODO: wire me!
         "drive" => RangeControl { cc: 13, addr: 32 + 13, format: fmt_percent!(), ..def() },
         "bass" => RangeControl { cc: 14, addr: 32 + 14, format: fmt_percent!(), ..def() },
-        "lo_mid" => RangeControl { cc: 15, addr: 32 + 15, format: fmt_percent!(), ..def() }, //n
-        "hi_mid" => RangeControl { cc: 16, addr: 32 + 16, format: fmt_percent!(), ..def() }, //n
+        "lo_mid" => RangeControl { cc: 15, addr: 32 + 15, format: fmt_percent!(), ..def() },
+        "hi_mid" => RangeControl { cc: 16, addr: 32 + 16, format: fmt_percent!(), ..def() },
         "treble" => RangeControl { cc: 21, addr: 32 + 21, format: fmt_percent!(), ..def() },
         "chan_volume" => RangeControl { cc: 17, addr: 32 + 17, format: fmt_percent!(), ..def() },
         "bypass_volume" => RangeControl { cc: 105, addr: 32 + 105, format: fmt_percent!(), ..def() },
@@ -218,16 +218,10 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Function { from_midi: gate_threshold_from_midi, to_midi: gate_threshold_to_midi },
             format: Format::Data(FormatData { k: 1.0, b: -96.0, format: "{val} db".into() }), ..def() },
         "gate_decay" => RangeControl { cc: 24, addr: 32 + 24,format: fmt_percent!(), ..def() }, // can be in milliseconds
-//        // compressor
-//        // note: despite what the manual says, L6E sends "compressor_threshold" as a value 0..127 (-63..0db)
-//        "compressor_threshold" => RangeControl { cc: 9, addr: 32 + 9,
-//            format: Format::Data(FormatData { k: 63.0/127.0, b: -63.0, format: "{val:1.1f} db".into() }),
-//            config: RangeConfig::Normal,
-//            ..def() },
-//        "compressor_gain" => RangeControl { cc: 5, addr: 32 + 5,
-//            format: Format::Data(FormatData { k: 16.0/127.0, b: 0.0, format: "{val:1.1f} db".into() }),
-//            config: RangeConfig::Normal,
-//            ..def() },
+        // compressor
+        "compressor_amount" => RangeControl { cc: 5, addr: 32 + 5,
+            format: fmt_percent!(),
+            ..def() },
         // stomp
         "stomp_select" => Select { cc: 75, addr: 32 + 75, ..def() },
         "stomp_param2" => RangeControl { cc: 79, addr: 32 + 79,
@@ -296,7 +290,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
-        "mod_param5" => RangeControl { cc: 55, addr: 32 + 55, //n
+        "mod_param5" => RangeControl { cc: 55, addr: 32 + 55,
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
@@ -310,7 +304,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
-        "mod_xover" => RangeControl { cc: 44, addr: 32 + 44, //n
+        "mod_xover" => RangeControl { cc: 44, addr: 32 + 44,
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
@@ -348,7 +342,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             ))),
             ..def() },
         // TODO: not used in Bass POD XT?
-        "delay_param5" => RangeControl { cc: 86, addr: 32 + 86, //n
+        "delay_param5" => RangeControl { cc: 86, addr: 32 + 86,
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
@@ -356,7 +350,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
-        "delay_xover" => RangeControl { cc: 45, addr: 32 + 45,  //n
+        "delay_xover" => RangeControl { cc: 45, addr: 32 + 45,
             config: RangeConfig::Normal,
             format: Format::Interpolate(FormatInterpolate {
                 points: vec![(0, 0.0), (128, 800.0)],
@@ -557,7 +551,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             "delay_enable",
             "amp_enable",
             "eq_enable",
-            //"tuner_enable",
+            "compressor_enable",
+            "tuner_enable",
             // misc
             "stomp_param2_wave", // wonder, why?
             // show signals
