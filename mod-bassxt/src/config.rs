@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use log::error;
 use maplit::*;
 use once_cell::sync::Lazy;
 use pod_core::builders::shorthand::*;
@@ -7,7 +6,7 @@ use pod_core::def;
 use pod_core::model::*;
 use pod_gtk::prelude::*;
 
-use pod_mod_pod2::{short, long, fmt_percent};
+use pod_mod_pod2::{short, long, steps, fmt_percent};
 use pod_mod_xt::model::*;
 use pod_mod_xt::builders::*;
 
@@ -58,6 +57,38 @@ pub static PEDAL_ASSIGN_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     ))
 });
 
+trait HasName {
+    fn name(&self) -> &String;
+    fn with_new_name(&self, new_name: String) -> Self;
+}
+
+impl HasName for ModConfig {
+    fn name(&self) -> &String {
+        &self.name
+    }
+
+    fn with_new_name(&self, new_name: String) -> Self {
+        let mut new = self.clone();
+        new.name = new_name;
+        new
+    }
+}
+
+fn pick_config<T: HasName>(name: &str, configs: &[T]) -> T {
+    let config = configs.iter()
+        .find(|config|
+            config.name()
+                .strip_prefix("FX-")
+                .unwrap_or(config.name().as_str()) == name);
+    let Some(config) = config else {
+        panic!("Config {:?} not found for picking", name);
+    };
+
+    config.with_new_name(name.into())
+}
+
+
+
 // Copy stomp configs from PODxt, only in a different order
 pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
     let names = vec![
@@ -88,31 +119,24 @@ pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
 });
 
 pub static MOD_CONFIG: Lazy<Vec<ModConfig>> = Lazy::new(|| {
+    fn xt(name: &str) -> ModConfig {
+      pick_config(name, &pod_mod_xt::config::MOD_CONFIG)
+    }
+
     convert_args!(vec!(
-        /*  0 */ modc("Sine Chorus").control("Depth").control("Bass").control("Treble"),
-        /*  1 */ modc("Analog Chorus").control("Depth").control("Bass").control("Treble"),
-        /*  2 */ modc("Line 6 Flanger").control("Depth"),
-        /*  3 */ modc("Jet Flanger").control("Depth").control("Feedback").control("Manual"),
-        /*  4 */ modc("Phaser").control("Feedback"),
-        /*  5 */ modc("U-Vibe").control("Depth"),
-        /*  6 */ modc("Opto Trem").control("Wave"),
-        /*  7 */ modc("Bias Trem").control("Wave"),
-        /*  8 */ modc("Rotary Drum + Horn").skip().control("Tone"),
-        /*  9 */ modc("Rotary Drum").skip().control("Tone"),
-        /* 10 */ modc("Auto Plan").control("Wave"),
-        /* 11 */ modc("FX-Analog Square").control("Depth").control("Bass").control("Treble"),
-        /* 12 */ modc("FX-Square Chorus").control("Depth").control("Pre-delay").control("Feedback"),
-        /* 13 */ modc("FX-Expo Chorus").control("Depth").control("Pre-delay").control("Feedback"),
-        /* 14 */ modc("FX-Random Chorus").control("Depth").control("Bass").control("Treble"),
-        /* 15 */ modc("FX-Square Flange").control("Depth").control("Pre-delay").control("Feedback"),
-        /* 16 */ modc("FX-Expo Flange").control("Depth").control("Pre-delay").control("Feedback"),
-        /* 17 */ modc("FX-Lumpy Phase").control("Depth").control("Bass").control("Treble"),
-        /* 18 */ modc("FX-Hi-Talk").control("Depth").control("Q"),
-        /* 19 */ modc("FX-Sweeper").control("Depth").control("Q").control("Frequency"),
-        /* 20 */ modc("FX-POD Purple X").control("Feedback").control("Depth"),
-        /* 21 */ modc("FX-Random S/H").control("Depth").control("Q"),
-        /* 22 */ modc("FX-Tape Eater").control("Feedback").control("Flutter").control("Distortion"),
-        /* 23 */ modc("FX-Warble-Matic").control("Depth").control("Q"),
+        /*  0 */ modc("Deluxe Chorus").control("Depth").control("Pre-delay").control("Feedback").wave("Wave"),
+        /*  1 */ xt("Analog Chorus"),
+        /*  2 */ modc("Deluxe Flange").control("Depth").control("Pre-delay").control("Feedback").wave("Wave"),
+        /*  3 */ xt("Jet Flanger"),
+        /*  4 */ xt("Phaser"),
+        /*  5 */ xt("U-Vibe"),
+        /*  6 */ xt("Opto Trem"),
+        /*  7 */ xt("Bias Trem"),
+        /*  8 */ xt("Rotary Drum"),
+        /*  9 */ xt("Hi-Talk"),
+        /* 10 */ modc("Line 6 Rotor").control("Depth").control("Q"),
+        /* 11 */ xt("Random S/H"),
+        /* 12 */ xt("Tape Eater"),
     ))
 });
 
@@ -273,6 +297,12 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "mod_param5" => RangeControl { cc: 55, addr: 32 + 55, //n
             config: RangeConfig::Normal,
             format: fmt_percent!(),
+            ..def() },
+        "mod_param5_wave" => VirtualRangeControl {
+            config: steps!(0, 32, 64),
+            format: Format::Labels(convert_args!(vec!(
+                "sine", "square", "expon"
+            ))),
             ..def() },
         "mod_mix" => RangeControl { cc: 56, addr: 32 + 56,
             config: RangeConfig::Normal,

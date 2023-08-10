@@ -330,6 +330,11 @@
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
+  <object class="GtkAdjustment" id="adjustment69">
+    <property name="upper">100</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkAdjustment" id="adjustment7">
     <property name="upper">100</property>
     <property name="step-increment">1</property>
@@ -2705,7 +2710,7 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">12</property>
                         <child>
-                          <!-- n-columns=3 n-rows=7 -->
+                          <!-- n-columns=3 n-rows=8 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
@@ -2825,7 +2830,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">6</property>
+                                <property name="top-attach">7</property>
                               </packing>
                             </child>
                             <child>
@@ -2840,7 +2845,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">6</property>
+                                <property name="top-attach">7</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -2897,6 +2902,37 @@
                                 <property name="left-attach">1</property>
                                 <property name="top-attach">1</property>
                                 <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale33">
+                                <property name="name">mod_param5_wave</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment69</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">6</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label61">
+                                <property name="name">mod_param5_wave_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Mod Param 5 Wave</property>
+                                <property name="justify">center</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">6</property>
                               </packing>
                             </child>
                           </object>

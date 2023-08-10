@@ -51,6 +51,10 @@ macro_rules! short {
 macro_rules! long {
     ( $from:expr, $to:expr ) => ( RangeConfig::Long { from: $from, to: $to } )
 }
+#[macro_export]
+macro_rules! steps {
+    ( $($x:expr),* ) => ( RangeConfig::Steps { steps: vec![ $($x),* ] } );
+}
 
 macro_rules! string_vec {
     ( $($x:expr),* ) => (vec![ $($x.to_string()),* ]);

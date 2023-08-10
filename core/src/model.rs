@@ -174,6 +174,7 @@ pub enum RangeConfig {
     Normal,
     Short { from: u8, to: u8, edge: bool },
     Long { from: u16, to: u16 },
+    Steps { steps: Vec<u8> },
     Function { from_midi: fn(u8) -> u16, to_midi: fn(u16) -> u8 },
     Multibyte { from: u16, to: u16, size: u8, from_buffer: fn(u32) -> u16, to_buffer: fn(u16) -> u32 },
 }
@@ -472,6 +473,7 @@ impl RangeConfig {
         match self {
             RangeConfig::Normal { .. } => (0.0, 127.0),
             RangeConfig::Short { from, to, .. } => (*from as f64, *to as f64),
+            RangeConfig::Steps { steps } => (0.0, (steps.len() - 1) as f64),
             RangeConfig::Function { from_midi, .. } => {
                 let a = from_midi(0) as f64;
                 let b = from_midi(127) as f64;
@@ -509,6 +511,14 @@ impl RangeConfig {
                 let scale = 128 / (to - from + 1);
                 (value / scale + from) as u16
             }
+            RangeConfig::Steps { steps } => {
+                let mut r = 0;
+                for (i, v) in steps.iter().enumerate() {
+                    if *v > value { break }
+                    r = i;
+                }
+                r as u16
+            }
             RangeConfig::Long { from, to } => {
                 let (from, to) = (*from as f64, *to as f64);
                 let scale = (to - from) / 127.0;
@@ -533,6 +543,10 @@ impl RangeConfig {
 
                 let scale = 128 / (to - from + 1);
                 (value as u8 - from) * scale
+            }
+            RangeConfig::Steps { steps } => {
+                let offset = (value as usize).min(steps.len() - 1);
+                steps[offset]
             }
             RangeConfig::Long { from, to } => {
                 let (from, to) = (*from as f64, *to as f64);

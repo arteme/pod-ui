@@ -1,32 +1,66 @@
 use std::collections::HashMap;
 use crate::model::*;
 
-pub struct StompConfigBuilder {
+struct GenericConfigBuilder {
     name: String,
+    prefix: String,
     labels: HashMap<String, String>,
     n: usize
 }
 
-impl StompConfigBuilder {
-    pub fn new(name: &str) -> Self {
+impl GenericConfigBuilder {
+    pub fn new(name: &str, prefix: &str) -> Self {
         Self {
             name: name.into(),
+            prefix: prefix.into(),
             labels: HashMap::new(),
             n: 2
         }
     }
+}
 
+pub trait GenericConfigBuilderOps {
+    fn add(&mut self, control: &str, label: &str);
+
+    fn control(&mut self, name: &str) -> &mut Self {
+        self.add("", name);
+        self
+    }
+
+    fn skip(&mut self) -> &mut Self {
+        self.add("", "");
+        self
+    }
+}
+
+impl GenericConfigBuilderOps for GenericConfigBuilder {
     fn add(&mut self, control: &str, label: &str) {
         if !label.is_empty() {
             let control = if !control.is_empty() {
-                format!("stomp_param{}_{}", self.n, control)
+                format!("{}_param{}_{}", &self.prefix, self.n, control)
             } else {
-                format!("stomp_param{}", self.n)
+                format!("{}_param{}", &self.prefix, self.n)
             };
 
             self.labels.insert(control, label.into());
         }
         self.n += 1;
+    }
+}
+
+// ---------------------------
+
+pub struct StompConfigBuilder(GenericConfigBuilder);
+
+impl GenericConfigBuilderOps for StompConfigBuilder {
+    fn add(&mut self, control: &str, label: &str) {
+        self.0.add(control, label)
+    }
+}
+
+impl StompConfigBuilder {
+    pub fn new(name: &str) -> Self {
+        Self(GenericConfigBuilder::new(name, "stomp"))
     }
 
     pub fn wave(&mut self, name: &str) -> &mut Self {
@@ -44,18 +78,8 @@ impl StompConfigBuilder {
         self
     }
 
-    pub fn control(&mut self, name: &str) -> &mut Self {
-        self.add("", name);
-        self
-    }
-
-    pub fn skip(&mut self) -> &mut Self {
-        self.add("", "");
-        self
-    }
-
     pub fn build(&self) -> StompConfig {
-        StompConfig { name: self.name.clone(), labels: self.labels.clone() }
+        StompConfig { name: self.0.name.clone(), labels: self.0.labels.clone() }
     }
 }
 
@@ -71,41 +95,26 @@ pub fn stomp(name: &str) -> StompConfigBuilder {
 
 // -----------------------------------------------------------------
 
-pub struct ModConfigBuilder {
-    name: String,
-    labels: HashMap<String, String>,
-    n: usize
+pub struct ModConfigBuilder(GenericConfigBuilder);
+
+impl GenericConfigBuilderOps for ModConfigBuilder {
+    fn add(&mut self, control: &str, label: &str) {
+        self.0.add(control, label)
+    }
 }
 
 impl ModConfigBuilder {
     pub fn new(name: &str) -> Self {
-        Self {
-            name: name.into(),
-            labels: HashMap::new(),
-            n: 2
-        }
+        Self(GenericConfigBuilder::new(name, "mod"))
     }
 
-    fn add(&mut self, label: &str) {
-        if !label.is_empty() {
-            let control = format!("mod_param{}", self.n);
-            self.labels.insert(control, label.into());
-        }
-        self.n += 1;
-    }
-
-    pub fn control(&mut self, name: &str) -> &mut Self {
-        self.add(name);
-        self
-    }
-
-    pub fn skip(&mut self) -> &mut Self {
-        self.add("");
+    pub fn wave(&mut self, name: &str) -> &mut Self {
+        self.add("wave", name);
         self
     }
 
     pub fn build(&self) -> ModConfig {
-        ModConfig { name: self.name.clone(), labels: self.labels.clone() }
+        ModConfig { name: self.0.name.clone(), labels: self.0.labels.clone() }
     }
 }
 
@@ -121,32 +130,17 @@ pub fn modc(name: &str) -> ModConfigBuilder {
 
 // -----------------------------------------------------------------
 
-pub struct DelayConfigBuilder {
-    name: String,
-    labels: HashMap<String, String>,
-    n: usize
+pub struct DelayConfigBuilder(GenericConfigBuilder);
+
+impl GenericConfigBuilderOps for DelayConfigBuilder {
+    fn add(&mut self, control: &str, label: &str) {
+        self.0.add(control, label)
+    }
 }
 
 impl DelayConfigBuilder {
     pub fn new(name: &str) -> Self {
-        Self {
-            name: name.into(),
-            labels: HashMap::new(),
-            n: 2
-        }
-    }
-
-    fn add(&mut self, control: &str, label: &str) {
-        if !label.is_empty() {
-            let control = if !control.is_empty() {
-                format!("delay_param{}_{}", self.n, control)
-            } else {
-                format!("delay_param{}", self.n)
-            };
-
-            self.labels.insert(control, label.into());
-        }
-        self.n += 1;
+        Self(GenericConfigBuilder::new(name, "delay"))
     }
 
     pub fn heads(&mut self, name: &str) -> &mut Self {
@@ -159,18 +153,8 @@ impl DelayConfigBuilder {
         self
     }
 
-    pub fn control(&mut self, name: &str) -> &mut Self {
-        self.add("", name);
-        self
-    }
-
-    pub fn skip(&mut self) -> &mut Self {
-        self.add("", "");
-        self
-    }
-
     pub fn build(&self) -> DelayConfig {
-        DelayConfig { name: self.name.clone(), labels: self.labels.clone() }
+        DelayConfig { name: self.0.name.clone(), labels: self.0.labels.clone() }
     }
 }
 

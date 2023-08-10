@@ -1,14 +1,17 @@
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use pod_core::controller::*;
 use pod_core::model::{AbstractControl, Config};
 use pod_gtk::prelude::*;
 use anyhow::*;
 use log::*;
+use multimap::MultiMap;
+use regex::Regex;
 use pod_core::controller::StoreOrigin::UI;
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
-use crate::model::{DelayConfig, ModConfig, StompConfig};
+use crate::model::{ConfigAccess, DelayConfig, ModConfig, StompConfig};
 use crate::widgets::*;
 
 
@@ -199,24 +202,28 @@ pub fn wire_stomp_select(stomp_config: &'static [StompConfig],
     Ok(())
 }
 
-pub fn wire_mod_select(mod_config: &'static [ModConfig],
-                       controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let param_names = vec!["mod_param2", "mod_param3", "mod_param4"];
+pub fn wire_dynamic_select<T: ConfigAccess>(select_name: &str, configs: &'static [T],
+                                            controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
 
+    let param_names = configs.iter()
+        .flat_map(|c| c.labels().keys())
+        .collect::<HashSet<_>>();
+
+    debug!("wiring dynamic select: {:?} -> {:?}", select_name, param_names);
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     let objs = objs.clone();
     builder
-        // wire `mod_select` controller -> gui
-        .on("mod_select")
+        // wire `XXX_select` controller -> gui
+        .on(select_name)
         .run(move |value, _, _| {
-            let mod_config = &mod_config[value as usize];
+            let config = &configs[value as usize];
 
             for param in param_names.iter() {
                 let label_name = format!("{}_label", param);
                 let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
                 let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
 
-                if let Some(text) = mod_config.labels.get(&param.to_string()) {
+                if let Some(text) = config.labels().get(&param.to_string()) {
                     label.set_text(text);
                     label.show();
                     widget.show();
@@ -226,6 +233,85 @@ pub fn wire_mod_select(mod_config: &'static [ModConfig],
                 }
             }
         });
+
+    Ok(())
+}
+
+pub fn wire_dynamic_params<T: ConfigAccess>(configs: &'static [T],
+                                            controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    use pod_core::store::Origin;
+
+    // NOTE: param_to_variant()/variant_to_param() assume the param control is 1:1 with
+    // midi values and does not do value_from_midi()/value_to_midi() on the data read
+    // written to the controller for that control (only for control variants)
+
+    fn param_to_variant(variant: &String, value: u16, controller: &mut Controller, origin: Origin) {
+        let control = controller.get_config(variant).unwrap();
+        let midi = control.value_from_midi(value as u8);
+        controller.set(variant, midi, origin);
+    }
+
+    fn variant_to_param(variant: &String, param: &String, value: u16, controller: &mut Controller, origin: Origin) {
+        let control = controller.get_config(variant).unwrap();
+        let midi = control.value_to_midi(value);
+        controller.set(param, midi as u16, origin);
+    }
+
+    let param_names = configs.iter()
+        .flat_map(|c| c.labels().keys())
+        .collect::<HashSet<_>>();
+
+    let mut param_mapping = MultiMap::<String, String>::new();
+    let param_regex = Regex::new(r"(.*_param\d)_.*").unwrap();
+    for name in param_names.iter() {
+        if let Some(caps) = param_regex.captures(name) {
+            param_mapping.insert(
+                caps.get(1).unwrap().as_str().into(),
+                caps.get(0).unwrap().as_str().into()
+            )
+        }
+    }
+
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    let mut builder = builder.on("xyz"); // convert a LogicBuilder to a LogicOnBuilder
+    for (param, variants) in param_mapping.iter_all() {
+        debug!("wiring dynamic controls: {:?} <-> {:?}", param, variants);
+        builder
+            // any change on the `XXX_paramX` will show up on the virtual
+            // controls as a value coming from MIDI, GUI changes from virtual
+            // controls will show up on `XXX_paramX` as a value coming from GUI
+            .on(&param)
+            .run({
+                let variants = variants.clone();
+                move |value, controller, origin| {
+                    for variant in variants.iter() {
+                        param_to_variant(variant, value, controller, origin)
+                    }
+                }
+            });
+
+        for variant in variants.iter() {
+            builder
+                .on(variant)
+                .run({
+                    let variant = variant.clone();
+                    let param = param.clone();
+                    move |value, controller, origin| {
+                        variant_to_param(&variant, &param, value, controller, origin)
+                    }
+                });
+        }
+    }
+
+    Ok(())
+}
+
+
+pub fn wire_mod_select(mod_config: &'static [ModConfig],
+                       controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    wire_dynamic_select("mod_select", mod_config,
+                        controller.clone(), objs, callbacks)?;
+    wire_dynamic_params(mod_config, controller, objs, callbacks)?;
 
     Ok(())
 }
