@@ -7,7 +7,7 @@ use pod_core::model::*;
 use pod_gtk::prelude::*;
 use glib::bitflags::bitflags;
 
-use pod_mod_pod2::{short, long, fmt_percent};
+use pod_mod_pod2::{short, long, steps, fmt_percent};
 use crate::model::*;
 use crate::builders::*;
 
@@ -250,7 +250,9 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
-        "stomp_param2_wave" => VirtualRangeControl { config: short!(1, 8),
+        "stomp_param2_wave" => VirtualRangeControl {
+            config: steps!(0, 16, 32, 48, 64, 80, 96, 112),
+            format: Format::Data(FormatData { k: 1.0, b: 1.0, format: "{val:1.0f}".into() }),
             ..def() },
         "stomp_param2_octave" => VirtualRangeControl {
             config: short!(@edge 0, 8),
@@ -371,6 +373,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "vol_minimum" => RangeControl { cc: 46, addr: 32 + 46, format: fmt_percent!(), ..def() },
         "vol_pedal_position" => SwitchControl { cc: 47, addr: 32 + 47, ..def() },
         // wah wah
+        // note: wah select not in PODxt manual or MIDI reference, but sent by L6E here
         "wah_select" => Select { cc: 91, addr: 32 + 91, ..def() },
         "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
         // pedals

@@ -101,107 +101,6 @@ pub fn wire_di_show(controller: Arc<Mutex<Controller>>, config: &'static Config,
     Ok(())
 }
 
-pub fn wire_stomp_select(stomp_config: &'static [StompConfig],
-                         controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let param_names = vec![
-        "stomp_param2", "stomp_param2_wave", "stomp_param2_octave",
-        "stomp_param3", "stomp_param3_octave", "stomp_param3_offset",
-        "stomp_param4", "stomp_param4_offset",
-        "stomp_param5", "stomp_param6",
-    ];
-
-    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
-    builder
-        // wire `stomp_select` controller -> gui
-        .on("stomp_select")
-        .run(move |value, _, _| {
-            let stomp_config = &stomp_config[value as usize];
-
-            for param in param_names.iter() {
-                let label_name = format!("{}_label", param);
-                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
-                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
-
-                if let Some(text) = stomp_config.labels.get(&param.to_string()) {
-                    label.set_text(text);
-                    label.show();
-                    widget.show();
-                } else {
-                    label.hide();
-                    widget.hide();
-                }
-            }
-        })
-        // any change on the `stomp_param2` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param2` as a value coming from GUI
-        .on("stomp_param2")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param2_wave").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param2_wave", midi, origin);
-
-            let control = controller.get_config("stomp_param2_octave").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param2_octave", midi, origin);
-        })
-        .on("stomp_param2_wave").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param2_wave").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param2", midi as u16, origin);
-        })
-        .on("stomp_param2_octave").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param2_octave").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param2", midi as u16, origin);
-        })
-        // any change on the `stomp_param3` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param3` as a value coming from GUI
-        .on("stomp_param3")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param3_octave").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param3_octave", midi, origin);
-
-            let control = controller.get_config("stomp_param3_offset").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param3_offset", midi, origin);
-        })
-        .on("stomp_param3_octave").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param3_octave").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param3", midi as u16, origin);
-        })
-        .on("stomp_param3_offset").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param3_offset").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param3", midi as u16, origin);
-        })
-        // any change on the `stomp_param4` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param4` as a value coming from GUI
-        .on("stomp_param4")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param4_offset").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param4_offset", midi, origin);
-        })
-        .on("stomp_param4_offset").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param4_offset").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param4", midi as u16, origin);
-        });
-
-    Ok(())
-}
-
 pub fn wire_dynamic_select<T: ConfigAccess>(select_name: &str, configs: &'static [T],
                                             controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
 
@@ -306,6 +205,14 @@ pub fn wire_dynamic_params<T: ConfigAccess>(configs: &'static [T],
     Ok(())
 }
 
+pub fn wire_stomp_select(stomp_config: &'static [StompConfig],
+                         controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    wire_dynamic_select("stomp_select", stomp_config,
+                        controller.clone(), objs, callbacks)?;
+    wire_dynamic_params(stomp_config, controller, objs, callbacks)?;
+
+    Ok(())
+}
 
 pub fn wire_mod_select(mod_config: &'static [ModConfig],
                        controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
@@ -318,65 +225,9 @@ pub fn wire_mod_select(mod_config: &'static [ModConfig],
 
 pub fn wire_delay_select(delay_config: &'static [DelayConfig],
                          controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let param_names = vec![
-        "delay_param2",
-        "delay_param3", "delay_param3_heads",
-        "delay_param4", "delay_param4_bits",
-    ];
-
-    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
-    builder
-        // wire `delay_select` controller -> gui
-        .on("delay_select")
-        .run(move |value, _, _| {
-            let config = &delay_config[value as usize];
-
-            for param in param_names.iter() {
-                let label_name = format!("{}_label", param);
-                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
-                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
-
-                if let Some(text) = config.labels.get(&param.to_string()) {
-                    label.set_text(text);
-                    label.show();
-                    widget.show();
-                } else {
-                    label.hide();
-                    widget.hide();
-                }
-            }
-        })
-        // any change on the `delay_param3` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `delay_param3` as a value coming from GUI
-        .on("delay_param3")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param3_heads").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("delay_param3_heads", midi, origin);
-        })
-        .on("delay_param3_heads").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param3_heads").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("delay_param3", midi as u16, origin);
-        })
-        // any change on the `delay_param4` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param4` as a value coming from GUI
-        .on("delay_param4")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param4_bits").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("delay_param4_bits", midi, origin);
-        })
-        .on("delay_param4_bits").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param4_bits").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("delay_param4", midi as u16, origin);
-        });
+    wire_dynamic_select("delay_select", delay_config,
+                        controller.clone(), objs, callbacks)?;
+    wire_dynamic_params(delay_config, controller, objs, callbacks)?;
 
     Ok(())
 }

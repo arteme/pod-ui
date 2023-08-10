@@ -71,8 +71,6 @@ impl Interface for BassPodXtInterface {
                    &config.cab_models, |v| v.as_str())?;
         init_combo(&self.objects, "mic_select",
                    &config::MIC_NAMES, |v| v.as_str())?;
-        init_combo(&self.objects, "reverb_select",
-                   &config::REVERB_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "stomp_select",
                    &config::STOMP_CONFIG, |c| c.name.as_str())?;
         init_combo(&self.objects, "mod_select",
@@ -83,8 +81,6 @@ impl Interface for BassPodXtInterface {
                    &config::DELAY_CONFIG, |c| c.name.as_str())?;
         init_combo(&self.objects, "delay_note_select",
                    &config::NOTE_NAMES, |v| v.as_str())?;
-        init_combo(&self.objects, "wah_select",
-                   &config::WAH_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "tweak_param_select",
                    &config::TWEAK_PARAM_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "pedal_assign_select",

@@ -14,40 +14,18 @@ pub static MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     pod_mod_xt::config::BX_MIC_NAMES.to_vec()
 });
 
-pub static REVERB_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
-    convert_args!(vec!(
-        "Lux Spring", "Std Sping", "King Spring",
-        "Small Room", "Tiled Room", "Brite Room",
-        "Dark Hall", "Medium Hall", "Large Hall",
-        "Rich Chamber", "Chamber", "Cavernous",
-        "Slap Plate", "Vintage Plate", "Large Plate"
-    ))
-});
-
 pub static NOTE_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
-    convert_args!(vec!(
-        "Off","Whole Note",
-        "Dotted Half Note", "Half", "Half Note Triplet",
-        "Dotted Quarter", "Quarter", "Quarter Note Triplet",
-        "Dotted Eighth", "Eighth", "Eighth Note Triplet",
-        "Dotted Sixteenth", "Sixteenth", "Sixteenth Note Triplet",
-    ))
-});
-
-pub static WAH_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
-    convert_args!(vec!(
-        "Vetta Wah", "Fassel", "Weeper", "Chrome", "Chrome Custom",
-        "Throaty", "Conductor", "Colorful"
-    ))
+    pod_mod_xt::config::NOTE_NAMES.to_vec()
 });
 
 pub static TWEAK_PARAM_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     convert_args!(vec!(
-        "Compressor Threshold", "Stomp Drive", "Stomp Gain", "Stomp Tone",
-        "Mod Speed", "Mod Depth", "Mod Bass", "Mod Treble", "Mod Mix",
-        "Delay Time", "Delay Feedback", "Delay Bass", "Delay Treble",
-        "Delay Mix", "Reverb Dwell", "Reverb Tone", "Reverb Mix",
-        "???", "Wah Position", "???", "???"
+        "Stomp Drive", "Stomp Gain", "Stomp Bass", "Stomp Treble",
+        "Mod Speed", "Mod Depth", "Mod Pre-delay", "Mod Feedback",
+        "Mod Wave", "Mod X-Over", "Mod Mix",
+        "Delay/Verb Time", "Delay/Verb Feedback", "Delay/Verb Bass",
+        "Delay/Verb Treble", "Delay/Verb X-Over", "Delay/Verb Mix",
+        "Wah Position", "???", "???", "???"
     ))
 });
 
@@ -59,7 +37,19 @@ pub static PEDAL_ASSIGN_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
 
 trait HasName {
     fn name(&self) -> &String;
-    fn with_new_name(&self, new_name: String) -> Self;
+    fn with_new_name(&self, new_name: &str) -> Self;
+}
+
+impl HasName for StompConfig {
+    fn name(&self) -> &String {
+        &self.name
+    }
+
+    fn with_new_name(&self, new_name: &str) -> Self {
+        let mut new = self.clone();
+        new.name = new_name.into();
+        new
+    }
 }
 
 impl HasName for ModConfig {
@@ -67,9 +57,21 @@ impl HasName for ModConfig {
         &self.name
     }
 
-    fn with_new_name(&self, new_name: String) -> Self {
+    fn with_new_name(&self, new_name: &str) -> Self {
         let mut new = self.clone();
-        new.name = new_name;
+        new.name = new_name.into();
+        new
+    }
+}
+
+impl HasName for DelayConfig {
+    fn name(&self) -> &String {
+        &self.name
+    }
+
+    fn with_new_name(&self, new_name: &str) -> Self {
+        let mut new = self.clone();
+        new.name = new_name.into();
         new
     }
 }
@@ -84,10 +86,8 @@ fn pick_config<T: HasName>(name: &str, configs: &[T]) -> T {
         panic!("Config {:?} not found for picking", name);
     };
 
-    config.with_new_name(name.into())
+    config.with_new_name(name)
 }
-
-
 
 // Copy stomp configs from PODxt, only in a different order
 pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
@@ -100,21 +100,7 @@ pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
     ];
 
     names.into_iter()
-        .map(|name| {
-            let stomp_config = pod_mod_xt::config::STOMP_CONFIG.iter()
-                .find(|stomp_config|
-                    stomp_config.name
-                        .strip_prefix("FX-")
-                        .unwrap_or(stomp_config.name.as_str()) == name);
-            let Some(stomp_config) = stomp_config else {
-                panic!("Stomp config {:?} not found from PODxt config", name);
-            };
-
-            let mut stomp_config = stomp_config.clone();
-            stomp_config.name = name.into();
-
-            stomp_config
-        })
+        .map(|name| pick_config(name, &pod_mod_xt::config::STOMP_CONFIG))
         .collect::<Vec<_>>()
 });
 
@@ -141,21 +127,35 @@ pub static MOD_CONFIG: Lazy<Vec<ModConfig>> = Lazy::new(|| {
 });
 
 pub static DELAY_CONFIG: Lazy<Vec<DelayConfig>> = Lazy::new(|| {
+    fn xt(name: &str) -> DelayConfig {
+        pick_config(name, &pod_mod_xt::config::DELAY_CONFIG)
+    }
+
     convert_args!(vec!(
-        /*  0 */ delay("Analog Delay").control("Feedback").control("Bass").control("Treble"),
-        /*  1 */ delay("Analog Delay w/ Mod").control("Feedback").control("Mod Speed").control("Depth"),
-        /*  2 */ delay("Tube Echo").control("Feedback").control("Flutter").control("Drive"),
-        /*  3 */ delay("Multi-Head").control("Feedback").heads("Heads").control("Flutter"),
-        /*  4 */ delay("Sweep Echo").control("Feedback").control("Speed").control("Depth"),
-        /*  5 */ delay("Digital Delay").control("Feedback").control("Bass").control("Treble"),
-        /*  6 */ delay("Stereo Delay").control("Offset").control("Feedback L").control("Feedback R"),
-        /*  7 */ delay("Ping Pong").control("Feedback").control("Offset").control("Spread"),
-        /*  8 */ delay("Reverse").control("Feedback"),
-        /*  9 */ delay("FX-Echo Platter").control("Feedback").heads("Heads").control("Flutter"),
-        /* 10 */ delay("FX-Tape Echo").control("Feedback").control("Bass").control("Treble"),
-        /* 11 */ delay("FX-Low Rez").control("Feedback").control("Tone").bits("Bits"),
-        /* 12 */ delay("FX-Phaze Echo").control("Feedback").control("Mod Speed").control("Depth"),
-        /* 13 */ delay("FX-Bubble Echo").control("Feedback").control("Speed").control("Depth"),
+        // Delay
+        /*  0 */ xt("Analog Delay"),
+        /*  1 */ xt("Analog Delay w/ Mod"),
+        /*  2 */ xt("Tube Echo"),
+        /*  3 */ xt("Multi-Head"),
+        /*  4 */ xt("Sweep Echo"),
+        /*  5 */ xt("Digital Delay"),
+        /*  6 */ xt("Reverse").with_new_name("Reverse Delay"),
+        // Reverb
+        /*  7 */ delay("Lux Spring").control("Dwell").skip().control("Tone"),
+        /*  8 */ delay("Std Spring").control("Dwell").skip().control("Tone"),
+        /*  9 */ delay("King Spring").control("Dwell").skip().control("Tone"),
+        /* 10 */ delay("Small Room").control("Decay").control("Pre-delay").control("Tone"),
+        /* 11 */ delay("Tiled Room").control("Decay").control("Pre-delay").control("Tone"),
+        /* 12 */ delay("Brite Room").control("Decay").control("Pre-delay").control("Tone"),
+        /* 13 */ delay("Dark Hall").control("Decay").control("Pre-delay").control("Tone"),
+        /* 14 */ delay("Medium Hall").control("Decay").control("Pre-delay").control("Tone"),
+        /* 15 */ delay("Large Hall").control("Decay").control("Pre-delay").control("Tone"),
+        /* 16 */ delay("Rich Chamber").control("Decay").control("Pre-delay").control("Tone"),
+        /* 17 */ delay("Chamber").control("Decay").control("Pre-delay").control("Tone"),
+        /* 18 */ delay("Cavernous").control("Decay").control("Pre-delay").control("Tone"),
+        /* 19 */ delay("Slap Plate").control("Decay").control("Pre-delay").control("Tone"),
+        /* 20 */ delay("Vintage Plate").control("Decay").control("Pre-delay").control("Tone"),
+        /* 21 */ delay("Large Plate").control("Decay").control("Pre-delay").control("Tone"),
     ))
 });
 
@@ -234,7 +234,9 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
-        "stomp_param2_wave" => VirtualRangeControl { config: short!(1, 8),
+        "stomp_param2_wave" => VirtualRangeControl {
+            config: steps!(0, 16, 32, 48, 64, 80, 96, 112),
+            format: Format::Data(FormatData { k: 1.0, b: 1.0, format: "{val:1.0f}".into() }),
             ..def() },
         "stomp_param2_octave" => VirtualRangeControl {
             config: short!(@edge 0, 8),
@@ -361,24 +363,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
                 format: "{val:1.0f} Hz".into()
             }),
             ..def() },
-        // reverb
-        "reverb_decay" => RangeControl { cc: 38, addr: 32 + 38,
-            config: RangeConfig::Normal,
-            format: fmt_percent!(),
-            ..def() },
-        "reverb_tone" => RangeControl { cc: 39, addr: 32 + 39,
-            config: RangeConfig::Normal,
-            format: fmt_percent!(),
-            ..def() },
-        "reverb_pre_delay" => RangeControl { cc: 40, addr: 32 + 40,
-            config: RangeConfig::Normal,
-            format: fmt_percent!(),
-            ..def() },
-        "reverb_level" => RangeControl { cc: 18, addr: 32 + 18,
-            config: RangeConfig::Normal,
-            format: fmt_percent!(),
-            ..def() },
-//        // d.i.
+        // d.i.
         "di_model" => RangeControl { cc: 48, addr: 32 + 48,
             config: RangeConfig::Normal,
             format: fmt_percent!(),
@@ -390,9 +375,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         // volume pedal
         "vol_level" => RangeControl { cc: 7, addr: 32 + 7, format: fmt_percent!(), ..def() },
         "vol_pedal_position" => SwitchControl { cc: 47, addr: 32 + 47, ..def() },
-//        // wah wah
-//        "wah_select" => Select { cc: 91, addr: 32 + 91, ..def() },
-//        "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
+        // wah wah
+        "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
         // pedals
         "tweak_param_select" => Select { cc: 108, addr: 32 + 108, ..def() },
         "pedal_assign" => Select { cc: 65, addr: 32 + 65, ..def() },
