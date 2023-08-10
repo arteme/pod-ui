@@ -177,6 +177,13 @@ fn heel_toe_to_midi(value: u16) -> u8 {
     (value as u8 - 1) * 2 + 18
 }
 
+pub fn gain_format() -> Format<RangeConfig> {
+    Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() })
+}
+
+pub fn freq_format(points: Vec<(u8, f64)>) -> Format<RangeConfig> {
+    Format::Interpolate(FormatInterpolate { points, format: "{val:1.0f} Hz".into() })
+}
 
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
@@ -382,40 +389,36 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "pedal_assign_select" => VirtualSelect {},
         // eq
         "eq_1_freq" => RangeControl { cc: 20, addr: 32 + 20,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 50.0), (128, 690.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 50.0), (128, 690.0)]
+            ),
             ..def() },
         "eq_1_gain" => RangeControl { cc: 114, addr: 32 + 114,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_2_freq" => RangeControl { cc: 42, addr: 32 + 42,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 50.0), (16, 130.0), (32, 290.0), (48, 450.0), (96, 2850.0), (128, 6050.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 50.0), (16, 130.0), (48, 450.0), (96, 2850.0), (128, 6050.0)]
+            ),
             ..def() },
         "eq_2_gain" => RangeControl { cc: 116, addr: 32 + 116,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_3_freq" => RangeControl { cc: 60, addr: 32 + 60,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 100.0), (32, 1700.0), (128, 11300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 100.0), (32, 1700.0), (128, 11300.0)]
+            ),
             ..def() },
         "eq_3_gain" => RangeControl { cc: 117, addr: 32 + 117,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_4_freq" => RangeControl { cc: 77, addr: 32 + 77,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)]
+            ),
             ..def() },
         "eq_4_gain" => RangeControl { cc: 119, addr: 32 + 119,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
 
         "loop_enable:show" => VirtualSelect {},

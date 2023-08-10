@@ -9,6 +9,7 @@ use pod_gtk::prelude::*;
 use pod_mod_pod2::{short, long, steps, fmt_percent};
 use pod_mod_xt::model::*;
 use pod_mod_xt::builders::*;
+use pod_mod_xt::config::{gain_format, freq_format};
 
 pub static MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     pod_mod_xt::config::BX_MIC_NAMES.to_vec()
@@ -376,60 +377,58 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "pedal_assign" => Select { cc: 65, addr: 32 + 65, ..def() },
         "pedal_assign_select" => VirtualSelect {},
         // eq
-        // TODO: fix eq formats
         "eq_1_freq" => RangeControl { cc: 20, addr: 32 + 20,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 50.0), (128, 690.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            // TODO: better (more?) points needed. this is often 1Hz off from what L6E shows :(
+            //       Maybe the string formatter used does incorrect rounding?
+            format: freq_format(
+                vec![(0, 50.0), (16, 56.0), (32, 75.0), (48, 106.0), (64, 150.0),
+                    (80, 206.0), (96, 275.0), (112, 356.0), (128, 450.0)]
+            ),
             ..def() },
         "eq_1_gain" => RangeControl { cc: 114, addr: 32 + 114,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_2_freq" => RangeControl { cc: 32, addr: 32 + 32,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 50.0), (16, 130.0), (32, 290.0), (48, 450.0), (96, 2850.0), (128, 6050.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 20.0), (128, 660.0)]
+            ),
             ..def() },
         "eq_2_gain" => RangeControl { cc: 115, addr: 32 + 115,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_3_freq" => RangeControl { cc: 42, addr: 32 + 42,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 100.0), (32, 1700.0), (128, 11300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 50.0), (64, 370.0), (128, 1010.0)]
+            ),
             ..def() },
         "eq_3_gain" => RangeControl { cc: 116, addr: 32 + 116,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_4_freq" => RangeControl { cc: 60, addr: 32 + 60,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 100.0), (32, 260.0), (96, 900.0), (128, 2500.0)]
+            ),
             ..def() },
         "eq_4_gain" => RangeControl { cc: 117, addr: 32 + 117,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_5_freq" => RangeControl { cc: 68, addr: 32 + 68,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 200.0), (48, 1400.0), (80, 3000.0), (112, 6200.0), (128, 14200.0)]
+            ),
             ..def() },
         "eq_5_gain" => RangeControl { cc: 118, addr: 32 + 118,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_6_freq" => RangeControl { cc: 77, addr: 32 + 77,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            // TODO: same as "eq_1_freq", often off by 1Hz
+            format: freq_format(
+                vec![(0, 500.0), (16, 525.0), (32, 563.0), (48, 734.0), (64, 1000.0),
+                    (80, 1359.0), (96, 1813.0), (112, 2395.0), (128, 3000.0)]
+            ),
             ..def() },
         "eq_6_gain" => RangeControl { cc: 119, addr: 32 + 119,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
 
         "loop_enable:show" => VirtualSelect {},
