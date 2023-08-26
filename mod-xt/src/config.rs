@@ -216,6 +216,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "mic_select" => Select { cc: 70, addr: 32 + 70, ..def() },
         "room" => RangeControl { cc: 76, addr: 32 + 76, format: fmt_percent!(), ..def() },
         // effect
+        // TODO: aka "effect setup" recalls FX setup stored into the FX banks
+        //       not currently shown in the UI, but it exists. Do something with it...
         "effect_select" => Select { cc: 19, addr: 32 + 19, ..def() },
         // noise gate
         // note: despite what the manual says, L6E sends "gate_threshold" as a value 0..96 (0..-96db)
@@ -662,6 +664,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         out_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 58, 75, 88, 91 ],
 
         // request edit buffer dump after receiving all of the above + 'tap tempo' CC 64
+        // TODO: 58?
         in_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 64, 75, 88, 91 ],
 
         flags: DeviceFlags::empty(),

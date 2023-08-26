@@ -212,6 +212,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "mic_select" => Select { cc: 70, addr: 32 + 70, ..def() },
         "room" => RangeControl { cc: 76, addr: 32 + 76, format: fmt_percent!(), ..def() },
         // effect
+        // TODO: aka "effect setup" recalls FX setup stored into the FX banks
+        //       not currently shown in the UI, but it exists. Do something with it...
         "effect_select" => Select { cc: 19, addr: 32 + 19, ..def() },
         // noise gate
         // note: despite what the manual says, L6E sends "gate_threshold" as a value 0..96 (0..-96db)
@@ -560,12 +562,13 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         )),
 
         // request edit buffer dump after setting 'amp select' CC 11, 'amp select w/o defaults'
-        // CC 12, 'effect select' CC 19, 'reverb select' CC 37, 'mod select' CC 58,
-        // 'stomp select' CC 75, 'delay select' CC 88, 'wah select' CC 91
-        out_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 58, 75, 88, 91 ],
+        // CC 12, 'effect select' CC 19, 'mod select' CC 58, 'stomp select' CC 75,
+        // 'delay select' CC 88
+        out_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 58, 75, 88 ],
 
         // request edit buffer dump after receiving all of the above + 'tap tempo' CC 64
-        in_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 64, 75, 88, 91 ],
+        // TODO: 58?
+        in_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 64, 75, 88 ],
 
         flags: DeviceFlags::MANUAL_MODE,
         midi_quirks: MidiQuirks::empty(),
