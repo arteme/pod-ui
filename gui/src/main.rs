@@ -584,6 +584,7 @@ async fn main() -> Result<()> {
     register_module(pod_mod_pod2::module())?;
     register_module(pod_mod_pocket::module())?;
     register_module(pod_mod_xt::module())?;
+    register_module(pod_mod_bass::module())?;
 
     let help_text = generate_help_text()?;
     let cli = Command::new("Pod UI")

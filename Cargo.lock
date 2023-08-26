@@ -1350,6 +1350,7 @@ dependencies = [
  "once_cell",
  "pod-core",
  "pod-gtk",
+ "pod-mod-bass",
  "pod-mod-pocket",
  "pod-mod-pod2",
  "pod-mod-xt",
@@ -1362,6 +1363,20 @@ dependencies = [
  "string_template",
  "tokio",
  "winres",
+]
+
+[[package]]
+name = "pod-mod-bass"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "maplit",
+ "once_cell",
+ "pod-core",
+ "pod-gtk",
+ "pod-mod-pod2",
+ "tokio",
 ]
 
 [[package]]
