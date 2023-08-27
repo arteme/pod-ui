@@ -408,18 +408,20 @@
             <property name="orientation">vertical</property>
             <child>
               <!-- n-columns=1 n-rows=4 -->
-              <object class="GtkGrid">
+              <object class="GtkGrid" id="detecting_devices_grid">
+                <property name="name">detecting_devices_grid</property>
                 <property name="width-request">400</property>
                 <property name="height-request">400</property>
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="detecting_devices_label">
                     <property name="name">detecting_devices_label</property>
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
                     <property name="hexpand">True</property>
                     <property name="label" translatable="yes">Detecting devices...</property>
+                    <property name="justify">center</property>
                   </object>
                   <packing>
                     <property name="left-attach">0</property>
@@ -427,7 +429,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkSpinner">
+                  <object class="GtkSpinner" id="detecting_devices_spinner">
                     <property name="name">detecting_devices_spinner</property>
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>

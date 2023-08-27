@@ -634,6 +634,10 @@ async fn main() -> Result<()> {
     let mut ui_callbacks = Callbacks::new();
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
 
+    // Keep this reference around for when a module init fails
+    let detecting_devices_grid = ui_objects.ref_by_name::<gtk::Grid>("detecting_devices_grid")
+        .map_err(|e| anyhow!("UI element not found: {}", e))?;
+
     let window: gtk::Window = ui.object("ui_win").unwrap();
     window.set_title(&title);
     window.connect_delete_event({
@@ -866,7 +870,23 @@ async fn main() -> Result<()> {
 
                     info!("Initiating module for config {:?}", &config.name);
                     let interface = init_module(config)
-                        .map_err(|err| error!("Failed to initialize config {:?}: {}", config.name, err))
+                        .map_err(|err| {
+                            error!("Failed to initialize config {:?}: {}", config.name, err);
+
+                            // Show the error in the UI
+                            let device_box: gtk::Box = ui.object("device_box").unwrap();
+                            device_box.foreach(|w| device_box.remove(w));
+                            device_box.add(&detecting_devices_grid);
+
+                            let spinner: gtk::Widget = ui.object("detecting_devices_spinner").unwrap();
+                            spinner.hide();
+                            let label: gtk::Label = ui.object("detecting_devices_label").unwrap();
+                            let str = format!(
+                                "<b>Failed to initialize config {:?}</b>\r\n{}",
+                                config.name, err
+                            );
+                            label.set_markup(&str);
+                        })
                         .ok();
                     let Some(interface) = interface else {
                         // Failed to initialize the interface, so skip the rest
