@@ -7,7 +7,7 @@ use pod_core::model::*;
 use pod_gtk::prelude::*;
 use glib::bitflags::bitflags;
 
-use pod_mod_pod2::{short, long, fmt_percent};
+use pod_mod_pod2::{short, long, steps, fmt_percent};
 use crate::model::*;
 use crate::builders::*;
 
@@ -30,7 +30,7 @@ pub static BX_MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
 
 pub static REVERB_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     convert_args!(vec!(
-        "Lux Spring", "Std Sping", "King Spring",
+        "Lux Spring", "Std Spring", "King Spring",
         "Small Room", "Tiled Room", "Brite Room",
         "Dark Hall", "Medium Hall", "Large Hall",
         "Rich Chamber", "Chamber", "Cavernous",
@@ -177,6 +177,13 @@ fn heel_toe_to_midi(value: u16) -> u8 {
     (value as u8 - 1) * 2 + 18
 }
 
+pub fn gain_format() -> Format<RangeConfig> {
+    Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() })
+}
+
+pub fn freq_format(points: Vec<(u8, f64)>) -> Format<RangeConfig> {
+    Format::Interpolate(FormatInterpolate { points, format: "{val:1.0f} Hz".into() })
+}
 
 pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let podxt_controls: HashMap<String, Control> = convert_args!(hashmap!(
@@ -209,6 +216,8 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "mic_select" => Select { cc: 70, addr: 32 + 70, ..def() },
         "room" => RangeControl { cc: 76, addr: 32 + 76, format: fmt_percent!(), ..def() },
         // effect
+        // TODO: aka "effect setup" recalls FX setup stored into the FX banks
+        //       not currently shown in the UI, but it exists. Do something with it...
         "effect_select" => Select { cc: 19, addr: 32 + 19, ..def() },
         // noise gate
         // note: despite what the manual says, L6E sends "gate_threshold" as a value 0..96 (0..-96db)
@@ -250,7 +259,9 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             config: RangeConfig::Normal,
             format: fmt_percent!(),
             ..def() },
-        "stomp_param2_wave" => VirtualRangeControl { config: short!(1, 8),
+        "stomp_param2_wave" => VirtualRangeControl {
+            config: steps!(0, 16, 32, 48, 64, 80, 96, 112),
+            format: Format::Data(FormatData { k: 1.0, b: 1.0, format: "{val:1.0f}".into() }),
             ..def() },
         "stomp_param2_octave" => VirtualRangeControl {
             config: short!(@edge 0, 8),
@@ -371,6 +382,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "vol_minimum" => RangeControl { cc: 46, addr: 32 + 46, format: fmt_percent!(), ..def() },
         "vol_pedal_position" => SwitchControl { cc: 47, addr: 32 + 47, ..def() },
         // wah wah
+        // note: wah select not in PODxt manual or MIDI reference, but sent by L6E here
         "wah_select" => Select { cc: 91, addr: 32 + 91, ..def() },
         "wah_level" => RangeControl { cc: 4, addr: 32 + 4, format: fmt_percent!(), ..def() },
         // pedals
@@ -379,40 +391,36 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "pedal_assign_select" => VirtualSelect {},
         // eq
         "eq_1_freq" => RangeControl { cc: 20, addr: 32 + 20,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 50.0), (128, 690.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 50.0), (128, 690.0)]
+            ),
             ..def() },
         "eq_1_gain" => RangeControl { cc: 114, addr: 32 + 114,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_2_freq" => RangeControl { cc: 42, addr: 32 + 42,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 50.0), (16, 130.0), (32, 290.0), (48, 450.0), (96, 2850.0), (128, 6050.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 50.0), (16, 130.0), (48, 450.0), (96, 2850.0), (128, 6050.0)]
+            ),
             ..def() },
         "eq_2_gain" => RangeControl { cc: 116, addr: 32 + 116,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_3_freq" => RangeControl { cc: 60, addr: 32 + 60,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 100.0), (32, 1700.0), (128, 11300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 100.0), (32, 1700.0), (128, 11300.0)]
+            ),
             ..def() },
         "eq_3_gain" => RangeControl { cc: 117, addr: 32 + 117,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
         "eq_4_freq" => RangeControl { cc: 77, addr: 32 + 77,
-            format: Format::Interpolate(FormatInterpolate {
-                points: vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)],
-                format: "{val:1.0f} Hz".into()
-            }),
+            format: freq_format(
+                vec![(0, 500.0), (32, 1300.0), (64, 2900.0), (128, 9300.0)]
+            ),
             ..def() },
         "eq_4_gain" => RangeControl { cc: 119, addr: 32 + 119,
-            format: Format::Data(FormatData { k: 25.4/127.0, b: -12.8, format: "{val:1.1f} dB".into() }),
+            format: gain_format(),
             ..def() },
 
         "loop_enable:show" => VirtualSelect {},
@@ -436,6 +444,10 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         program_size: 72*2 + 16,
         program_name_addr: 0,
         program_name_length: 16,
+
+        pc_manual_mode: None,
+        pc_tuner: None,
+        pc_offset: None,
 
         amp_models: convert_args!(vec!(
             amp("No Amp"),
@@ -652,6 +664,7 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         out_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 58, 75, 88, 91 ],
 
         // request edit buffer dump after receiving all of the above + 'tap tempo' CC 64
+        // TODO: 58?
         in_cc_edit_buffer_dump_req: vec![ 11, 12, 19, 37, 64, 75, 88, 91 ],
 
         flags: DeviceFlags::empty(),

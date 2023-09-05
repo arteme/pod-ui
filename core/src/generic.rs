@@ -133,7 +133,24 @@ pub fn midi_pc_in_handler(ctx: &Ctx, midi_message: &MidiMessage) {
         return;
     };
 
-    ctx.set_program(Program::from(*program as u16), MIDI);
+    let program_range = 0 .. ctx.config.program_num;
+    let program = match *program as usize {
+        p if ctx.config.pc_manual_mode.is_some_and(|v| v == p) => Program::ManualMode,
+        p if ctx.config.pc_tuner.is_some_and(|v| v == p) => Program::Tuner,
+        p => {
+            let offset = ctx.config.pc_offset.unwrap_or_default();
+            let p = p - offset;
+            if program_range.contains(&p) {
+                Program::Program(p as u16)
+            } else {
+                error!("Incorrect program in PC message: {}", p);
+                return;
+            }
+        }
+    };
+
+
+    ctx.set_program(program, MIDI);
 }
 
 pub fn midi_pc_out_handler(_ctx: &Ctx, midi_message: &MidiMessage) {
@@ -147,9 +164,24 @@ pub fn pc_handler(ctx: &Ctx, event: &ProgramChangeEvent) {
     let modified = sync_edit_and_dump_buffers(ctx, event.origin);
 
     if event.origin == UI {
-        let program = num_program(&event.program);
+        let program = match event.program {
+            Program::ManualMode => ctx.config.pc_manual_mode,
+            Program::Tuner => ctx.config.pc_tuner,
+            // TODO: fix magic 1000
+            Program::Program(1000) => None,
+            Program::Program(v) => {
+                let offset = ctx.config.pc_offset.unwrap_or_default();
+                Some(v as usize + offset)
+            }
+        };
         if let Some(program) = program {
             let msg = MidiMessage::ProgramChange { channel: ctx.midi_channel(), program: program as u8 };
+            if modified && ctx.config.flags.contains(DeviceFlags::MODIFIED_BUFFER_PC_AND_EDIT_BUFFER) {
+                // The buffer is modified, so the  send_edit_buffer_or_pc will send
+                // the edit buffer. Send PC here first if the device can handle it.
+                ctx.app_event_tx.send_or_warn(AppEvent::MidiMsgOut(msg.clone()));
+            }
+
             send_edit_buffer_or_pc(ctx, modified, msg);
         }
     }

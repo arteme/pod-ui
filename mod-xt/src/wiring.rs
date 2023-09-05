@@ -1,13 +1,17 @@
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use pod_core::controller::*;
 use pod_core::model::{AbstractControl, Config};
 use pod_gtk::prelude::*;
 use anyhow::*;
 use log::*;
+use multimap::MultiMap;
+use regex::Regex;
 use pod_core::controller::StoreOrigin::UI;
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
+use crate::model::{ConfigAccess, DelayConfig, ModConfig, StompConfig};
 use crate::widgets::*;
 
 
@@ -97,123 +101,28 @@ pub fn wire_di_show(controller: Arc<Mutex<Controller>>, config: &'static Config,
     Ok(())
 }
 
-pub fn wire_stomp_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let param_names = vec![
-        "stomp_param2", "stomp_param2_wave", "stomp_param2_octave",
-        "stomp_param3", "stomp_param3_octave", "stomp_param3_offset",
-        "stomp_param4", "stomp_param4_offset",
-        "stomp_param5", "stomp_param6",
-    ];
+pub fn wire_dynamic_select<T: ConfigAccess>(select_name: &str, configs: &'static [T],
+                                            controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
 
+    let param_names = configs.iter()
+        .flat_map(|c| c.labels().keys())
+        .collect::<HashSet<_>>();
+
+    debug!("wiring dynamic select: {:?} -> {:?}", select_name, param_names);
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     let objs = objs.clone();
     builder
-        // wire `stomp_select` controller -> gui
-        .on("stomp_select")
+        // wire `XXX_select` controller -> gui
+        .on(select_name)
         .run(move |value, _, _| {
-            let stomp_config = &(*config::STOMP_CONFIG)[value as usize];
+            let config = &configs[value as usize];
 
             for param in param_names.iter() {
                 let label_name = format!("{}_label", param);
                 let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
                 let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
 
-                if let Some(text) = stomp_config.labels.get(&param.to_string()) {
-                    label.set_text(text);
-                    label.show();
-                    widget.show();
-                } else {
-                    label.hide();
-                    widget.hide();
-                }
-            }
-        })
-        // any change on the `stomp_param2` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param2` as a value coming from GUI
-        .on("stomp_param2")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param2_wave").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param2_wave", midi, origin);
-
-            let control = controller.get_config("stomp_param2_octave").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param2_octave", midi, origin);
-        })
-        .on("stomp_param2_wave").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param2_wave").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param2", midi as u16, origin);
-        })
-        .on("stomp_param2_octave").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param2_octave").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param2", midi as u16, origin);
-        })
-        // any change on the `stomp_param3` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param3` as a value coming from GUI
-        .on("stomp_param3")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param3_octave").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param3_octave", midi, origin);
-
-            let control = controller.get_config("stomp_param3_offset").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param3_offset", midi, origin);
-        })
-        .on("stomp_param3_octave").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param3_octave").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param3", midi as u16, origin);
-        })
-        .on("stomp_param3_offset").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param3_offset").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param3", midi as u16, origin);
-        })
-        // any change on the `stomp_param4` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param4` as a value coming from GUI
-        .on("stomp_param4")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param4_offset").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("stomp_param4_offset", midi, origin);
-        })
-        .on("stomp_param4_offset").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("stomp_param4_offset").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("stomp_param4", midi as u16, origin);
-        });
-
-    Ok(())
-}
-
-pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let param_names = vec!["mod_param2", "mod_param3", "mod_param4"];
-
-    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
-    builder
-        // wire `mod_select` controller -> gui
-        .on("mod_select")
-        .run(move |value, _, _| {
-            let mod_config = &(*config::MOD_CONFIG)[value as usize];
-
-            for param in param_names.iter() {
-                let label_name = format!("{}_label", param);
-                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
-                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
-
-                if let Some(text) = mod_config.labels.get(&param.to_string()) {
+                if let Some(text) = config.labels().get(&param.to_string()) {
                     label.set_text(text);
                     label.show();
                     widget.show();
@@ -227,66 +136,98 @@ pub fn wire_mod_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, ca
     Ok(())
 }
 
-pub fn wire_delay_select(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    let param_names = vec![
-        "delay_param2",
-        "delay_param3", "delay_param3_heads",
-        "delay_param4", "delay_param4_bits",
-    ];
+pub fn wire_dynamic_params<T: ConfigAccess>(configs: &'static [T],
+                                            controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    use pod_core::store::Origin;
+
+    // NOTE: param_to_variant()/variant_to_param() assume the param control is 1:1 with
+    // midi values and does not do value_from_midi()/value_to_midi() on the data read
+    // written to the controller for that control (only for control variants)
+
+    fn param_to_variant(variant: &String, value: u16, controller: &mut Controller, origin: Origin) {
+        let control = controller.get_config(variant).unwrap();
+        let midi = control.value_from_midi(value as u8);
+        controller.set(variant, midi, origin);
+    }
+
+    fn variant_to_param(variant: &String, param: &String, value: u16, controller: &mut Controller, origin: Origin) {
+        let control = controller.get_config(variant).unwrap();
+        let midi = control.value_to_midi(value);
+        controller.set(param, midi as u16, origin);
+    }
+
+    let param_names = configs.iter()
+        .flat_map(|c| c.labels().keys())
+        .collect::<HashSet<_>>();
+
+    let mut param_mapping = MultiMap::<String, String>::new();
+    let param_regex = Regex::new(r"(.*_param\d)_.*").unwrap();
+    for name in param_names.iter() {
+        if let Some(caps) = param_regex.captures(name) {
+            param_mapping.insert(
+                caps.get(1).unwrap().as_str().into(),
+                caps.get(0).unwrap().as_str().into()
+            )
+        }
+    }
 
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
-    let objs = objs.clone();
-    builder
-        // wire `delay_select` controller -> gui
-        .on("delay_select")
-        .run(move |value, _, _| {
-            let config = &(*config::DELAY_CONFIG)[value as usize];
-
-            for param in param_names.iter() {
-                let label_name = format!("{}_label", param);
-                let label = objs.ref_by_name::<gtk::Label>(&label_name).unwrap();
-                let widget = objs.ref_by_name::<gtk::Widget>(param).unwrap();
-
-                if let Some(text) = config.labels.get(&param.to_string()) {
-                    label.set_text(text);
-                    label.show();
-                    widget.show();
-                } else {
-                    label.hide();
-                    widget.hide();
+    let mut builder = builder.on("xyz"); // convert a LogicBuilder to a LogicOnBuilder
+    for (param, variants) in param_mapping.iter_all() {
+        debug!("wiring dynamic controls: {:?} <-> {:?}", param, variants);
+        builder
+            // any change on the `XXX_paramX` will show up on the virtual
+            // controls as a value coming from MIDI, GUI changes from virtual
+            // controls will show up on `XXX_paramX` as a value coming from GUI
+            .on(&param)
+            .run({
+                let variants = variants.clone();
+                move |value, controller, origin| {
+                    for variant in variants.iter() {
+                        param_to_variant(variant, value, controller, origin)
+                    }
                 }
-            }
-        })
-        // any change on the `delay_param3` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `delay_param3` as a value coming from GUI
-        .on("delay_param3")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param3_heads").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("delay_param3_heads", midi, origin);
-        })
-        .on("delay_param3_heads").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param3_heads").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("delay_param3", midi as u16, origin);
-        })
-        // any change on the `delay_param4` will show up on the virtual
-        // controls as a value coming from MIDI, GUI changes from virtual
-        // controls will show up on `stamp_param4` as a value coming from GUI
-        .on("delay_param4")
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param4_bits").unwrap();
-            let midi = control.value_from_midi(value as u8);
-            controller.set("delay_param4_bits", midi, origin);
-        })
-        .on("delay_param4_bits").from(UI)
-        .run(move |value, controller, origin| {
-            let control = controller.get_config("delay_param4_bits").unwrap();
-            let midi = control.value_to_midi(value);
-            controller.set("delay_param4", midi as u16, origin);
-        });
+            });
+
+        for variant in variants.iter() {
+            builder
+                .on(variant)
+                .run({
+                    let variant = variant.clone();
+                    let param = param.clone();
+                    move |value, controller, origin| {
+                        variant_to_param(&variant, &param, value, controller, origin)
+                    }
+                });
+        }
+    }
+
+    Ok(())
+}
+
+pub fn wire_stomp_select(stomp_config: &'static [StompConfig],
+                         controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    wire_dynamic_select("stomp_select", stomp_config,
+                        controller.clone(), objs, callbacks)?;
+    wire_dynamic_params(stomp_config, controller, objs, callbacks)?;
+
+    Ok(())
+}
+
+pub fn wire_mod_select(mod_config: &'static [ModConfig],
+                       controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    wire_dynamic_select("mod_select", mod_config,
+                        controller.clone(), objs, callbacks)?;
+    wire_dynamic_params(mod_config, controller, objs, callbacks)?;
+
+    Ok(())
+}
+
+pub fn wire_delay_select(delay_config: &'static [DelayConfig],
+                         controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    wire_dynamic_select("delay_select", delay_config,
+                        controller.clone(), objs, callbacks)?;
+    wire_dynamic_params(delay_config, controller, objs, callbacks)?;
 
     Ok(())
 }
@@ -363,8 +304,7 @@ pub fn wire_pedal_assign(controller: Arc<Mutex<Controller>>, objs: &ObjectList, 
     Ok(())
 }
 
-pub fn resolve_footswitch_mode_show(objs: &ObjectList, config: &Config) -> Result<()> {
-    let show = config.member == config::PODXT_LIVE_CONFIG.member;
+pub fn resolve_footswitch_mode_show(objs: &ObjectList, show: bool) -> Result<()> {
     if show { return Ok(()); }
 
     // For some reason, hiding these particular controls wia `widget.hide()` leaves

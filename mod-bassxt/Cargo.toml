@@ -1,5 +1,5 @@
 [package]
-name = "pod-mod-xt"
+name = "pod-mod-bassxt"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,12 +10,11 @@ hibitset = "0.6.3"
 
 once_cell = "*" # defined in pod-core
 maplit = "*" # defined in pod-mod-pod2
-multimap = "*" # defuned in pod-gtk
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core
-regex = "*" # defined in pod-core
 anyhow = "*" # defined in pod-code
 
 pod-core = { path = "../core" }
 pod-gtk = { path = "../gtk" }
 pod-mod-pod2 = { path = "../mod-pod2" }
+pod-mod-xt = { path = "../mod-xt" }

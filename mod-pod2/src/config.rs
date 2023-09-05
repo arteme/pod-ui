@@ -51,6 +51,10 @@ macro_rules! short {
 macro_rules! long {
     ( $from:expr, $to:expr ) => ( RangeConfig::Long { from: $from, to: $to } )
 }
+#[macro_export]
+macro_rules! steps {
+    ( $($x:expr),* ) => ( RangeConfig::Steps { steps: vec![ $($x),* ] } );
+}
 
 macro_rules! string_vec {
     ( $($x:expr),* ) => (vec![ $($x.to_string()),* ]);
@@ -112,6 +116,10 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
 
         program_size: 71,
         program_num: 36,
+
+        pc_manual_mode: Some(0),
+        pc_tuner: Some(37),
+        pc_offset: Some(1),
 
         amp_models: convert_args!(vec!(
             amp("Tube Preamp").room().presence(),

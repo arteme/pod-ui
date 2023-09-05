@@ -7,41 +7,41 @@ use gtk::{Builder, Widget};
 use pod_core::handler::BoxedHandler;
 use pod_core::store::Origin::MIDI;
 use pod_mod_pod2::wiring::*;
+use pod_mod_xt::handler::PodXtHandler;
+use pod_mod_xt::widgets::Tuner;
+use pod_mod_xt::wiring::{*, init_combo};
 
 use crate::config;
-use crate::handler::PodXtHandler;
-use crate::widgets::Tuner;
-use crate::wiring::{*, init_combo};
 
-struct PodXtModule;
+struct BassPodXtModule;
 
-impl Module for PodXtModule {
+impl Module for BassPodXtModule {
     fn config(&self) -> Box<[Config]> {
         vec![
-            config::PODXT_CONFIG.clone(),
-            config::PODXT_PRO_CONFIG.clone(),
-            config::PODXT_LIVE_CONFIG.clone(),
+            config::BASS_PODXT_CONFIG.clone(),
+            config::BASS_PODXT_PRO_CONFIG.clone(),
+            config::BASS_PODXT_LIVE_CONFIG.clone(),
         ].into_boxed_slice()
     }
 
     fn init(&self, config: &'static Config) -> Box<dyn Interface> {
-        Box::new(PodXtInterface::new(config))
+        Box::new(BassPodXtInterface::new(config))
     }
 
     fn handler(&self, config: &'static Config) -> BoxedHandler {
-        Box::new(PodXtHandler::new(config, true))
+        Box::new(PodXtHandler::new(config, false))
     }
 }
 
-struct PodXtInterface {
+struct BassPodXtInterface {
     config: &'static Config,
     widget: Widget,
     objects: ObjectList
 }
 
-impl PodXtInterface {
+impl BassPodXtInterface {
     fn new(config: &'static Config) -> Self {
-        let builder = Builder::from_string(include_str!("pod-xt.glade"));
+        let builder = Builder::from_string(include_str!("bass-pod-xt.glade"));
         let objects = ObjectList::new(&builder);
 
         let widow: gtk::Window = builder.object("app_win").unwrap();
@@ -52,7 +52,7 @@ impl PodXtInterface {
     }
 }
 
-impl Interface for PodXtInterface {
+impl Interface for BassPodXtInterface {
     fn widget(&self) -> Widget {
         self.widget.clone()
     }
@@ -71,8 +71,6 @@ impl Interface for PodXtInterface {
                    &config.cab_models, |v| v.as_str())?;
         init_combo(&self.objects, "mic_select",
                    &config::MIC_NAMES, |v| v.as_str())?;
-        init_combo(&self.objects, "reverb_select",
-                   &config::REVERB_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "stomp_select",
                    &config::STOMP_CONFIG, |c| c.name.as_str())?;
         init_combo(&self.objects, "mod_select",
@@ -83,8 +81,6 @@ impl Interface for PodXtInterface {
                    &config::DELAY_CONFIG, |c| c.name.as_str())?;
         init_combo(&self.objects, "delay_note_select",
                    &config::NOTE_NAMES, |v| v.as_str())?;
-        init_combo(&self.objects, "wah_select",
-                   &config::WAH_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "tweak_param_select",
                    &config::TWEAK_PARAM_NAMES, |s| s.as_str())?;
         init_combo(&self.objects, "pedal_assign_select",
@@ -106,9 +102,6 @@ impl Interface for PodXtInterface {
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "delay_time", "delay_time:msb", "delay_time:lsb",
                    true)?;
-        wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
-        wire_xt_packs(controller.clone(), &self.objects, callbacks)?;
-        wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
 
@@ -125,14 +118,11 @@ impl Interface for PodXtInterface {
         let controller = edit.lock().unwrap().controller();
 
         controller.set_full("amp_enable", 1, MIDI, Signal::Force);
-        controller.set_full("di:show", 0, MIDI, Signal::Force);
-        // say we have all packs, unless a real POD tells us otherwise
-        controller.set_full("xt_packs", 0xf, MIDI, Signal::Force);
 
-        let show = self.config.member == config::PODXT_PRO_CONFIG.member;
+        let show = self.config.member == config::BASS_PODXT_PRO_CONFIG.member;
         controller.set_full("loop_enable:show", show as u16, MIDI, Signal::Force);
 
-        let show = self.config.member == config::PODXT_LIVE_CONFIG.member;
+        let show = self.config.member == config::BASS_PODXT_LIVE_CONFIG.member;
         controller.set_full("footswitch_mode:show", show as u16, MIDI, Signal::Force);
         resolve_footswitch_mode_show(&self.objects, show)?;
 
@@ -141,5 +131,5 @@ impl Interface for PodXtInterface {
 }
 
 pub fn module() -> impl Module {
-    PodXtModule
+    BassPodXtModule
 }
