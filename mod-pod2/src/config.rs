@@ -1,36 +1,39 @@
 use std::collections::HashMap;
 use maplit::*;
 use once_cell::sync::Lazy;
+use pod_core::def;
 use pod_core::builders::shorthand::*;
 use pod_core::model::*;
 
-#[macro_export]
 macro_rules! def {
     () => (::std::default::Default::default());
 }
 
+#[macro_export]
 macro_rules! fx {
     ($name:tt, d=$d:tt + $dt:tt $(+ $dc:expr)? , c=$c:tt + $ct:tt $(+ $cc:expr)? ) => (
         Effect {
             name: ($name).into(),
             delay: Some(EffectEntry { id: $d, effect_tweak: ($dt).into(),
-                                      $( controls: ($dc).to_vec(), )? ..def!() }),
+                                      $( controls: ($dc).to_vec(), )? ..def() }),
             clean: Some(EffectEntry { id: $c, effect_tweak: ($ct).into(),
-                                      $( controls: ($cc).to_vec(), )? ..def!() }),
+                                      $( controls: ($cc).to_vec(), )? ..def() }),
         }
     );
-    ($name:tt, d=$d:tt + $dt:tt + $dc:expr ) => (
+    ($name:tt, d=$d:tt + $dt:tt $(+ $dc:expr)? ) => (
         Effect {
             name: ($name).into(),
-            delay: Some(EffectEntry { id: $d, effect_tweak: ($dt).into(), controls: ($dc).to_vec() }),
+            delay: Some(EffectEntry { id: $d, effect_tweak: ($dt).into(),
+                                      $( controls: ($dc).to_vec(), )? ..def() }),
             clean: None,
         }
     );
-    ($name:tt, c=$c:tt + $ct:tt + $cc:expr ) => (
+    ($name:tt, c=$c:tt + $ct:tt $(+ $cc:expr)? ) => (
         Effect {
             name: ($name).into(),
             delay: None,
-            clean: Some(EffectEntry { id: $c, effect_tweak: ($ct).into(), controls: ($cc).to_vec() }),
+            clean: Some(EffectEntry { id: $c, effect_tweak: ($ct).into(),
+                                      $( controls: ($cc).to_vec(), )? ..def() }),
         }
     );
 }
@@ -88,11 +91,11 @@ static EFFECT_ROTARY_CONTROLS: Lazy<Vec<String>> = Lazy::new(|| {
     string_vec!["rotary_speed", "rotary_fast_speed", "rotary_slow_speed", "effect_tweak"]
 });
 
-fn gate_threshold_from_midi(value: u8) -> u16 {
+pub fn gate_threshold_from_midi(value: u8) -> u16 {
     ((127.0 - value as f64) * 194.0/256.0) as u16
 }
 
-fn gate_threshold_to_midi(value: u16) -> u8 {
+pub fn gate_threshold_to_midi(value: u16) -> u8 {
     (127.0 - (value as f64 * 256.0/194.0)) as u8
 }
 

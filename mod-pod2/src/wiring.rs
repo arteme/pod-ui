@@ -194,7 +194,7 @@ fn effect_select_from_gui(config: &Config, controller: &mut Controller) -> Optio
 
     let value = controller.get("effect_select").unwrap();
     let effect = &config.effects[value as usize];
-    let delay_enable = controller.get("delay_enable").unwrap() != 0;
+    let delay_enable = controller.get("delay_enable").unwrap_or_default() != 0;
 
     let (delay, clean) = (effect.delay.as_ref(), effect.clean.as_ref());
 
