@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 RUN apt-get update \
  && apt-get install -y curl less binutils gcc pkg-config git \
-            libasound2-dev libssl-dev libgtk-3-dev
+            libasound2-dev libssl-dev libgtk-3-dev cpio fuse file
 
 ENV RUSTUP_HOME=/opt/rust
 ENV CARGO_HOME=/opt/cargo
@@ -13,8 +13,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
 
 RUN echo 'source /opt/cargo/env' > /etc/profile.d/10-rusrtup.sh \
  && echo 'export PS1="\h \w \$ "' > /etc/profile.d/11-prompt.sh
-
-RUN apt-get install -y cpio fuse file
 
 RUN useradd -rm -d /home/user -s /bin/bash -g root -G sudo -u 1000 user
 ENV DOCKER_POD_UI_BUILD=1
