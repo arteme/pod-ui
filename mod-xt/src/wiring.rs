@@ -7,7 +7,7 @@ use anyhow::*;
 use log::*;
 use multimap::MultiMap;
 use regex::Regex;
-use pod_core::controller::StoreOrigin::UI;
+use pod_core::controller::StoreOrigin::*;
 use pod_gtk::logic::LogicBuilder;
 use crate::config;
 use crate::config::XtPacks;
@@ -147,6 +147,14 @@ pub fn wire_dynamic_params<T: ConfigAccess>(configs: &'static [T],
     fn param_to_variant(variant: &String, value: u16, controller: &mut Controller, origin: Origin) {
         let control = controller.get_config(variant).unwrap();
         let midi = control.value_from_midi(value as u8);
+        // When a control param value comes from MIDI, it should be forwarded to
+        // the variants as MIDI. If it comes from UI (parameter main control or
+        // via a "variant to parameter" wiring, the value should be forwarded to
+        // the variants as "no action should be taken for it".
+        let origin = match origin {
+            MIDI => MIDI,
+            _ => NONE
+        };
         controller.set(variant, midi, origin);
     }
 
@@ -191,7 +199,7 @@ pub fn wire_dynamic_params<T: ConfigAccess>(configs: &'static [T],
 
         for variant in variants.iter() {
             builder
-                .on(variant)
+                .on(variant).from(UI)
                 .run({
                     let variant = variant.clone();
                     let param = param.clone();
