@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = ["core", "gtk", "gui", "mod-pod2", "mod-pocket", "mod-xt", "mod-bassxt"]
 
 [workspace.package]
