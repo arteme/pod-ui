@@ -155,11 +155,11 @@ pub static DELAY_CONFIG: Lazy<Vec<DelayConfig>> = Lazy::new(|| {
     ))
 });
 
-fn gate_threshold_from_midi(value: u8) -> u16 {
+pub fn gate_threshold_from_midi(value: u8) -> u16 {
     (96 - value.min(96)) as u16
 }
 
-fn gate_threshold_to_midi(value: u16) -> u8 {
+pub fn gate_threshold_to_midi(value: u16) -> u8 {
     (96 - value.min(96)) as u8
 }
 

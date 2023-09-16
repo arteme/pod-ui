@@ -4,12 +4,12 @@ use once_cell::sync::Lazy;
 use pod_core::builders::shorthand::*;
 use pod_core::def;
 use pod_core::model::*;
-use pod_gtk::prelude::*;
+//use pod_gtk::prelude::*;
 
 use pod_mod_pod2::{short, long, steps, fmt_percent};
 use pod_mod_xt::model::*;
 use pod_mod_xt::builders::*;
-use pod_mod_xt::config::{gain_format, freq_format};
+use pod_mod_xt::config::{gain_format, gate_threshold_from_midi, gate_threshold_to_midi, freq_format};
 
 pub static MIC_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     pod_mod_xt::config::BX_MIC_NAMES.to_vec()
@@ -160,28 +160,6 @@ pub static DELAY_CONFIG: Lazy<Vec<DelayConfig>> = Lazy::new(|| {
     ))
 });
 
-fn gate_threshold_from_midi(value: u8) -> u16 {
-    (96 - value.min(96)) as u16
-}
-
-fn gate_threshold_to_midi(value: u16) -> u8 {
-    (96 - value.min(96)) as u8
-}
-
-fn heel_toe_from_midi(value: u8) -> u16 {
-    if value <= 17 { return 0 };
-    if value >= 112 { return 48 };
-
-    (value as u16 - 18) / 2 + 1
-}
-
-fn heel_toe_to_midi(value: u16) -> u8 {
-    if value == 0 { return 0 };
-    if value == 48 { return 127 };
-
-    (value as u8 - 1) * 2 + 18
-}
-
 
 pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     let controls: HashMap<String, Control> = convert_args!(hashmap!(
@@ -251,17 +229,16 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
                 "-1 oct", "-5th", "-4th", "-2nd", "unison", "4th", "5th", "7th", "1 oct"
             ))),
             ..def() },
-        "stomp_param3_offset" => VirtualRangeControl {
-            config: RangeConfig::Function { from_midi: heel_toe_from_midi, to_midi: heel_toe_to_midi },
-            format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val:+}".into() }),
+        // This is not really "wave", but "tone". However, since we already have
+        // "wave" type defined for the stomp and the config is exactly the same,
+        // we will just pretend it is "wave".
+        "stomp_param3_wave" => VirtualRangeControl {
+            config: steps!(0, 16, 32, 48, 64, 80, 96, 112),
+            format: Format::Data(FormatData { k: 1.0, b: 1.0, format: "{val:1.0f}".into() }),
             ..def() },
         "stomp_param4" => RangeControl { cc: 81, addr: 32 + 81,
             config: RangeConfig::Normal,
             format: fmt_percent!(),
-            ..def() },
-        "stomp_param4_offset" => VirtualRangeControl {
-            config: RangeConfig::Function { from_midi: heel_toe_from_midi, to_midi: heel_toe_to_midi },
-            format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val:+}".into() }),
             ..def() },
         "stomp_param5" => RangeControl { cc: 82, addr: 32 + 82,
             config: RangeConfig::Normal,
