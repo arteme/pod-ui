@@ -82,8 +82,9 @@ pub fn wire(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &m
             }
             info!("Wiring {:?} {:?}", name, obj);
             obj.dynamic_cast_ref::<gtk::Scale>().map(|scale| {
-                // wire GtkScale and its internal GtkAdjustment
-                let adj = scale.adjustment();
+                // wire GtkScale; create a new GtkAdjustment for each scale!
+                let adj = gtk::Adjustment::new(0.0, 0.0, 100.0, 1.0, 10.0, 0.0);
+                scale.set_adjustment(&adj);
                 let controller = controller.clone();
                 {
                     let controller = controller.lock().unwrap();

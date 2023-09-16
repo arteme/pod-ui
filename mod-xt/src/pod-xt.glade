@@ -2364,7 +2364,7 @@
                         <property name="left-padding">12</property>
                         <property name="right-padding">12</property>
                         <child>
-                          <!-- n-columns=3 n-rows=11 -->
+                          <!-- n-columns=3 n-rows=12 -->
                           <object class="GtkGrid">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
@@ -2455,7 +2455,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">7</property>
+                                <property name="top-attach">8</property>
                               </packing>
                             </child>
                             <child>
@@ -2470,7 +2470,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">7</property>
+                                <property name="top-attach">8</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -2485,7 +2485,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">9</property>
+                                <property name="top-attach">10</property>
                               </packing>
                             </child>
                             <child>
@@ -2499,7 +2499,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">10</property>
+                                <property name="top-attach">11</property>
                               </packing>
                             </child>
                             <child>
@@ -2514,7 +2514,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">9</property>
+                                <property name="top-attach">10</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -2530,7 +2530,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">10</property>
+                                <property name="top-attach">11</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>
@@ -2666,7 +2666,7 @@
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
-                                <property name="top-attach">8</property>
+                                <property name="top-attach">9</property>
                               </packing>
                             </child>
                             <child>
@@ -2681,7 +2681,37 @@
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
-                                <property name="top-attach">8</property>
+                                <property name="top-attach">9</property>
+                                <property name="width">2</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label60">
+                                <property name="name">stomp_param3_wave_label</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                                <property name="halign">end</property>
+                                <property name="hexpand">True</property>
+                                <property name="label" translatable="yes">Stomp Param 3 Wave</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">0</property>
+                                <property name="top-attach">7</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkScale" id="scale32">
+                                <property name="name">stomp_param3_wave</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="adjustment">adjustment39</property>
+                                <property name="round-digits">0</property>
+                                <property name="digits">0</property>
+                                <property name="value-pos">right</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">7</property>
                                 <property name="width">2</property>
                               </packing>
                             </child>

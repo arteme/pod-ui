@@ -101,7 +101,7 @@ pub static STOMP_CONFIG: Lazy<Vec<StompConfig>> = Lazy::new(|| {
         /* 25 */ stomp("FX-Synth Lead").wave("Wave").control("Filter").control("Decay").control("Mix"),
         /* 26 */ stomp("FX-Synth String").wave("Wave").control("Filter").control("Attack").control("Mix"),
         /* 27 */ stomp("Bass Overdrive").control("Bass").control("Treble").control("Drive").control("Gain"),
-        /* 28 */ stomp("Bronze Master").control("Drive").control("Tone").skip().control("Blend"),
+        /* 28 */ stomp("Bronze Master").control("Drive").wave("Tone").skip().control("Blend"),
         /* 29 */ stomp("Sub Octaves").control("-1OCTG").control("-2OCTG").skip().control("Mix"),
         /* 30 */ stomp("Bender").control("Position").offset("Heel").offset("Toe").control("Mix"),
     ))
@@ -282,6 +282,13 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "stomp_param3_offset" => VirtualRangeControl {
             config: RangeConfig::Function { from_midi: heel_toe_from_midi, to_midi: heel_toe_to_midi },
             format: Format::Data(FormatData { k: 1.0, b: -24.0, format: "{val:+}".into() }),
+            ..def() },
+        // This is not really "wave", but "tone". However, since we already have
+        // "wave" type defined for the stomp and the config is exactly the same,
+        // we will just pretend it is "wave".
+        "stomp_param3_wave" => VirtualRangeControl {
+            config: steps!(0, 16, 32, 48, 64, 80, 96, 112),
+            format: Format::Data(FormatData { k: 1.0, b: 1.0, format: "{val:1.0f}".into() }),
             ..def() },
         "stomp_param4" => RangeControl { cc: 81, addr: 32 + 81,
             config: RangeConfig::Normal,
