@@ -1,4 +1,4 @@
-linux v1.2.0
-osx v1.2.0
-win64 v1.2.0
-win64-winrt v1.2.0
+linux v1.3.0
+osx v1.3.0
+win64 v1.3.0
+win64-winrt v1.3.0

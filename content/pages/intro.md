@@ -18,10 +18,14 @@ however I intended to get feature parity with **Line6 Edit** on things like:
  - ☑ up-/downloading individual patches;
  - ☑ up-/downloading patch libraries;
  - ☐ loading `.l6t` and `.lib` files;
+ - ☑ support for POD device **★new in version 1.3.0★**;
  - ☑ support for POD 2.0/POD Pro device;
  - ☑ support for Pocket POD device;
- - ☑ support for PODxt/PODxt Pro/PODxt Live device **★new in version 1.0.0★**;
- - ☐ support for Bass POD/other Line6 devices;
+ - ☑ support for PODxt/PODxt Pro/PODxt Live device;
+ - ☑ support for Bass PODxt/Bass PODxt Pro/Bass PODxt Live device **★new in version 1.3.0★**;
+ - ☐ support for Bass POD device;
+ - ☐ support for Floor POD Plus device;
+ - ☐ support for [other compatible]({filename}devices.md) Line6 devices;
 
 I would like to support other MIDI-based legacy Line6 products, such as
 Bass POD, Floor POD, etc. I do not own any of these and would need
@@ -36,7 +40,7 @@ Please feel free to open issues there in case of bugs or inconsistencies
 with Line6 Edit.
 
 The app is developed using MIDI controls references and SysEx protocol
-descriptions published by Line6 and my own POD device.
+descriptions published by Line6 and my own POD devices.
 
 The app is developed in Linux, pre-build binaries are provided for
 Windows and MacOS.

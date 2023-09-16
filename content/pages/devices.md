@@ -9,16 +9,16 @@ supported, please consider helping out the project by
 
 Device                            | Supported | Can be supported 
 ----------------------------------|-----------|------------------
-[POD](#pod1)                      |           | ✓
+[POD](#pod1)                      | ✓         |  
 [POD 2.0](#pod2)                  | ✓         |
 [POD Pro](#pod2)                  | ✓         |
 [Bass POD](#bass-pod)             |           | ✓
 [PODxt](#podxt)                   | ✓         |
 [PODxt Pro](#podxt)               | ✓         |
 [PODxt Live](#podxt)              | ✓         |
-[Bass PODxt](#bass-podxt)         |           | ✓
-[Bass PODxt Pro](#bass-podxt)     |           | ✓
-[Bass PODxt Live](#bass-podxt)    |           | ✓
+[Bass PODxt](#bass-podxt)         | ✓         |
+[Bass PODxt Pro](#bass-podxt)     | ✓         |
+[Bass PODxt Live](#bass-podxt)    | ✓         |
 [POD X3](#pod-x3)                 |           | ✗
 [POD X3 Pro](#pod-x3)             |           | ✓
 [POD X3 Live](#pod-x3)            |           | ✓
@@ -37,10 +37,9 @@ Device                            | Supported | Can be supported
 
 ### <a name=pod1></a> POD 1.0
 
-**POD 1.0**, a.k.a the original Line6 POD. 28 amp models, only 16 accessible
-from the device controls, the rest accessible via MIDI. The POD 1.0 device can
-easily be supported, but they are so very rare nowadays that a device (or its
-owner) can hardly be found in the wild.
+**POD 1.0**, a.k.a the original Line6 POD is suported since version
+1.3.0. 28 amp models, only 16 accessible from the device controls,
+the rest accessible via MIDI.
 
 ### <a name=pod2></a> POD 2.0, POD Pro
 
@@ -48,9 +47,12 @@ owner) can hardly be found in the wild.
 
 ### Bass POD
 
-**Bass POD** device can easily be supported if there is demand or testers
+**Bass POD** device can be supported if there is demand or testers
 with this device. The device is similar to POD 2.0 and the SysEx message
-layout is well-known.
+layout is well-known. 
+
+**NOTE:** A different version (version 1) patch format and a different
+subset of SysEx messages.
 
 ### PODxt
 
@@ -63,8 +65,10 @@ with minor functionality missing:
 
 ### Bass PODxt
 
-**Bass PODxt**, **Bass PODxt Pro**, **Bass PODxt Live** devices can be
-supported as they are similar to the **PODxt** family of devices. Testers
+**Bass PODxt**, **Bass PODxt Pro**, **Bass PODxt Live** devices are
+experimentally supported since version 1.3.0. The device family is
+very similar to the **PODxt** family of devices. Experimental support
+is based on MIDI reference docs and Line6 Edit inter-op. Testers
 needed.
 
 ### POD X3
