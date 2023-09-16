@@ -4,18 +4,19 @@ EXTRA=$1
 
 V=$(git describe --tags --always --match 'v*' --dirty)
 N=pod-ui-$V
+T=${CARGO_TARGET_DIR:-target}
 DIST=release
-DIR=target/appdir
+DIR=$T/appdir
 TOOLS_DIR=$(dirname $0)
 LINUXDEPLOY=../build/linux/linuxdeploy-x86_64.AppImage
 
 rm -rf $DIR
 
 mkdir -p $DIR/usr/bin
-cp target/$DIST/pod-gui $DIR/usr/bin
+cp $T/$DIST/pod-gui $DIR/usr/bin
 sed "s|@VERSION@|$V|;s|@EXEC@|pod-gui|" \
-       < build/linux/pod-ui.desktop.in > target/pod-ui.desktop
-cp gui/resources/icon.png target/pod-ui.png
+       < build/linux/pod-ui.desktop.in > $T/pod-ui.desktop
+cp gui/resources/icon.png $T/pod-ui.png
 
 ./build/collect-gtk.sh $DIR/usr
 
@@ -23,7 +24,7 @@ LIBDIR=$(pkg-config --variable=libdir gtk+-3.0)
 mkdir -p $DIR/apprun-hooks
 sed "s|@LIBDIR@|$LIBDIR|g" < ./build/linux/linuxdeploy-plugin-gtk.sh > $DIR/apprun-hooks/linuxdeploy-plugin-gtk.sh
 
-pushd target 
+pushd $T 
 
 export VERSION=$V$EXTRA
 
@@ -42,4 +43,4 @@ $LINUXDEPLOY --appdir ../$DIR \
 popd
 
 echo "!!! $DIR"
-find target/ -name '*.AppImage' -exec ls -sh \{} \; | grep "$V"
+find $T/ -name '*.AppImage' -exec ls -sh \{} \; | grep "$V"
