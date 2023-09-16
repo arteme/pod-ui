@@ -134,8 +134,8 @@ supported, please consider helping out the project by
 <tbody>
 <tr>
 <td><a href="#pod1">POD</a></td>
-<td></td>
 <td>✓</td>
+<td></td>
 </tr>
 <tr>
 <td><a href="#pod2">POD 2.0</a></td>
@@ -169,18 +169,18 @@ supported, please consider helping out the project by
 </tr>
 <tr>
 <td><a href="#bass-podxt">Bass PODxt</a></td>
-<td></td>
 <td>✓</td>
+<td></td>
 </tr>
 <tr>
 <td><a href="#bass-podxt">Bass PODxt Pro</a></td>
-<td></td>
 <td>✓</td>
+<td></td>
 </tr>
 <tr>
 <td><a href="#bass-podxt">Bass PODxt Live</a></td>
-<td></td>
 <td>✓</td>
+<td></td>
 </tr>
 <tr>
 <td><a href="#pod-x3">POD X3</a></td>
@@ -252,16 +252,17 @@ supported, please consider helping out the project by
 <!-- ✓ ✗ heavy ✔ ✘ -->
 
 <h3 id="pod-10"><a name=pod1></a> POD 1.0</h3>
-<p><strong>POD 1.0</strong>, a.k.a the original Line6 POD. 28 amp models, only 16 accessible
-from the device controls, the rest accessible via MIDI. The POD 1.0 device can
-easily be supported, but they are so very rare nowadays that a device (or its
-owner) can hardly be found in the wild.</p>
+<p><strong>POD 1.0</strong>, a.k.a the original Line6 POD is suported since version
+1.3.0. 28 amp models, only 16 accessible from the device controls,
+the rest accessible via MIDI.</p>
 <h3 id="pod-20-pod-pro"><a name=pod2></a> POD 2.0, POD Pro</h3>
 <p><strong>POD 2.0</strong> and <strong>POD Pro</strong> are fully supported.</p>
 <h3 id="bass-pod">Bass POD</h3>
-<p><strong>Bass POD</strong> device can easily be supported if there is demand or testers
+<p><strong>Bass POD</strong> device can be supported if there is demand or testers
 with this device. The device is similar to POD 2.0 and the SysEx message
-layout is well-known.</p>
+layout is well-known. </p>
+<p><strong>NOTE:</strong> A different version (version 1) patch format and a different
+subset of SysEx messages.</p>
 <h3 id="podxt">PODxt</h3>
 <p><strong>PODxt</strong>, <strong>PODxt Pro</strong>, <strong>PODxt Live</strong> are supported since version 1.0.0
 with minor functionality missing:</p>
@@ -271,8 +272,10 @@ with minor functionality missing:</p>
 <li>Amp, FX presets cannot be edited in pod-ui;</li>
 </ul>
 <h3 id="bass-podxt">Bass PODxt</h3>
-<p><strong>Bass PODxt</strong>, <strong>Bass PODxt Pro</strong>, <strong>Bass PODxt Live</strong> devices can be
-supported as they are similar to the <strong>PODxt</strong> family of devices. Testers
+<p><strong>Bass PODxt</strong>, <strong>Bass PODxt Pro</strong>, <strong>Bass PODxt Live</strong> devices are
+experimentally supported since version 1.3.0. The device family is
+very similar to the <strong>PODxt</strong> family of devices. Experimental support
+is based on MIDI reference docs and Line6 Edit inter-op. Testers
 needed.</p>
 <h3 id="pod-x3">POD X3</h3>
 <p><strong>POD X3</strong> device does not support MIDI controls and cannot be supported.
