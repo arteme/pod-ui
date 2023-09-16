@@ -55,7 +55,7 @@ $
 
 In the terminal run:
 ```shell
-pacman -S git zip mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rust mingw-w64-x86_64-gtk3
+pacman -S git zip cpio mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rust mingw-w64-x86_64-gtk3
 ```
 
 ### MacOS
@@ -80,7 +80,7 @@ The basic steps needed for building and running `pod-ui` is the same for
 all platforms:
 
 ```shell
-git clone --recurse-submodules git@github.com/arteme/pod-ui.git
+git clone --recurse-submodules git@github.com:arteme/pod-ui.git
 cd pod-ui
 cargo build
 cargo run
