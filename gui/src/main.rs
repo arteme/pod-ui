@@ -36,7 +36,7 @@ use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_core::program_id_string;
 use pod_gtk::logic::LogicBuilder;
-use pod_gtk::prelude::gtk::gdk;
+use pod_gtk::prelude::gtk::{gdk, gio};
 use crate::check::{current_platform, new_release_check};
 use crate::icon::set_app_icon;
 use crate::opts::*;
@@ -596,6 +596,26 @@ async fn main() -> Result<()> {
     let opts: Opts = Opts::from_arg_matches(&cli.get_matches())?;
     drop(help_text);
 
+    // glib::set_program_name needs to come before gtk::init!
+    glib::set_program_name(Some(&title));
+
+    let app = gtk::Application::new(
+        Some("io.github.arteme.pod_ui"),
+        if opts.standalone {
+            gio::ApplicationFlags::NON_UNIQUE
+        } else {
+            gio::ApplicationFlags::empty()
+        }
+    );
+    app.connect_activate(move |app| {
+        activate(app, &title, opts.clone(), sentry_enabled);
+    });
+
+    app.run_with_args::<String>(&[]);
+    Ok(())
+}
+
+fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: bool) {
     let (app_event_tx, mut app_event_rx) = broadcast::channel::<AppEvent>(MIDI_OUT_CHANNEL_CAPACITY);
     let (ui_event_tx, ui_event_rx) = glib::MainContext::channel::<UIEvent>(glib::PRIORITY_DEFAULT);
     let state = Arc::new(Mutex::new(State {
@@ -611,15 +631,8 @@ async fn main() -> Result<()> {
         config: None,
         detected: None,
     }));
+
     let ctx_share = Arc::new(Mutex::new(Option::<Ctx>::None));
-
-    // UI
-
-    // glib::set_program_name needs to come before gtk::init!
-    glib::set_program_name(Some(&title));
-
-    gtk::init()
-        .with_context(|| "Failed to initialize GTK")?;
 
     if let Some(path) = env::var("GTK_ADD_ICON_PATH").ok() {
         let icon_theme = gtk::IconTheme::default().unwrap();
@@ -635,6 +648,7 @@ async fn main() -> Result<()> {
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
 
     let window: gtk::Window = ui.object("ui_win").unwrap();
+    window.set_application(Some(app));
     window.set_title(&title);
     window.connect_delete_event({
         let app_event_tx = app_event_tx.clone();
@@ -645,8 +659,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    set_app_icon(&window)?;
-
+    set_app_icon(&window).expect("Failed to test application icon");
     // Re-parent window content into a notification overlay
     let widget = window.child().unwrap();
     window.remove(&widget);
@@ -655,7 +668,8 @@ async fn main() -> Result<()> {
     overlay.add(&widget);
 
     wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
-                     app_event_tx.clone())?;
+                     app_event_tx.clone())
+        .expect("Failed to wire controls");
     wire_settings_dialog(state.clone(), &ui, &window);
     wire_panic_indicator(state.clone());
     wire_open_button(&ui, &window);
@@ -670,7 +684,8 @@ async fn main() -> Result<()> {
     );
 
     // autodetect or open devices specified on command line
-    autodetect::detect(state.clone(), opts, &window)?;
+    autodetect::detect(state.clone(), opts, &window)
+        .expect("Autodetect failed");
     new_release_check(&app_event_tx);
 
     // app event handling in a separate thread
@@ -842,6 +857,7 @@ async fn main() -> Result<()> {
     // run UI event handling on the GTK thread
     ui_event_rx.attach(None, {
         let ui_event_tx = ui_event_tx.clone();
+        let app = app.clone();
 
         let mut program_grid: Option<ProgramGrid> = None;
         let mut shutting_down = false;
@@ -1172,7 +1188,7 @@ async fn main() -> Result<()> {
                     r.emit_by_name::<()>("group-changed", &[]);
 
                     // quit
-                    gtk::main_quit();
+                    app.quit();
                 }
             }
 
@@ -1195,10 +1211,4 @@ async fn main() -> Result<()> {
     // show the window and do init stuff...
     window.show_all();
     window.resize(1, 1);
-
-    debug!("starting gtk main loop");
-    gtk::main();
-    debug!("end of gtk main loop");
-
-    Ok(())
 }
