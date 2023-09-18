@@ -608,7 +608,11 @@ async fn main() -> Result<()> {
         }
     );
     app.connect_activate(move |app| {
-        activate(app, &title, opts.clone(), sentry_enabled);
+        if let Some(win) = app.windows().first() {
+            win.present();
+        } else {
+            activate(app, &title, opts.clone(), sentry_enabled);
+        }
     });
 
     app.run_with_args::<String>(&[]);
