@@ -36,7 +36,7 @@ use pod_core::midi::MidiMessage;
 use pod_core::model::{Button, Config, Control, DeviceFlags, MidiQuirks, VirtualSelect};
 use pod_core::program_id_string;
 use pod_gtk::logic::LogicBuilder;
-use pod_gtk::prelude::gtk::{gdk, gio};
+use pod_gtk::prelude::gtk::gdk;
 use crate::check::{current_platform, new_release_check};
 use crate::icon::set_app_icon;
 use crate::opts::*;
@@ -651,17 +651,30 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
     let mut ui_callbacks = Callbacks::new();
     let ui_controller = Arc::new(Mutex::new(Controller::new((*UI_CONTROLS).clone())));
 
-    let window: gtk::Window = ui.object("ui_win").unwrap();
+    let app_window: gtk::ApplicationWindow = ui.object("ui_win").unwrap();
+    let window: gtk::Window = app_window.clone().into();
     window.set_application(Some(app));
     window.set_title(&title);
     window.connect_delete_event({
-        let app_event_tx = app_event_tx.clone();
+        let app = app.clone();
         move |_, _| {
-            info!("Shutting down...");
-            app_event_tx.send_or_warn(AppEvent::Shutdown);
+            info!("Window delete...");
+            app.activate_action("quit", None);
             Inhibit(true)
         }
     });
+
+    // connect & register signals
+    let quit_action = gio::ActionEntry::builder("quit")
+        .activate({
+            let app_event_tx = app_event_tx.clone();
+            move |_, _, _| {
+                info!("Shutting down...");
+                app_event_tx.send_or_warn(AppEvent::Shutdown);
+            }
+        }).build();
+    let preferences_action = create_settings_action(state.clone(), &ui);
+    app.add_action_entries([quit_action, preferences_action]).unwrap();
 
     set_app_icon(&window).expect("Failed to test application icon");
     // Re-parent window content into a notification overlay
@@ -674,7 +687,6 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
     wire_ui_controls(ui_controller.clone(), &ui_objects, &mut ui_callbacks,
                      app_event_tx.clone())
         .expect("Failed to wire controls");
-    wire_settings_dialog(state.clone(), &ui, &window);
     wire_panic_indicator(state.clone());
     wire_open_button(&ui, &window);
 
