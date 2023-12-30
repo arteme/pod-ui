@@ -1,25 +1,31 @@
 #!/bin/bash
 
-set -xe
+echo SENTRY=${SENTRY:-1}
+echo RELEASE_CHECK=${RELEASE_CHECK:-1}
+echo SIGN=${SIGN:-1}
 
-export SENTRY=1
-export RELEASE_CHECK=1
-export SIGN=1
+export SENTRY RELEASE_CHECK SIGN
+
+set -xe
 
 build_release_osx() {
     export RUSTFLAGS="-C split-debuginfo=packed"
     export RELEASE_PLATFORM="osx"
     cargo build --release
     ./build/mk-osx-dist.sh
-    ./build/sentry-upload-dsyms.sh target/release/pod-gui{,.dSYM}
+    [ $SENTRY == "1" ] && \
+      ./build/sentry-upload-dsyms.sh target/release/pod-gui{,.dSYM}
 }
 
 build_release_linux_real() {
+    T=target.docker$1
+    export CARGO_TARGET_DIR=$T
     export RELEASE_PLATFORM="linux$1"
     cargo build --release
-    ./build/linux-split-debuginfo.sh target/release/pod-gui
+    ./build/linux-split-debuginfo.sh $T/release/pod-gui
     ./build/mk-appimage-dist.sh $1
-    ./build/sentry-upload-dsyms.sh target/release/pod-gui{,.debug}
+    [ $SENTRY == "1" ] && \
+      ./build/sentry-upload-dsyms.sh $T/release/pod-gui{,.debug}
 }
 
 # When running inside a pod-ui docker build container, this will run one
@@ -44,7 +50,8 @@ build_release_win64() {
     cp target/release/pod-gui.exe{,.full}
     ./build/linux-split-debuginfo.sh target/release/pod-gui.exe
     ./build/mk-win64-dist.sh $1
-    ./build/sentry-upload-dsyms.sh target/release/pod-gui.exe.full
+    [ $SENTRY == "1" ] && \
+      ./build/sentry-upload-dsyms.sh target/release/pod-gui.exe.full
 }
 
 case "$(uname)" in

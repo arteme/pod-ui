@@ -62,7 +62,7 @@ EXCLUDE_PIXBUF=("*avif*" "*heif*" "*tif*" "*tga*" "*bmp*" "*ani*")
 
 # not really the coreutils' realpath, but will do 
 realpath() {
-  echo $(cd $1 && pwd -P)
+    cd $1 && pwd -P
 }
 
 echo "0. sanity check"
@@ -77,6 +77,10 @@ LIBDIR=$(pkg-config --variable=libdir gtk+-3.0)
 [[ "`uname`" == "Darwin" ]] && LIBDIR="$ROOT/lib"
 echo "libdir: $LIBDIR"
 
+[[ -d "$THEMES_SRC_DIR" ]] && [[ -d "$ICONS_SRC_DIR" ]] || {
+    echo "Resources missing!" >&2
+    exit 1
+}
 
 echo "1. theme"
 mkdir -p $DIR/share/themes
