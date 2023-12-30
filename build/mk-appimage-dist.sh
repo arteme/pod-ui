@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 EXTRA=$1
 
 V=$(git describe --tags --always --match 'v*' --dirty)

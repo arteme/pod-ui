@@ -250,14 +250,22 @@ fn wire_test_button(settings: &SettingsDialog) {
     });
 }
 
-pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder, window: &gtk::Window) {
+pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gio::ActionEntry<gtk::Application> {
     let settings = SettingsDialog::new(ui);
-    settings.dialog.set_transient_for(Some(window));
 
-    let settings_button: gtk::Button = ui.object("settings_button").unwrap();
-    let settings_ = settings.clone();
+    populate_midi_channel_combo(&settings);
+    wire_autodetect_button(&settings);
+    wire_test_button(&settings);
 
-    settings_button.connect_clicked(move |_| {
+    gio::ActionEntry::builder("preferences").activate(move |app: &gtk::Application, _, _| {
+        settings.dialog.set_application(Some(app));
+        let window = app.windows().iter()
+            .find(|w| w.downcast_ref::<gtk::ApplicationWindow>().is_some())
+            .cloned();
+        if let Some(window) = window {
+            settings.dialog.set_transient_for(Some(&window));
+        }
+
         // reset the dialog
         settings.set_interactive(true);
         settings.clear_message();
@@ -370,9 +378,6 @@ pub fn wire_settings_dialog(state: Arc<Mutex<State>>, ui: &gtk::Builder, window:
         }
 
         settings.dialog.hide();
-    });
 
-    populate_midi_channel_combo(&settings_);
-    wire_autodetect_button(&settings_);
-    wire_test_button(&settings_);
+    }).build()
 }

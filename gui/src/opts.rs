@@ -4,7 +4,7 @@ use std::fmt::Write;
 use pod_core::config::configs;
 use pod_core::midi_io::{MidiIn, MidiOut, MidiPorts};
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct Opts {
     #[clap(short, long)]
     /// Select the MIDI port to be connected as input. <INPUT> must be an
@@ -38,6 +38,12 @@ pub struct Opts {
     /// are given. If `-i` and `-o` options are given, but `-m` is
     /// omitted, the device model on specified ports will be detected.
     pub model: Option<String>,
+
+    #[clap(short, long)]
+    /// Run a stand-alone instance of the pod-ui GTK application
+    /// instead of triggering any events on an already-running
+    /// pod-ui application.
+    pub standalone: bool,
 }
 
 pub fn generate_help_text() -> Result<String> {
