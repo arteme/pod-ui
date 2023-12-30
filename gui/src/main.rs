@@ -614,6 +614,17 @@ async fn main() -> Result<()> {
             activate(app, &title, opts.clone(), sentry_enabled);
         }
     });
+    app.connect_startup(|app| {
+        // App menu will be added only for environments that request it,
+        // such as Gnome prior version 3.34
+        debug!("Application menu: {}", app.prefers_app_menu());
+        if app.prefers_app_menu() {
+            let menu = gio::Menu::new();
+            menu.append(Some("Settings"), Some("app.preferences"));
+            menu.append(Some("Quit"), Some("app.quit"));
+            app.set_app_menu(Some(&menu));
+        }
+    });
 
     app.run_with_args::<String>(&[]);
     Ok(())
