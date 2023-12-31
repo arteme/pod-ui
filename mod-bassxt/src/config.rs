@@ -419,6 +419,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
 
         "loop_enable:show" => VirtualSelect {},
         "footswitch_mode:show" => VirtualSelect {},
+        "delay_controls:show" => VirtualSelect {},
 
         "tuner_note" => VirtualSelect {},
         "tuner_offset" => VirtualSelect {},

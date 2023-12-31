@@ -2189,6 +2189,10 @@
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
                                 <property name="label" translatable="yes">Note</property>
+                                <style>
+                                  <class name="delay_controls:show=1:show"/>
+                                  <class name="delay_controls:show=0:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -2200,6 +2204,10 @@
                                 <property name="name">delay_note_select</property>
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
+                                <style>
+                                  <class name="delay_controls:show=1:show"/>
+                                  <class name="delay_controls:show=0:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -2214,6 +2222,10 @@
                                 <property name="halign">end</property>
                                 <property name="hexpand">True</property>
                                 <property name="label" translatable="yes">Time</property>
+                                <style>
+                                  <class name="delay_controls:show=1:show"/>
+                                  <class name="delay_controls:show=0:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -2230,6 +2242,10 @@
                                 <property name="round-digits">0</property>
                                 <property name="digits">0</property>
                                 <property name="value-pos">right</property>
+                                <style>
+                                  <class name="delay_controls:show=1:show"/>
+                                  <class name="delay_controls:show=0:hide"/>
+                                </style>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>

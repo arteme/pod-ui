@@ -12,6 +12,7 @@ use pod_mod_xt::widgets::Tuner;
 use pod_mod_xt::wiring::{*, init_combo};
 
 use crate::config;
+use crate::wiring::*;
 
 struct BassPodXtModule;
 
@@ -103,6 +104,7 @@ impl Interface for BassPodXtInterface {
                    "delay_time", "delay_time:msb", "delay_time:lsb",
                    true)?;
         wire_tempo(controller.clone(), &self.objects, callbacks)?;
+        wire_delay_controls_show(controller.clone(), &self.objects, callbacks)?;
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
 
