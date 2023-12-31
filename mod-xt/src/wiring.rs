@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use pod_core::controller::*;
 use pod_core::model::{AbstractControl, Config};
@@ -7,6 +9,7 @@ use anyhow::*;
 use log::*;
 use multimap::MultiMap;
 use regex::Regex;
+use tokio::time::Instant;
 use pod_core::controller::StoreOrigin::*;
 use pod_gtk::logic::LogicBuilder;
 use pod_mod_pod2::wiring::wire_14bit;
@@ -357,9 +360,6 @@ pub fn wire_tuner(tuner: Tuner,
 }
 
 pub fn wire_tempo(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
-    wire_14bit(controller.clone(), objs, callbacks,
-               "tempo", "tempo:msb", "tempo:lsb",
-               true)?;
 
     fn mod_note_to_mod_speed(mod_note: u16, tempo: u16, controller: &mut Controller) {
         if mod_note == 0 { return }
@@ -399,6 +399,12 @@ pub fn wire_tempo(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
         controller.set("delay_note_select", 0u16, MIDI);
     }
 
+    wire_14bit(controller.clone(), objs, callbacks,
+               "tempo", "tempo:msb", "tempo:lsb",
+               true)?;
+
+    wire_tempo_tap(controller.clone(), objs)?;
+
     let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
     builder
         .on("tempo")
@@ -427,6 +433,28 @@ pub fn wire_tempo(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbac
         .run(move |_, controller, _| {
             reset_delay_note(controller);
         });
+
+    Ok(())
+}
+
+fn wire_tempo_tap(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Result<()> {
+
+    let button = objs.ref_by_name::<gtk::Button>("tempo_tap_button")?;
+    let last_click = Rc::new(RefCell::new(Instant::now()));
+    button.connect_clicked(move |_| {
+        let mut last_click = last_click.borrow_mut();
+        let now = Instant::now();
+
+        let ms = now.duration_since(*last_click).as_millis();
+        let bpm = 60000.0/(ms as f32);
+
+        *last_click = now;
+
+        // button presses less frequent than 3sec apart we just ignore
+        if bpm < 20.0  { return }
+        let tempo = bpm.max(30.0).min(240.0) * 10.0;
+        controller.set("tempo", tempo as u16, UI);
+    });
 
     Ok(())
 }

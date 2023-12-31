@@ -439,11 +439,11 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "eq_4_gain" => RangeControl { cc: 119, addr: 32 + 119,
             format: gain_format(),
             ..def() },
-        // tempo // TODO: format?!
+        // tempo
         "tempo" => VirtualRangeControl {
-            config: long!(0, 16383),
-            format: Format::Data(FormatData { k: 0.1, b: 0.0, format: "{val:1.0f} ms".into() }),
-            ..def() }, // 20ms - 2000ms
+            config: long!(300, 2400),
+            format: Format::Data(FormatData { k: 0.1, b: 0.0, format: "{val:1.1f} bpm".into() }),
+            ..def() },
         "tempo:msb" => RangeControl { cc: 89, addr: 32 + 89, ..def() },
         "tempo:lsb" => RangeControl { cc: 90, addr: 32 + 90, ..def() },
 
