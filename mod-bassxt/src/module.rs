@@ -102,6 +102,7 @@ impl Interface for BassPodXtInterface {
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "delay_time", "delay_time:msb", "delay_time:lsb",
                    true)?;
+        wire_tempo(controller.clone(), &self.objects, callbacks)?;
         wire_pedal_assign(controller.clone(), &self.objects, callbacks)?;
         wire_name_change(edit, config, &self.objects, callbacks)?;
 

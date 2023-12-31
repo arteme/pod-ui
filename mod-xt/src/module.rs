@@ -106,6 +106,7 @@ impl Interface for PodXtInterface {
         wire_14bit(controller.clone(), &self.objects, callbacks,
                    "delay_time", "delay_time:msb", "delay_time:lsb",
                    true)?;
+        wire_tempo(controller.clone(), &self.objects, callbacks)?;
         wire_di_show(controller.clone(), config, &self.objects, callbacks)?;
         wire_xt_packs(controller.clone(), &self.objects, callbacks)?;
         wire_mics_update(controller.clone(), config, &self.objects, callbacks)?;

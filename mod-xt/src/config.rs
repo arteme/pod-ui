@@ -48,6 +48,16 @@ pub static NOTE_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     ))
 });
 
+pub static NOTE_DURATION: Lazy<Vec<f32>> = Lazy::new(|| {
+    convert_args!(vec!(
+        0.0 /* Off */, 1.0 /* Whole Note */,
+        4.0/3.0 /* Dotted Half Note */, 2.0 /* Half */, 3.0 /* Half Note Triplet */,
+        8.0/3.0 /* Dotted Quarter */, 4.0 /* Quarter */, 6.0 /* Quarter Note Triplet */,
+        16.0/3.0 /* Dotted Eighth */, 8.0 /* Eighth */, 12.0 /* Eighth Note Triplet */,
+        32.0/3.0 /* Dotted Sixteenth */, 16.0 /* Sixteenth */, 24.0 /* Sixteenth Note Triplet */,
+    ))
+});
+
 pub static WAH_NAMES: Lazy<Vec<String>> = Lazy::new(|| {
     convert_args!(vec!(
         "Vetta Wah", "Fassel", "Weeper", "Chrome", "Chrome Custom",
@@ -429,6 +439,13 @@ pub static PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
         "eq_4_gain" => RangeControl { cc: 119, addr: 32 + 119,
             format: gain_format(),
             ..def() },
+        // tempo // TODO: format?!
+        "tempo" => VirtualRangeControl {
+            config: long!(0, 16383),
+            format: Format::Data(FormatData { k: 0.1, b: 0.0, format: "{val:1.0f} ms".into() }),
+            ..def() }, // 20ms - 2000ms
+        "tempo:msb" => RangeControl { cc: 89, addr: 32 + 89, ..def() },
+        "tempo:lsb" => RangeControl { cc: 90, addr: 32 + 90, ..def() },
 
         "loop_enable:show" => VirtualSelect {},
         "di:show" => VirtualSelect {},

@@ -9,8 +9,9 @@ use multimap::MultiMap;
 use regex::Regex;
 use pod_core::controller::StoreOrigin::*;
 use pod_gtk::logic::LogicBuilder;
+use pod_mod_pod2::wiring::wire_14bit;
 use crate::config;
-use crate::config::XtPacks;
+use crate::config::{NOTE_DURATION, XtPacks};
 use crate::model::{ConfigAccess, DelayConfig, ModConfig, StompConfig};
 use crate::widgets::*;
 
@@ -350,6 +351,81 @@ pub fn wire_tuner(tuner: Tuner,
             } else {
                 tuner.set_note(Some(value as usize));
             }
+        });
+
+    Ok(())
+}
+
+pub fn wire_tempo(controller: Arc<Mutex<Controller>>, objs: &ObjectList, callbacks: &mut Callbacks) -> Result<()> {
+    wire_14bit(controller.clone(), objs, callbacks,
+               "tempo", "tempo:msb", "tempo:lsb",
+               true)?;
+
+    fn mod_note_to_mod_speed(mod_note: u16, tempo: u16, controller: &mut Controller) {
+        if mod_note == 0 { return }
+        if tempo < 300 || tempo > 2400 { return }
+
+        // convert tempo & mod_note to Hz
+        let v = &NOTE_DURATION.get(mod_note as usize).unwrap_or(&0.0);
+        let hz = (tempo as f32/2400.0 * *v).max(0.1).min(15.0);
+
+        // convert Hz to mod_speed value
+        let (k, b) = (14.9/16383.0, 0.1);
+        let mod_speed = (hz - b) / k;
+
+        controller.set("mod_speed", mod_speed as u16, NONE);
+    }
+
+    fn reset_mod_note(controller: &mut Controller) {
+        controller.set("mod_note_select", 0u16, MIDI);
+    }
+
+    fn delay_note_to_delay_time(delay_note: u16, tempo: u16, controller: &mut Controller) {
+        if delay_note == 0 { return }
+        if tempo < 300 || tempo > 2400 { return }
+
+        // convert tempo & delay_note to ms
+        let v = &NOTE_DURATION.get(delay_note as usize).unwrap_or(&0.0);
+        let ms = (1000.0 * 2400.0/(tempo as f32 * *v)).max(20.0).min(2000.0);
+
+        // convert ms to delay_time value
+        let (k, b) = (1980.0/16383.0, 20.0);
+        let mod_speed = (ms - b) / k;
+
+        controller.set("delay_time", mod_speed as u16, NONE);
+    }
+
+    fn reset_delay_note(controller: &mut Controller) {
+        controller.set("delay_note_select", 0u16, MIDI);
+    }
+
+    let mut builder = LogicBuilder::new(controller, objs.clone(), callbacks);
+    builder
+        .on("tempo")
+        .run(move |value, controller, _| {
+            let mod_note = controller.get("mod_note_select").unwrap();
+            mod_note_to_mod_speed(mod_note, value, controller);
+
+            let delay_note = controller.get("delay_note_select").unwrap();
+            delay_note_to_delay_time(delay_note, value, controller);
+        })
+        .on("mod_note_select")
+        .run(move |value, controller, _| {
+            let tempo = controller.get("tempo").unwrap();
+            mod_note_to_mod_speed(value, tempo, controller);
+        })
+        .on("mod_speed").from(MIDI).from(UI)
+        .run(move |_, controller, _| {
+            reset_mod_note(controller);
+        })
+        .on("delay_note_select")
+        .run(move |value, controller, _| {
+            let tempo = controller.get("tempo").unwrap();
+            delay_note_to_delay_time(value, tempo, controller);
+        })
+        .on("delay_time").from(MIDI).from(UI)
+        .run(move |_, controller, _| {
+            reset_delay_note(controller);
         });
 
     Ok(())
