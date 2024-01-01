@@ -1,4 +1,5 @@
-linux v1.3.0
-osx v1.3.0
-win64 v1.3.0
-win64-winrt v1.3.0
+linux v1.4.0
+linux-debian10 v1.4.0
+osx v1.4.0
+win64 v1.4.0
+win64-winrt v1.4.0
