@@ -30,6 +30,10 @@ pushd $T
 
 export VERSION=$V$EXTRA
 
+# make linuxdeploy & appimage  happy
+export -n SIGN # no linuxdeploy, no signing!
+export LINUXDEPLOY_OUTPUT_VERSION=$VERSION
+
 # make appimage
 $LINUXDEPLOY --appdir ../$DIR \
 	--library $LIBDIR/libharfbuzz.so.0 \

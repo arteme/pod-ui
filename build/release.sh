@@ -1,8 +1,8 @@
 #!/bin/bash
 
-echo SENTRY=${SENTRY:-1}
-echo RELEASE_CHECK=${RELEASE_CHECK:-1}
-echo SIGN=${SIGN:-1}
+echo SENTRY=${SENTRY:=1}
+echo RELEASE_CHECK=${RELEASE_CHECK:=1}
+echo SIGN=${SIGN:=1}
 
 export SENTRY RELEASE_CHECK SIGN
 
@@ -13,7 +13,7 @@ build_release_osx() {
     export RELEASE_PLATFORM="osx"
     cargo build --release
     ./build/mk-osx-dist.sh
-    [ $SENTRY == "1" ] && \
+    [ "$SENTRY" = "1" ] && \
       ./build/sentry-upload-dsyms.sh target/release/pod-gui{,.dSYM}
 }
 
@@ -24,7 +24,7 @@ build_release_linux_real() {
     cargo build --release
     ./build/linux-split-debuginfo.sh $T/release/pod-gui
     ./build/mk-appimage-dist.sh $1
-    [ $SENTRY == "1" ] && \
+    [ "$SENTRY" = "1" ] && \
       ./build/sentry-upload-dsyms.sh $T/release/pod-gui{,.debug}
 }
 
@@ -50,7 +50,7 @@ build_release_win64() {
     cp target/release/pod-gui.exe{,.full}
     ./build/linux-split-debuginfo.sh target/release/pod-gui.exe
     ./build/mk-win64-dist.sh $1
-    [ $SENTRY == "1" ] && \
+    [ "$SENTRY" = "1" ] && \
       ./build/sentry-upload-dsyms.sh target/release/pod-gui.exe.full
 }
 
