@@ -1,0 +1,271 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://arteme.github.io/pod-ui/theme/stylesheet/style.min.css">
+
+
+    <link id="pygments-light-theme" rel="stylesheet" type="text/css"
+          href="https://arteme.github.io/pod-ui/theme/pygments/github.min.css">
+
+
+  <link rel="stylesheet" type="text/css" href="https://arteme.github.io/pod-ui/theme/font-awesome/css/fontawesome.css">
+  <link rel="stylesheet" type="text/css" href="https://arteme.github.io/pod-ui/theme/font-awesome/css/brands.css">
+  <link rel="stylesheet" type="text/css" href="https://arteme.github.io/pod-ui/theme/font-awesome/css/solid.css">
+
+    <link rel="stylesheet" type="text/css" href="https://arteme.github.io/pod-ui/static/extra.css">
+
+    <link href="https://arteme.github.io/pod-ui/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="pod-ui Atom">
+
+
+
+  
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-WJZYGHQDCE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-WJZYGHQDCE');
+</script>
+<!-- End of Global site tag (gtag.js) - Google Analytics -->
+
+ 
+
+    <meta name="author" content="arteme" />
+    <meta name="description" content="" />
+  <meta property="og:site_name" content="pod-ui"/>
+  <meta property="og:type" content="blog"/>
+  <meta property="og:title" content="pod-ui"/>
+  <meta property="og:description" content=""/>
+  <meta property="og:locale" content="en_US"/>
+  <meta property="og:url" content="https://arteme.github.io/pod-ui"/>
+  <meta property="og:image" content="https://arteme.github.io/pod-ui/images/icon-small.png">
+
+
+
+  <title>pod-ui &ndash; USB-MIDI cables</title>
+
+</head>
+<body class="light-theme">
+  <aside>
+    <div>
+      <a href="https://arteme.github.io/pod-ui/">
+        <img src="https://arteme.github.io/pod-ui/images/icon-small.png" alt="pod-ui" title="pod-ui">
+      </a>
+
+      <h1>
+        <a href="https://arteme.github.io/pod-ui/">pod-ui</a>
+      </h1>
+
+<p>A modern cross-platform UI for controlling Line 6 POD family of modelling amp via MIDI</p>
+
+      <nav>
+        <ul class="list">
+
+
+              <li>
+                <a target="_self"
+                   href="https://arteme.github.io/pod-ui/pages/devices.html#devices">
+                  Devices
+                </a>
+              </li>
+              <li>
+                <a target="_self"
+                   href="https://arteme.github.io/pod-ui/pages/how-to-help.html#how-to-help">
+                  How to Help?
+                </a>
+              </li>
+              <li>
+                <a target="_self"
+                   href="https://arteme.github.io/pod-ui/#introduction">
+                  Introduction
+                </a>
+              </li>
+              <li>
+                <a target="_self"
+                   href="https://arteme.github.io/pod-ui/pages/usb-midi-cables.html#usb-midi-cables">
+                  USB-MIDI cables
+                </a>
+              </li>
+              <li>
+                <a target="_self"
+                   href="https://arteme.github.io/pod-ui/pages/user-guide.html#user-guide">
+                  User Guide
+                </a>
+              </li>
+
+            <li>
+              <a target="_self" href="https://github.com/arteme/pod-ui" >github</a>
+            </li>
+        </ul>
+      </nav>
+
+      <ul class="social">
+      </ul>
+    </div>
+
+  </aside>
+  <main>
+
+
+<article class="single">
+  <header>
+    
+    <h1 id="usb-midi-cables">USB-MIDI cables</h1>
+  </header>
+  <div>
+<p><strong>TL;DR</strong> <em>Stay away from cheap USB-MIDI cables off the Internet!
+Invest in a cable that is known to work correctly. See below for
+some suggestions.</em> </p>
+<p>We're dealing with legacy hardware here &mdash; the original POD was released
+in 1998, POD 2.0 came in 2000 and PODxt came in 2002. While PODxt already
+features a USB port, the only way to connect older PODs to your computer
+is using MIDI cables. MIDI cables require a sound card with MIDI IN/OUT
+ports, which not many hobbyist guitar players have.</p>
+<p>Luckily, one can nowadays get a relatively cheap USB-MIDI cable. The problem
+is, not all of them will work.</p>
+<p>MIDI standard is not very complex and contains a variety of short messages,
+such as Control Change <code>CC</code> messages, which are sent when you press or
+release a key on the synthesizer or turn a knob on a POD or Program Change
+<code>PC</code> messages, which are sent when you switch presets on a POD. For anything
+more complex, System Exclusive <code>SysEx</code> messages are used. These are long
+manufacturer-specific messages that can are used to query for devices and
+upload/download patches.</p>
+<p>When buying cheap USB-MIDI cables off the Internet, please be aware that
+there may be issues with the longer <code>SysEx</code> messages sending and receiving:</p>
+<ol>
+<li>
+<p>Data Loss: <code>SysEx</code> messages can be quite long and complex, and cheaper 
+   USB-MIDI cables may not be able to reliably transmit all the data in
+   the message. This can result in lost data or incomplete messages.</p>
+</li>
+<li>
+<p>Timing Issues: <code>SysEx</code> messages require precise timing to be properly
+   received by the target device, and cheap USB-MIDI cables may not be
+   able to reliably maintain the required timing accuracy. This can lead
+   to errors or failed messages.</p>
+</li>
+<li>
+<p>Buffer Overflow: Some MIDI devices have limited buffer sizes, and
+   sending a large <code>SysEx</code> message can cause the buffer to overflow. Cheap
+   USB-MIDI cables may have buffer overflow issues, leading to failed or.
+   missing messages.</p>
+</li>
+</ol>
+<p>In summary, sending <code>SysEx</code> messages using cheap Chinese USB MIDI cables can
+be problematic, and it may be advisable to invest in a higher-quality cable
+to ensure reliable and accurate data transfer.</p>
+<p>When working with USB-MIDI cables, Windows users are generally advised to 
+try the <code>winrt</code> build first as it uses a newer MIDI driver stack that is
+in constant development and support and may work better in newer versions 
+of Windows.</p>
+<h2 id="what-is-known-to-work">What is known to work</h2>
+<p>From my own experience and the experience of the pod-ui users, here are
+some USB-MIDI cables that are known to work:</p>
+<p><strong>M-Audio MIDISport Uno</strong> is a very affordable USB-MIDI cable, which
+supports <code>SyxEx</code> message sending and works with all platforms.</p>
+<p><strong>Bespeco BM100</strong> is another cheap USB-MIDI cable that is known to work.
+Window users <strong>need</strong> to use the <code>winrt</code> build to get it working.</p>
+<h2 id="what-may-work">What may work</h2>
+<p>Here are some more options of good quality USB-MIDI cables that
+the Interned agrees will support <code>SysEx</code> messages:</p>
+<p><strong>Roland UM-ONE MK2</strong> is not the cheapest cable around, but is
+widely regarded as one of the most reliable and stable options for
+when SysEx messages are concerned.</p>
+<p><strong>iConnectivity mio</strong> and <strong>mio XC</strong> are other examples of not so
+cheap, but quality products that are reported to support <code>SysEx</code>
+messages, MIDI Time Code <code>MTC</code> and other advanced MIDI features.</p>
+<p><strong>Yamaha UX16</strong> is one of the pricier options, but it is known
+to work reliably with <code>SysEx</code> messages.</p>
+<p><strong>MOTU FastLane</strong> USB MIDI interface is not exactly a 1-to-1
+USB-MIDI cable like the rest of the devices on the list, but for
+the sake of completeness, it is worth to mention that is device
+is known for  its low-latency performance and reliable <code>SysEx</code>
+messaging capabilities.</p>
+<h2 id="what-doesnt-work">What doesn't work</h2>
+<p class="center"><img alt="generic MIDI controller off AliExpress" src="https://arteme.github.io/pod-ui/images/usb-midi/chinese-usb-midi.png" /></p>
+<p>The cheap generic cable you get off AliExpress that looks like this
+doesn't work with <code>SysEx</code> messages. I know, because I have one.
+Ironically, I bought it when I dusted off my POD 2.0 and started
+working on pod-ui to not have to use an external USB sound card
+with a proper MIDI cable. I've not been abl to get it to work
+on any platforms, YMMV.</p>
+<h2 id="bluetooth-midi-adapters">Bluetooth MIDI adapters</h2>
+<p>Nowadays, there are plenty of wireless MIDI plugs that either
+use Bluetooth or ad-hoc wireless communication with a dongle
+you attach to a computer. Generally, these are more expensive
+that the USB-MIDI cables.</p>
+<p>I've not used any of these, but here is what the Internet has
+to say. Please let me know if you've successfully used one
+with a POD:</p>
+<p><strong>M-Vave MS1</strong> is a very cheap device that is reported to
+work with <code>SysEx</code> messages.</p>
+<p><strong>Yamaha MD-BT01</strong> bluetooth MIDI adapter is supposed to support
+<code>SysEx</code> messages.</p>
+<p><strong>Roland WM-1</strong> bluetooth MIDI adapter is supposed to work
+well. According to the manufacturer's website, you also need
+a <code>WM-1D</code> dongle for Windows.</p>
+<p><strong>Quicco Sound mi.1</strong> bluetooth MIDI adapter is supposed to
+work.</p>
+<h2 id="what-can-i-do-if-my-cable-doesnt-work-with-sysex">What can I do if my cable doesn't work with SysEx</h2>
+<p>If the cable doesn't support <code>SysEx</code> messages, you won't be able
+to auto-detect the device using pod-ui (or test the connection
+in the settings dialog). You won't be able to get the list of
+patches from the device, and you won't be able to store/retrieve
+individual patches from the device.</p>
+<p>You will still be able to switch presets and adjust individual
+controls. Pod-ui will also react when you switch presets on
+the POD or adjust controls on it.</p>  </div>
+</article>
+
+    <footer>
+<p>&copy; 2024 <a href="https://github.com/arteme">Artem E</a></p>
+<p>
+Built with <a href="http://getpelican.com" target="_blank">Pelican</a> using <a href="http://bit.ly/flex-pelican" target="_blank">Flex</a> theme
+</p>    </footer>
+  </main>
+
+
+
+
+<script type="application/ld+json">
+{
+  "@context" : "http://schema.org",
+  "@type" : "Blog",
+  "name": " pod-ui ",
+  "url" : "https://arteme.github.io/pod-ui",
+  "image": "https://arteme.github.io/pod-ui/images/icon-small.png",
+  "description": ""
+}
+</script>
+<a href="https://github.com/arteme/pod-ui" class="github-corner" aria-label="View source on Github">
+    <svg width="80"
+         height="80"
+         viewBox="0 0 250 250"
+         style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;"
+         aria-hidden="true">
+        <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+        <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2"
+              fill="currentColor"
+              style="transform-origin: 130px 106px;"
+              class="octo-arm">
+        </path>
+        <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z"
+              fill="currentColor"
+              class="octo-body">
+        </path>
+    </svg>
+</a>
+<style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+</body>
+</html>
