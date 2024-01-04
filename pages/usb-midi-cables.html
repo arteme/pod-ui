@@ -125,8 +125,8 @@
   </header>
   <div>
 <p><strong>TL;DR</strong> <em>Stay away from cheap USB-MIDI cables off the Internet!
-Invest in a cable that is known to work correctly. See below for
-some suggestions.</em> </p>
+Invest in a cable that is known to work correctly. See <a href="#known-to-work">below</a>
+for some suggestions.</em> </p>
 <p>We're dealing with legacy hardware here &mdash; the original POD was released
 in 1998, POD 2.0 came in 2000 and PODxt came in 2002. While PODxt already
 features a USB port, the only way to connect older PODs to your computer
@@ -139,7 +139,7 @@ such as Control Change <code>CC</code> messages, which are sent when you press o
 release a key on the synthesizer or turn a knob on a POD or Program Change
 <code>PC</code> messages, which are sent when you switch presets on a POD. For anything
 more complex, System Exclusive <code>SysEx</code> messages are used. These are long
-manufacturer-specific messages that can are used to query for devices and
+manufacturer-specific messages can are used to identify devices and
 upload/download patches.</p>
 <p>When buying cheap USB-MIDI cables off the Internet, please be aware that
 there may be issues with the longer <code>SysEx</code> messages sending and receiving:</p>
@@ -162,14 +162,14 @@ there may be issues with the longer <code>SysEx</code> messages sending and rece
    missing messages.</p>
 </li>
 </ol>
-<p>In summary, sending <code>SysEx</code> messages using cheap Chinese USB MIDI cables can
-be problematic, and it may be advisable to invest in a higher-quality cable
+<p>In summary, sending <code>SysEx</code> messages using cheap USB-MIDI cables can
+be problematic, and it is advisable to invest in a higher-quality cable
 to ensure reliable and accurate data transfer.</p>
 <p>When working with USB-MIDI cables, Windows users are generally advised to 
 try the <code>winrt</code> build first as it uses a newer MIDI driver stack that is
 in constant development and support and may work better in newer versions 
 of Windows.</p>
-<h2 id="what-is-known-to-work">What is known to work</h2>
+<h2 id="what-is-known-to-work"><a name=known-to-work></a> What is known to work</h2>
 <p>From my own experience and the experience of the pod-ui users, here are
 some USB-MIDI cables that are known to work:</p>
 <p><strong>M-Audio MIDISport Uno</strong> is a very affordable USB-MIDI cable, which
@@ -192,14 +192,19 @@ USB-MIDI cable like the rest of the devices on the list, but for
 the sake of completeness, it is worth to mention that is device
 is known for  its low-latency performance and reliable <code>SysEx</code>
 messaging capabilities.</p>
+<p>Please also check this list for more quality devices:
+https://www.vguitarforums.com/smf/index.php?topic=21480.0</p>
 <h2 id="what-doesnt-work">What doesn't work</h2>
 <p class="center"><img alt="generic MIDI controller off AliExpress" src="https://arteme.github.io/pod-ui/images/usb-midi/chinese-usb-midi.png" /></p>
 <p>The cheap generic cable you get off AliExpress that looks like this
 doesn't work with <code>SysEx</code> messages. I know, because I have one.
+The device identifies as <code>1a86:752d QinHeng Electronics CH345 MIDI adapter</code>.
 Ironically, I bought it when I dusted off my POD 2.0 and started
 working on pod-ui to not have to use an external USB sound card
-with a proper MIDI cable. I've not been abl to get it to work
-on any platforms, YMMV.</p>
+with a proper MIDI cable. I've not been able to get it to transfer
+<code>SysEx</code> messages on any platform, YMMV.</p>
+<p>Frank Buß has an excellent <a href="https://frank-buss.de/midi/">analysis</a>
+of this device.</p>
 <h2 id="bluetooth-midi-adapters">Bluetooth MIDI adapters</h2>
 <p>Nowadays, there are plenty of wireless MIDI plugs that either
 use Bluetooth or ad-hoc wireless communication with a dongle
