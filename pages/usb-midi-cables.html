@@ -158,7 +158,7 @@ there may be issues with the longer <code>SysEx</code> messages sending and rece
 <li>
 <p>Buffer Overflow: Some MIDI devices have limited buffer sizes, and
    sending a large <code>SysEx</code> message can cause the buffer to overflow. Cheap
-   USB-MIDI cables may have buffer overflow issues, leading to failed or.
+   USB-MIDI cables may have buffer overflow issues, leading to failed or
    missing messages.</p>
 </li>
 </ol>
@@ -176,12 +176,14 @@ some USB-MIDI cables that are known to work:</p>
 supports <code>SyxEx</code> message sending and works with all platforms.</p>
 <p><strong>Bespeco BM100</strong> is another cheap USB-MIDI cable that is known to work.
 Window users <strong>need</strong> to use the <code>winrt</code> build to get it working.</p>
+<p><strong>DOREMiDi MTU-11</strong> is an inexpensive MIDI to USB-C cable that has
+been proven to work, tested on a MacBook Pro M1.  </p>
 <h2 id="what-may-work">What may work</h2>
 <p>Here are some more options of good quality USB-MIDI cables that
 the Interned agrees will support <code>SysEx</code> messages:</p>
 <p><strong>Roland UM-ONE MK2</strong> is not the cheapest cable around, but is
 widely regarded as one of the most reliable and stable options for
-when SysEx messages are concerned.</p>
+when <code>SysEx</code> messages are concerned.</p>
 <p><strong>iConnectivity mio</strong> and <strong>mio XC</strong> are other examples of not so
 cheap, but quality products that are reported to support <code>SysEx</code>
 messages, MIDI Time Code <code>MTC</code> and other advanced MIDI features.</p>
@@ -194,7 +196,21 @@ is known for  its low-latency performance and reliable <code>SysEx</code>
 messaging capabilities.</p>
 <p>Please also check <a href="https://www.vguitarforums.com/smf/index.php?topic=21480.0">this VGuitarForums post</a>
 for more quality devices.</p>
+<h3 id="bluetooth-midi-adapters">Bluetooth MIDI adapters</h3>
+<p>Nowadays, there are plenty of wireless MIDI plugs that either
+use Bluetooth or ad-hoc wireless communication with a dongle
+you attach to a computer. Generally, these are more expensive
+that the USB-MIDI cables.</p>
+<p>As with USB-MIDI cables, YMMV!</p>
+<p><strong>Yamaha MD-BT01</strong> Bluetooth MIDI adapter is supposed to support
+<code>SysEx</code> messages.</p>
+<p><strong>Roland WM-1</strong> Bluetooth MIDI adapter is supposed to work
+well. According to the manufacturer's website, you also need
+a <code>WM-1D</code> dongle for Windows.</p>
+<p><strong>Quicco Sound mi.1</strong> Bluetooth MIDI adapter is supposed to
+work.</p>
 <h2 id="what-doesnt-work">What doesn't work</h2>
+<h3 id="generic-midi-controller-off-aliexpress">Generic MIDI controller off AliExpress</h3>
 <p class="center"><img alt="generic MIDI controller off AliExpress" src="https://arteme.github.io/pod-ui/images/usb-midi/chinese-usb-midi.png" /></p>
 <p>The cheap generic cable you get off AliExpress that looks like this
 doesn't work with <code>SysEx</code> messages. I know, because I have one.
@@ -202,26 +218,17 @@ The device identifies as <code>1a86:752d QinHeng Electronics CH345 MIDI adapter<
 Ironically, I bought it when I dusted off my POD 2.0 and started
 working on pod-ui to not have to use an external USB sound card
 with a proper MIDI cable. I've not been able to get it to transfer
-<code>SysEx</code> messages on any platform, YMMV.</p>
+<code>SysEx</code> messages on any platform.</p>
 <p>Frank Buß has an excellent <a href="https://frank-buss.de/midi/">analysis</a>
 of this device.</p>
-<h2 id="bluetooth-midi-adapters">Bluetooth MIDI adapters</h2>
-<p>Nowadays, there are plenty of wireless MIDI plugs that either
-use Bluetooth or ad-hoc wireless communication with a dongle
-you attach to a computer. Generally, these are more expensive
-that the USB-MIDI cables.</p>
-<p>I've not used any of these, but here is what the Internet has
-to say. Please let me know if you've successfully used one
-with a POD:</p>
-<p><strong>M-Vave MS1</strong> is a very cheap device that is reported to
-work with <code>SysEx</code> messages.</p>
-<p><strong>Yamaha MD-BT01</strong> bluetooth MIDI adapter is supposed to support
-<code>SysEx</code> messages.</p>
-<p><strong>Roland WM-1</strong> bluetooth MIDI adapter is supposed to work
-well. According to the manufacturer's website, you also need
-a <code>WM-1D</code> dongle for Windows.</p>
-<p><strong>Quicco Sound mi.1</strong> bluetooth MIDI adapter is supposed to
-work.</p>
+<h3 id="m-vave-ms-1">M-Vave MS-1</h3>
+<p class="center"><img alt="M-Vave MS-1" src="https://arteme.github.io/pod-ui/images/usb-midi/mvave-ms1.jpg" /></p>
+<p>M-Vave MS-1 is a very affordable Bluetooth MIDI device, which,
+unfortunately, doesn't quite work. When using an MS-1, the POD
+will be correctly identified, but getting the patches from the
+device and storing them back doesn't work. This probably means
+that <code>SysEx</code> messages, as such, work, but the buffer is way too
+small, so larger <code>SysEx</code> messages don't fit.</p>
 <h2 id="what-can-i-do-if-my-cable-doesnt-work-with-sysex">What can I do if my cable doesn't work with SysEx</h2>
 <p>If the cable doesn't support <code>SysEx</code> messages, you won't be able
 to auto-detect the device using pod-ui (or test the connection
