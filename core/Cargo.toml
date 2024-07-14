@@ -20,8 +20,3 @@ futures = "0.3.19"
 futures-util = "0.3.19"
 result = "1.0.0"
 unicycle = { version = "0.8.0", features = ['futures-rs'] }
-rusb = { version = "0.9.4", optional = true }
-
-[features]
-default = [ "usb" ]
-usb = [ "dep:rusb" ]

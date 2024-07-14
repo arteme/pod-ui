@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core", "gtk", "gui", "mod-pod2", "mod-pocket", "mod-xt", "mod-bassxt"]
+members = ["core", "gtk", "gui", "usb", "mod-pod2", "mod-pocket", "mod-xt", "mod-bassxt"]
 
 [workspace.package]
 version = "0.0.0"

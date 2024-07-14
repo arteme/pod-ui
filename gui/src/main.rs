@@ -16,6 +16,7 @@ use clap::{Args, Command, FromArgMatches};
 use core::result::Result::Ok;
 use std::env;
 use std::rc::Rc;
+use futures::executor;
 use futures_util::future::{join_all, JoinAll};
 use futures_util::FutureExt;
 use log::*;
@@ -566,6 +567,18 @@ pub fn ui_modified_handler(ctx: &Ctx, event: &ModifiedEvent, ui_event_tx: &glib:
     }
 }
 
+#[cfg(feature = "usb")]
+fn start_usb() {
+    pod_usb::usb_start().unwrap();
+    executor::block_on(
+        pod_usb::usb_init_wait()
+    );
+}
+
+#[cfg(not(feature = "usb"))]
+fn start_usb() -> Result<()> {
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let _guard = sentry::init((option_env!("SENTRY_DSN"), sentry::ClientOptions {
@@ -580,6 +593,8 @@ async fn main() -> Result<()> {
 
     let title = format!("POD UI {}", &*VERSION);
     info!("Starting {} ({})", &title, &current_platform());
+
+    start_usb();
 
     register_module(pod_mod_pod2::module())?;
     register_module(pod_mod_pocket::module())?;

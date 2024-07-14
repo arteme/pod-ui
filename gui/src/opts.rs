@@ -1,7 +1,6 @@
 use clap::Parser;
 use anyhow::Result;
 use std::fmt::Write;
-use pod_core::all_io::*;
 use pod_core::config::configs;
 use pod_core::midi_io::{MidiIn, MidiOut, MidiPorts};
 
@@ -57,12 +56,12 @@ pub fn generate_help_text() -> Result<String> {
     }
     writeln!(s, "")?;
     writeln!(s, "MIDI input ports (-i):")?;
-    for (i, n) in midi_in_ports().ok().unwrap_or_default().iter().enumerate() {
+    for (i, n) in MidiIn::ports().ok().unwrap_or_default().iter().enumerate() {
         writeln!(s, "{}[{}] {}", tab, i, n)?;
     }
     writeln!(s, "")?;
     writeln!(s, "MIDI output ports (-o):")?;
-    for (i, n) in midi_out_ports().ok().unwrap_or_default().iter().enumerate() {
+    for (i, n) in MidiOut::ports().ok().unwrap_or_default().iter().enumerate() {
         writeln!(s, "{}[{}] {}", tab, i, n)?;
     }
     writeln!(s, "")?;
