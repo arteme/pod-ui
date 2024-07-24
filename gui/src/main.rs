@@ -575,8 +575,18 @@ fn start_usb() {
     );
 }
 
+#[cfg(feature = "usb")]
+fn usb_list_devices() -> Vec<String> {
+    pod_usb::usb_list_devices()
+}
+
 #[cfg(not(feature = "usb"))]
-fn start_usb() -> Result<()> {
+fn start_usb() {
+}
+
+#[cfg(not(feature = "usb"))]
+fn usb_list_devices() -> Vec<String> {
+    vec![]
 }
 
 #[tokio::main]
@@ -641,7 +651,11 @@ async fn main() -> Result<()> {
         }
     });
 
-    app.run_with_args::<String>(&[]);
+    let exit_code = app.run_with_args::<String>(&[]);
+    // HACK: instead of dealing with USB thread clean-up (and in case there are any other
+    // threads still running), we just call `process::exit` and let libraries clean up
+    // after themselves
+    std::process::exit(exit_code);
     Ok(())
 }
 

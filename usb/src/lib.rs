@@ -3,42 +3,36 @@ mod devices;
 mod line6;
 mod dev_handler;
 mod endpoint;
+mod util;
 
 use log::{debug, error, info};
 use anyhow::*;
 use core::result::Result::Ok;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
 
-use rusb::{Context, Device, Hotplug, HotplugBuilder, UsbContext};
+use rusb::{Context, Device as UsbDevice, GlobalContext, Hotplug, HotplugBuilder, UsbContext};
 use tokio::sync::{broadcast, Notify};
 use tokio::sync::broadcast::error::RecvError;
-use crate::dev_handler::DevHandler;
+use crate::dev_handler::Device;
 use crate::devices::find_device;
 use crate::event::*;
+use crate::util::usb_address_string;
 
 struct HotplugHandler {
     event_tx: broadcast::Sender<UsbEvent>,
-    num_devices: Option<isize>
+    init_devices: Option<isize>
 }
 
-impl<T: UsbContext> Hotplug<T> for HotplugHandler {
-    fn device_arrived(&mut self, device: Device<T>) {
-        let Ok(desc) = device.device_descriptor() else { return };
-
-        if find_device(desc.vendor_id(), desc.product_id()).is_some() {
-            debug!("device added: {:?}", device);
-            let e = DeviceAddedEvent {
-                vid: desc.vendor_id(),
-                pid: desc.product_id()
-            };
-            self.event_tx.send(UsbEvent::DeviceAdded(e)).unwrap();
-        }
-
-        if let Some(mut num) = self.num_devices.take() {
-            num -= 1;
-            self.num_devices = if num > 1 {
+impl HotplugHandler {
+    /// Notify the hotplug handler that `num` devices have been initialized.
+    /// This is used for `UsbEvent::InitDone` event tracking.
+    fn device_init_notify(&mut self, added: isize) {
+        if let Some(mut num) = self.init_devices.take() {
+            num -= added;
+            self.init_devices = if num > 1 {
                 Some(num)
             } else {
                 self.event_tx.send(UsbEvent::InitDone).unwrap();
@@ -46,15 +40,37 @@ impl<T: UsbContext> Hotplug<T> for HotplugHandler {
             };
         }
     }
+}
 
-    fn device_left(&mut self, device: Device<T>) {
+impl<T: UsbContext> Hotplug<T> for HotplugHandler {
+    fn device_arrived(&mut self, device: UsbDevice<T>) {
+        let Ok(desc) = device.device_descriptor() else { return };
+
+        debug!("device added: {:?} ??", device);
+        if find_device(desc.vendor_id(), desc.product_id()).is_some() {
+            debug!("device added: {:?}", device);
+            let e = DeviceAddedEvent {
+                vid: desc.vendor_id(),
+                pid: desc.product_id(),
+                bus: device.bus_number(),
+                address: device.address(),
+            };
+            self.event_tx.send(UsbEvent::DeviceAdded(e)).unwrap();
+        }
+
+        self.device_init_notify(1);
+    }
+
+    fn device_left(&mut self, device: UsbDevice<T>) {
         let Ok(desc) = device.device_descriptor() else { return };
 
         if find_device(desc.vendor_id(), desc.product_id()).is_some() {
             debug!("device removed: {:?}", device);
             let e = DeviceRemovedEvent {
                 vid: desc.vendor_id(),
-                pid: desc.product_id()
+                pid: desc.product_id(),
+                bus: device.bus_number(),
+                address: device.address(),
             };
             self.event_tx.send(UsbEvent::DeviceRemoved(e)).unwrap();
         }
@@ -65,6 +81,9 @@ static mut INIT_DONE: AtomicBool = AtomicBool::new(false);
 static INIT_DONE_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| {
     Arc::new(Notify::new())
 });
+static DEVICES: Lazy<Arc<Mutex<HashMap<String, Device<GlobalContext>>>>> = Lazy::new(|| {
+   Arc::new(Mutex::new(HashMap::new()))
+});
 
 pub fn usb_start() -> Result<()> {
     if !rusb::has_hotplug() {
@@ -74,16 +93,18 @@ pub fn usb_start() -> Result<()> {
     let (event_tx, mut event_rx) = broadcast::channel::<UsbEvent>(512);
 
     let ctx = Context::new()?;
-    let hh = HotplugHandler {
+    let num_devices = ctx.devices()?.len() as isize;
+    let mut hh = HotplugHandler {
         event_tx: event_tx.clone(),
-        num_devices: Some(ctx.devices()?.len() as isize)
+        init_devices: Some(num_devices)
     };
+    hh.device_init_notify(0);
     let hotplug = HotplugBuilder::new()
         .enumerate(true)
         .register(&ctx, Box::new(hh))?;
 
     tokio::spawn(async move {
-        info!("Starting USB hotplug");
+        info!("USB hotplug thread start");
         let mut reg = Some(hotplug);
         loop {
             ctx.handle_events(None).unwrap();
@@ -91,11 +112,13 @@ pub fn usb_start() -> Result<()> {
                 ctx.unregister_callback(reg);
             }
         }
+        info!("USB hotplug thread finish");
     });
 
-    let ctx = Context::new()?;
+    let devices = DEVICES.clone();
 
     tokio::spawn(async move {
+        info!("USB message RX thread start");
         loop {
             let msg = match event_rx.recv().await {
                 Ok(msg) => { msg }
@@ -110,26 +133,31 @@ pub fn usb_start() -> Result<()> {
             };
 
             match msg {
-                UsbEvent::DeviceAdded(DeviceAddedEvent{ vid, pid }) => {
+                UsbEvent::DeviceAdded(DeviceAddedEvent{ vid, pid, bus, address }) => {
                     let usb_dev = find_device(vid, pid).unwrap();
                     //let Some(h) = rusb::open_device_with_vid_pid(vid, pid) else { continue };
                     let Some(h) = rusb::open_device_with_vid_pid(vid, pid) else { continue };
-                    let mut handler = match DevHandler::new(h, usb_dev) {
+                    let handler = match Device::new(h, usb_dev) {
                         Ok(h) => { h }
                         Err(e) => {
                             error!("Filed to initialize device {:?}: {}", usb_dev.name, e);
                             continue
                         }
                     };
-                    handler.start();
+                    let address = usb_address_string(bus, address);
+                    usb_add_device(address, handler);
                 }
-                UsbEvent::DeviceRemoved(_) => {}
+                UsbEvent::DeviceRemoved(DeviceRemovedEvent{ bus, address, .. }) => {
+                    let address = usb_address_string(bus, address);
+                    usb_remove_device(address);
+
+                }
                 UsbEvent::InitDone => {
-                    debug!("USB init done");
                     usb_init_set_done();
                 }
             }
         }
+        info!("USB message RX thread finish");
     });
 
     Ok(())
@@ -138,6 +166,7 @@ pub fn usb_start() -> Result<()> {
 fn usb_init_set_done()  {
     unsafe { INIT_DONE.store(true, Ordering::Relaxed) }
 
+    debug!("USB init done");
     INIT_DONE_NOTIFY.notify_waiters()
 }
 
@@ -145,11 +174,27 @@ fn usb_init_done() -> bool {
     unsafe { INIT_DONE.load(Ordering::Relaxed) }
 }
 
-pub async fn usb_init_wait() -> () {
+pub async fn usb_init_wait() {
     if usb_init_done() {
         return;
     }
 
-    INIT_DONE_NOTIFY.notified().await
+    debug!("Waiting for USB init...");
+    INIT_DONE_NOTIFY.notified().await;
+    debug!("Waiting for USB init over");
 }
 
+pub fn usb_list_devices() -> Vec<String> {
+    let devices = DEVICES.lock().unwrap();
+    devices.values().map(|i| i.name.clone()).collect()
+}
+
+fn usb_add_device(key: String, device: Device<GlobalContext>) {
+    let mut devices = DEVICES.lock().unwrap();
+    devices.insert(key, device);
+}
+
+fn usb_remove_device(key: String) {
+    let mut devices = DEVICES.lock().unwrap();
+    devices.remove(&key);
+}
