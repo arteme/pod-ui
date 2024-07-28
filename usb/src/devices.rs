@@ -83,6 +83,11 @@ static USB_DEVICES: Lazy<Vec<UsbDevice>> = Lazy::new(|| {
             alt_setting: 0, read_ep: 0x82, write_ep: 0x02,
             transfer_type: TransferType::Bulk
         },
+        UsbDevice {
+            id: id!(0x0010, 0x0001), name: "POD-UI testing device".into(),
+            alt_setting: 0, read_ep: 0x81, write_ep: 0x02,
+            transfer_type: TransferType::Bulk
+        },
     ]
 });
 

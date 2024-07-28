@@ -1,0 +1,15 @@
+[package]
+name = "usb"
+version = "0.0.0"
+authors = ["Artem Egorkine <arteme@gmail.com>"]
+edition = "2021"
+rust-version = "1.73"
+
+[dependencies]
+
+bytes = { version = "*", features = [] }
+rusb = "*"
+usb-gadget = "*"
+log = "*"
+
+[workspace]

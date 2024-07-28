@@ -2,3 +2,4 @@
 .DS_Store
 .*.sw?
 *~
+/testing/usb/target*
