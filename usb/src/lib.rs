@@ -7,8 +7,10 @@ mod util;
 
 use log::{debug, error, info};
 use anyhow::*;
+use anyhow::Context as _;
 use core::result::Result::Ok;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
@@ -16,6 +18,8 @@ use once_cell::sync::Lazy;
 use rusb::{Context, Device as UsbDevice, GlobalContext, Hotplug, HotplugBuilder, UsbContext};
 use tokio::sync::{broadcast, Notify};
 use tokio::sync::broadcast::error::RecvError;
+use pod_core::midi_io::{MidiIn, MidiOut};
+use regex::Regex;
 use crate::dev_handler::Device;
 use crate::devices::find_device;
 use crate::event::*;
@@ -103,7 +107,8 @@ pub fn usb_start() -> Result<()> {
         .enumerate(true)
         .register(&ctx, Box::new(hh))?;
 
-    tokio::spawn(async move {
+    // libusb's handle_events may need to go on the blocking tasks queue
+    tokio::task::spawn_blocking(move || {
         info!("USB hotplug thread start");
         let mut reg = Some(hotplug);
         loop {
@@ -197,4 +202,28 @@ fn usb_add_device(key: String, device: Device<GlobalContext>) {
 fn usb_remove_device(key: String) {
     let mut devices = DEVICES.lock().unwrap();
     devices.remove(&key);
+}
+
+pub fn usb_device_for_address(dev_addr: &str) -> Result<(impl MidiIn, impl MidiOut)> {
+    let mut devices = DEVICES.lock().unwrap();
+
+    let port_n_re = Regex::new(r"\d+").unwrap();
+    let port_id_re = Regex::new(r"\d+:\d+").unwrap();
+
+    let mut found = None;
+    if port_id_re.is_match(dev_addr) {
+        found = devices.get_mut(dev_addr);
+    } else if port_n_re.is_match(dev_addr) {
+        let n = usize::from_str(&dev_addr)
+            .with_context(|| format!("Unrecognized USB device index {:?}", dev_addr))?;
+        found = devices.values_mut().nth(n);
+    } else {
+        bail!("Unrecognized USB device address {:?}", dev_addr);
+    }
+
+    let Some(dev) = found.take() else {
+        bail!("USB device for address {:?} not found!", dev_addr);
+    };
+
+    dev.open()
 }

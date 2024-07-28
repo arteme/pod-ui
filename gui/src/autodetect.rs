@@ -8,7 +8,7 @@ use pod_core::midi_io::*;
 use pod_core::model::Config;
 use pod_gtk::prelude::*;
 use crate::opts::Opts;
-use crate::{set_midi_in_out, State};
+use crate::{set_midi_in_out, State, usb_open};
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
     use std::str::FromStr;
@@ -38,31 +38,48 @@ fn config_for_str(config_str: &str) -> Result<&'static Config> {
     Ok(found.unwrap())
 }
 
-pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Result<()> {
-    let mut ports = None;
+pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Result<()>
+{
+    let mut ports: Option<(BoxedMidiIn, BoxedMidiOut)> = None;
     let mut config = None;
 
     // autodetect/open midi
-    let autodetect = match (&opts.input, &opts.output, &opts.model) {
-        (None, None, None) => true,
-        (None, None, Some(_)) => {
+    let autodetect = match (&opts.input, &opts.output, &opts.usb, &opts.model) {
+        (None, None, None, None) => true,
+        (None, None, None, Some(_)) => {
             warn!("Model set on command line, but not input/output ports. \
                    The model parameter will be ignored!");
             true
         }
-        (Some(_), None, _) | (None, Some(_), _) => {
+        (Some(_), None, None, _) | (None, Some(_), None, _) => {
             bail!("Both input and output port need to be set on command line to skip autodetect!")
         }
-        (Some(i), Some(o), None) => {
-            let midi_in = MidiIn::new_for_address(i)?;
-            let midi_out = MidiOut::new_for_address(o)?;
-            ports = Some((midi_in, midi_out));
+        (Some(_), _, Some(_), _) | (_, Some(_), Some(_), _) => {
+            bail!("MIDI and USB inputs cannot be set on command line together, use either MIDI or USB!")
+        }
+        // MIDI
+        (Some(i), Some(o), None, None) => {
+            let midi_in = MidiInPort::new_for_address(i)?;
+            let midi_out = MidiOutPort::new_for_address(o)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
             true
         }
-        (Some(i), Some(o), Some(m)) => {
-            let midi_in = MidiIn::new_for_address(i)?;
-            let midi_out = MidiOut::new_for_address(o)?;
-            ports = Some((midi_in, midi_out));
+        (Some(i), Some(o), None, Some(m)) => {
+            let midi_in = MidiInPort::new_for_address(i)?;
+            let midi_out = MidiOutPort::new_for_address(o)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
+            config = Some(config_for_str(m)?);
+            false
+        }
+        // USB
+        (None, None, Some(u), None) => {
+            let (midi_in, midi_out) = usb_open(u)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
+            true
+        }
+        (None, None, Some(u), Some(m)) => {
+            let (midi_in, midi_out) = usb_open(u)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
             config = Some(config_for_str(m)?);
             false
         }

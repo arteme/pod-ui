@@ -146,9 +146,10 @@ pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
 }
 
 pub fn midi_in_out_start(state: &mut State,
-                         midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
+                         midi_in: Option<BoxedMidiIn>, midi_out: Option<BoxedMidiOut>,
                          midi_channel: u8, quirks: MidiQuirks,
-                         config_changed: bool) {
+                         config_changed: bool)
+{
 
     let notify = |state: &mut State| {
         sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
@@ -178,10 +179,10 @@ pub fn midi_in_out_start(state: &mut State,
     let (in_cancel_tx, in_cancel_rx) = oneshot::channel::<()>();
     let (out_cancel_tx, out_cancel_rx) = oneshot::channel::<()>();
 
-    state.midi_in_name = Some(midi_in.name.clone());
+    state.midi_in_name = Some(midi_in.name());
     state.midi_in_cancel = Some(in_cancel_tx);
 
-    state.midi_out_name = Some(midi_out.name.clone());
+    state.midi_out_name = Some(midi_out.name());
     state.midi_out_cancel = Some(out_cancel_tx);
 
     state.midi_channel_num = midi_channel;
@@ -275,8 +276,9 @@ pub fn midi_in_out_start(state: &mut State,
     state.midi_out_handle = Some(midi_out_handle);
 }
 
-pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
-                       midi_channel: u8, config: Option<&'static Config>) -> bool {
+pub fn set_midi_in_out(state: &mut State, midi_in: Option<BoxedMidiIn>, midi_out: Option<BoxedMidiOut>,
+                       midi_channel: u8, config: Option<&'static Config>) -> bool
+{
     if state.midi_in_cancel.is_some() || state.midi_out_cancel.is_some() {
         error!("Midi still running when entering send_midi_in_out");
         // Not sure if we ever end up in this situation anymore,
@@ -580,6 +582,11 @@ fn usb_list_devices() -> Vec<String> {
     pod_usb::usb_list_devices()
 }
 
+#[cfg(feature = "usb")]
+fn usb_open(addr: &str) -> Result<(impl MidiIn, impl MidiOut)> {
+    pod_usb::usb_device_for_address(addr)
+}
+
 #[cfg(not(feature = "usb"))]
 fn start_usb() {
 }
@@ -587,6 +594,11 @@ fn start_usb() {
 #[cfg(not(feature = "usb"))]
 fn usb_list_devices() -> Vec<String> {
     vec![]
+}
+
+#[cfg(not(feature = "usb"))]
+fn usb_open(addr: &str) -> Result<(impl MidiIn, impl MidiOut)> {
+    todo!()
 }
 
 #[tokio::main]

@@ -112,7 +112,7 @@ fn populate_midi_combos(settings: &SettingsDialog,
                         in_name: &Option<String>, out_name: &Option<String>) {
     // populate "midi in" combo box
     settings.midi_in_combo.remove_all();
-    let in_ports = MidiIn::ports().ok().unwrap_or_default();
+    let in_ports = MidiInPort::ports().ok().unwrap_or_default();
     in_ports.iter().for_each(|i| settings.midi_in_combo.append_text(i));
 
     settings.midi_in_combo.set_active(None);
@@ -127,7 +127,7 @@ fn populate_midi_combos(settings: &SettingsDialog,
 
     // populate "midi out" combo box
     settings.midi_out_combo.remove_all();
-    let out_ports = MidiOut::ports().ok().unwrap_or_default();
+    let out_ports = MidiOutPort::ports().ok().unwrap_or_default();
     out_ports.iter().for_each(|i| settings.midi_out_combo.append_text(i));
 
     settings.midi_out_combo.set_active(None);
@@ -179,7 +179,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
 
                     // update in/out port selection, channel, device
                     populate_midi_combos(&settings,
-                                         &Some(in_.name.clone()), &Some(out_.name.clone()));
+                                         &Some(in_.name()), &Some(out_.name()));
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
                     populate_model_combo(&settings, &Some(config.name.clone()));
@@ -237,7 +237,7 @@ fn wire_test_button(settings: &SettingsDialog) {
                     // update in/out port selection
                     // TODO: do we need to update the combo here at all?
                     populate_midi_combos(&settings,
-                                         &Some(in_.name.clone()), &Some(out_.name.clone()));
+                                         &Some(in_.name()), &Some(out_.name()));
                 }
                 Err(e) => {
                     error!("Settings MIDI test failed: {}", e);
@@ -325,7 +325,7 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
                 let midi_in = settings.midi_in_combo.active_text()
                     .and_then(|name| {
                         let name = name.as_str();
-                        match MidiIn::new_for_name(name) {
+                        match MidiInPort::new_for_name(name) {
                             Ok(midi) => { Some(midi) }
                             Err(err) => {
                                 error!("Failed to open MIDI after settings dialog closed: {}", err);
@@ -336,7 +336,7 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
                 let midi_out = settings.midi_out_combo.active_text()
                     .and_then(|name| {
                         let name = name.as_str();
-                        match MidiOut::new_for_name(name) {
+                        match MidiOutPort::new_for_name(name) {
                             Ok(midi) => { Some(midi) }
                             Err(err) => {
                                 error!("Failed to open MIDI after settings dialog closed: {}", err);
@@ -351,6 +351,8 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
 
                 let midi_channel = settings.midi_channel_combo.active();
                 let midi_channel = midi_channel_from_combo_index(midi_channel);
+                let midi_in = midi_in.map(box_midi_in);
+                let midi_out = midi_out.map(box_midi_out);
                 set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, config);
             }
             _ => {
@@ -361,16 +363,18 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
 
                 // restart midi thread after test
                 if let Some((in_name, out_name)) = names {
-                    let midi_in = MidiIn::new_for_name(in_name.as_str())
+                    let midi_in = MidiInPort::new_for_name(in_name.as_str())
                         .map_err(|err| {
                         error!("Unable to restart MIDI input thread for {:?}: {}", in_name, err)
                     }).ok();
-                    let midi_out = MidiOut::new_for_name(out_name.as_str())
+                    let midi_out = MidiOutPort::new_for_name(out_name.as_str())
                         .map_err(|err| {
                             error!("Unable to restart MIDI output thread for {:?}: {}", out_name, err)
                         }).ok();
                     let midi_channel_num = state.midi_channel_num;
                     let quirks = state.config.map(|c| c.midi_quirks).unwrap();
+                    let midi_in = midi_in.map(box_midi_in);
+                    let midi_out = midi_out.map(box_midi_out);
                     midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num,
                                       quirks, false);
                 }
