@@ -505,7 +505,7 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
                         }
                     })
                     .unzip();
-                set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, config);
+                set_midi_in_out(&mut state.lock().unwrap(), midi_in, midi_out, midi_channel, is_usb, config);
             }
             _ => {
                 let mut state = state.lock().unwrap();
@@ -524,7 +524,7 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
                 let midi_channel_num = state.midi_channel_num;
                 let quirks = state.config.map(|c| c.midi_quirks).unwrap();
                 midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num,
-                                  quirks, false);
+                                  is_usb, quirks, false);
             }
         }
 

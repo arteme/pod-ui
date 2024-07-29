@@ -111,19 +111,21 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                 // autodetect device
                 pod_core::midi_io::autodetect(midi_channel).await
             };
+            let res = res.and_then(|(midi_in, midi_out, chan, config)|
+                Ok((midi_in, midi_out, chan, false, config)));
             tx.send(res).ok();
         });
     } else {
         // manually configured device
         let (midi_in, midi_out) = ports.unwrap();
-        tx.send(Ok((midi_in, midi_out, midi_channel_u8, config.unwrap()))).ok();
+        tx.send(Ok((midi_in, midi_out, midi_channel_u8, false, config.unwrap()))).ok();
     }
 
     rx.attach(None, move |autodetect| {
         match autodetect {
-            Ok((midi_in, midi_out, midi_channel, config)) => {
+            Ok((midi_in, midi_out, midi_channel, is_usb, config)) => {
                 set_midi_in_out(&mut state.lock().unwrap(),
-                                Some(midi_in), Some(midi_out), midi_channel, Some(config));
+                                Some(midi_in), Some(midi_out), midi_channel, is_usb, Some(config));
             }
             Err(e) => {
                 error!("MIDI autodetect failed: {}", e);
@@ -148,7 +150,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                     .and_then(|str| config_for_str(&str).ok())
                     .or_else(|| configs().iter().next());
                 set_midi_in_out(&mut state.lock().unwrap(),
-                                None, None, midi_channel_u8, config);
+                                None, None, midi_channel_u8, false, config);
             }
         };
 

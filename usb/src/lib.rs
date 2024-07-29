@@ -5,7 +5,7 @@ mod dev_handler;
 mod endpoint;
 mod util;
 
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use anyhow::*;
 use anyhow::Context as _;
 use core::result::Result::Ok;
@@ -50,9 +50,9 @@ impl<T: UsbContext> Hotplug<T> for HotplugHandler {
     fn device_arrived(&mut self, device: UsbDevice<T>) {
         let Ok(desc) = device.device_descriptor() else { return };
 
-        debug!("device added: {:?} ??", device);
+        trace!("device arrived: {:?}", device);
         if find_device(desc.vendor_id(), desc.product_id()).is_some() {
-            debug!("device added: {:?}", device);
+            trace!("device added: {:?}", device);
             let e = DeviceAddedEvent {
                 vid: desc.vendor_id(),
                 pid: desc.product_id(),
@@ -68,8 +68,9 @@ impl<T: UsbContext> Hotplug<T> for HotplugHandler {
     fn device_left(&mut self, device: UsbDevice<T>) {
         let Ok(desc) = device.device_descriptor() else { return };
 
+        trace!("device left: {:?}", device);
         if find_device(desc.vendor_id(), desc.product_id()).is_some() {
-            debug!("device removed: {:?}", device);
+            trace!("device removed: {:?}", device);
             let e = DeviceRemovedEvent {
                 vid: desc.vendor_id(),
                 pid: desc.product_id(),
@@ -112,10 +113,16 @@ pub fn usb_start() -> Result<()> {
         info!("USB hotplug thread start");
         let mut reg = Some(hotplug);
         loop {
-            ctx.handle_events(None).unwrap();
-            if let Some(reg) = reg.take() {
-                ctx.unregister_callback(reg);
+            match ctx.handle_events(None) {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("Error in USB hotplug thread: {}", e);
+                    break;
+                }
             }
+        }
+        if let Some(reg) = reg.take() {
+            ctx.unregister_callback(reg);
         }
         info!("USB hotplug thread finish");
     });
@@ -123,7 +130,7 @@ pub fn usb_start() -> Result<()> {
     let devices = DEVICES.clone();
 
     tokio::spawn(async move {
-        info!("USB message RX thread start");
+        info!("USB event RX thread start");
         loop {
             let msg = match event_rx.recv().await {
                 Ok(msg) => { msg }
@@ -162,7 +169,7 @@ pub fn usb_start() -> Result<()> {
                 }
             }
         }
-        info!("USB message RX thread finish");
+        info!("USB event RX thread finish");
     });
 
     Ok(())

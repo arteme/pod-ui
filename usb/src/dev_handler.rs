@@ -1,9 +1,10 @@
 use anyhow::*;
 use core::result::Result::Ok;
 use std::sync::{Arc, Weak};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use async_trait::async_trait;
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use rusb::{DeviceHandle, Direction, Error, TransferType, UsbContext};
 use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
@@ -24,6 +25,7 @@ pub struct DeviceInner<T: UsbContext + 'static> {
     name: String,
     handle: Arc<DeviceHandle<T>>,
     write_ep: Endpoint,
+    closed: Arc<AtomicBool>,
 }
 
 pub struct DeviceInput<T: UsbContext + 'static> {
@@ -43,6 +45,7 @@ pub struct DevHandler<T: UsbContext> {
     rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
+const READ_DURATION: Duration = Duration::from_millis(500);
 
 impl <T: UsbContext + 'static> Device<T> {
     pub fn new(handle: DeviceHandle<T>, usb_dev: &UsbDevice) -> Result<Self> {
@@ -105,7 +108,6 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
     fn new(name: String, handle: Arc<DeviceHandle<T>>,
            read_ep: Endpoint, write_ep: Endpoint,
            tx: mpsc::UnboundedSender<Vec<u8>>) -> Self {
-        let handle_ret = handle.clone();
         let has_kernel_driver = match handle.kernel_driver_active(read_ep.iface) {
             Ok(true) => {
                 handle.detach_kernel_driver(read_ep.iface).ok();
@@ -116,47 +118,62 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
 
         configure_endpoint(&handle, &read_ep).ok();
 
+        let closed = Arc::new(AtomicBool::new(false));
+
         // libusb's reads DEFINITELY need to go on the blocking tasks queue
-        tokio::task::spawn_blocking(move || {
-            let mut buf = [0u8; 1024];
-            loop {
-                let res = match read_ep.transfer_type {
-                    TransferType::Bulk => {
-                        handle.read_bulk(read_ep.address, &mut buf, Duration::MAX)
-                    }
-                    TransferType::Interrupt => {
-                        handle.read_interrupt(read_ep.address, &mut buf, Duration::MAX)
-                    }
-                    tt => {
-                        error!("Transfer type {:?} not supported!", tt);
-                        break;
-                    }
-                };
-                match res {
-                    Ok(len) => {
-                        let b = buf.chunks(len).next().unwrap();
-                        trace!("<< {:02x?} len={}", &b, len);
-                        match tx.send(b.to_vec()) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("USB read thread tx failed: {}", e);
+        tokio::task::spawn_blocking({
+            let name = name.clone();
+            let handle = handle.clone();
+            let closed = closed.clone();
+
+            move || {
+                debug!("USB read thread {:?} start", name);
+
+                let mut buf = [0u8; 1024];
+                while !closed.load(Ordering::Relaxed) {
+                    let res = match read_ep.transfer_type {
+                        TransferType::Bulk => {
+                            handle.read_bulk(read_ep.address, &mut buf, READ_DURATION)
+                        }
+                        TransferType::Interrupt => {
+                            handle.read_interrupt(read_ep.address, &mut buf, READ_DURATION)
+                        }
+                        tt => {
+                            error!("Transfer type {:?} not supported!", tt);
+                            break;
+                        }
+                    };
+                    match res {
+                        Ok(len) => {
+                            let b = buf.chunks(len).next().unwrap();
+                            trace!("<< {:02x?} len={}", &b, len);
+                            match tx.send(b.to_vec()) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("USB read thread tx failed: {}", e);
+                                }
+                            };
+                        }
+                        Err(e) => {
+                            match e {
+                                Error::Busy | Error::Timeout | Error::Overflow => { continue }
+                                _ => {
+                                    error!("USB read failed: {}", e);
+                                    break
+                                }
                             }
-                        };
-                    }
-                    Err(e) => {
-                        error!("USB read failed: {}", e);
-                        match e {
-                            Error::Busy | Error::Timeout | Error::Overflow => { continue }
-                            _ => { break }
                         }
                     }
                 }
+
+                debug!("USB read thread {:?} finish", name);
             }
         });
 
         DeviceInner {
             name,
-            handle: handle_ret,
+            handle,
+            closed,
             write_ep
         }
     }
@@ -178,14 +195,16 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
 
         res.map(|_| ()).map_err(|e| anyhow!("USB write failed: {}", e))
     }
+
+    fn close(&self) {
+        self.closed.store(true, Ordering::Relaxed);
+    }
 }
 
 impl <T: UsbContext + 'static> Drop for DeviceInner<T> {
     fn drop(&mut self) {
-        // TODO: we consider that there is ever only one device, so interrupting
-        //       the handle_events will only affect one DeviceInner... Can do better
-        //       using own explicit context for each DeviceInner
-        self.handle.context().interrupt_handle_events();
+        debug!("DeviceInner for {:?} dropped", &self.name);
+        self.close();
     }
 }
 
@@ -200,6 +219,7 @@ impl <T: UsbContext> MidiIn for DeviceInput<T> {
     }
 
     fn close(&mut self) {
+        debug!("midi in close");
     }
 }
 
@@ -214,5 +234,6 @@ impl <T: UsbContext> MidiOut for DeviceOutput<T> {
     }
 
     fn close(&mut self) {
+        debug!("midi out close");
     }
 }

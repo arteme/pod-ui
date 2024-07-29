@@ -150,7 +150,7 @@ pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
 
 pub fn midi_in_out_start(state: &mut State,
                          midi_in: Option<BoxedMidiIn>, midi_out: Option<BoxedMidiOut>,
-                         midi_channel: u8, quirks: MidiQuirks,
+                         midi_channel: u8, midi_is_usb: bool, quirks: MidiQuirks,
                          config_changed: bool)
 {
 
@@ -172,6 +172,7 @@ pub fn midi_in_out_start(state: &mut State,
         state.midi_out_name = None;
         state.midi_out_cancel = None;
         state.midi_channel_num = midi_channel;
+        state.midi_is_usb = false;
         notify(state);
         return;
     }
@@ -189,6 +190,7 @@ pub fn midi_in_out_start(state: &mut State,
     state.midi_out_cancel = Some(out_cancel_tx);
 
     state.midi_channel_num = midi_channel;
+    state.midi_is_usb = midi_is_usb;
 
     notify(state);
 
@@ -280,7 +282,7 @@ pub fn midi_in_out_start(state: &mut State,
 }
 
 pub fn set_midi_in_out(state: &mut State, midi_in: Option<BoxedMidiIn>, midi_out: Option<BoxedMidiOut>,
-                       midi_channel: u8, config: Option<&'static Config>) -> bool
+                       midi_channel: u8, midi_is_usb: bool, config: Option<&'static Config>) -> bool
 {
     if state.midi_in_cancel.is_some() || state.midi_out_cancel.is_some() {
         error!("Midi still running when entering send_midi_in_out");
@@ -306,7 +308,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<BoxedMidiIn>, midi_out
 
     let quirks = state.config.map(|c| c.midi_quirks)
         .unwrap_or_else(|| MidiQuirks::empty());
-    midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks, config_changed);
+    midi_in_out_start(state, midi_in, midi_out, midi_channel, midi_is_usb, quirks, config_changed);
 
     config_changed
 }
