@@ -8,7 +8,8 @@ use pod_core::midi_io::*;
 use pod_core::model::Config;
 use pod_gtk::prelude::*;
 use crate::opts::Opts;
-use crate::{set_midi_in_out, State, usb_open};
+use crate::{set_midi_in_out, State};
+use crate::usb::{usb_open_addr, usb_open_name};
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
     use std::str::FromStr;
@@ -73,12 +74,12 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
         }
         // USB
         (None, None, Some(u), None) => {
-            let (midi_in, midi_out) = usb_open(u)?;
+            let (midi_in, midi_out) = usb_open_addr(u)?;
             ports = Some((Box::new(midi_in), Box::new(midi_out)));
             true
         }
         (None, None, Some(u), Some(m)) => {
-            let (midi_in, midi_out) = usb_open(u)?;
+            let (midi_in, midi_out) = usb_open_addr(u)?;
             ports = Some((Box::new(midi_in), Box::new(midi_out)));
             config = Some(config_for_str(m)?);
             false
@@ -155,4 +156,24 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
     });
 
     Ok(())
+}
+
+pub async fn test(in_name: &str, out_name: &str, channel: u8, is_usb: bool, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let (midi_in, midi_out) = open(in_name, out_name, is_usb)?;
+    test_with_ports(midi_in, midi_out, channel, config).await
+}
+
+pub fn open(in_name: &str, out_name: &str, is_usb: bool) -> Result<(BoxedMidiIn, BoxedMidiOut)> {
+    let res = if is_usb {
+        if in_name != out_name {
+            bail!("USB device input/output names do not match");
+        }
+        let (midi_in, midi_out) = usb_open_name(in_name)?;
+        (box_midi_in(midi_in), box_midi_out(midi_out))
+    } else {
+        let midi_in = MidiInPort::new_for_name(in_name)?;
+        let midi_out = MidiOutPort::new_for_name(out_name)?;
+        (box_midi_in(midi_in), box_midi_out(midi_out))
+    };
+    Ok(res)
 }

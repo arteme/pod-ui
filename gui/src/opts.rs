@@ -3,7 +3,7 @@ use anyhow::Result;
 use std::fmt::Write;
 use pod_core::config::configs;
 use pod_core::midi_io::{MidiInPort, MidiOutPort, MidiPorts};
-use crate::usb_list_devices;
+use crate::usb::*;
 
 #[derive(Parser, Clone)]
 pub struct Opts {

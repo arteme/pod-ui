@@ -550,11 +550,9 @@ pub async fn autodetect_with_ports(in_ports: Vec<BoxedMidiIn>, out_ports: Vec<Bo
     Ok((in_port, out_port, channel.unwrap(), config.unwrap()))
 }
 
-pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
-    let in_port = MidiInPort::new_for_name(in_name)?;
-    let out_port = MidiOutPort::new_for_name(out_name)?;
-    let mut in_ports = vec![box_midi_in(in_port)];
-    let mut out_ports = vec![box_midi_out(out_port)];
+pub async fn test_with_ports(in_port: BoxedMidiIn, out_port: BoxedMidiOut, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let mut in_ports = vec![in_port];
+    let mut out_ports = vec![out_port];
 
     let (rep, error) = detect_with_channel(
         in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
@@ -571,6 +569,12 @@ pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -
     }
 
     Ok((in_ports.remove(0), out_ports.remove(0), channel))
+}
+
+pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let in_port = MidiInPort::new_for_name(in_name)?;
+    let out_port = MidiOutPort::new_for_name(out_name)?;
+    test_with_ports(box_midi_in(in_port), box_midi_out(out_port), channel, config).await
 }
 
 #[cfg(target_os = "linux")]

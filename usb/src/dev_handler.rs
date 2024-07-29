@@ -131,7 +131,6 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
                         error!("Transfer type {:?} not supported!", tt);
                         break;
                     }
-
                 };
                 match res {
                     Ok(len) => {

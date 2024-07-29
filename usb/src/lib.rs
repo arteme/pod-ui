@@ -227,3 +227,16 @@ pub fn usb_device_for_address(dev_addr: &str) -> Result<(impl MidiIn, impl MidiO
 
     dev.open()
 }
+
+pub fn usb_device_for_name(dev_name: &str) -> Result<(impl MidiIn, impl MidiOut)> {
+    let mut devices = DEVICES.lock().unwrap();
+
+    let mut found = devices.values_mut().find(|dev| {
+        dev.name == dev_name
+    });
+    let Some(dev) = found.take() else {
+        bail!("USB device for name {:?} not found!", dev_name);
+    };
+
+    dev.open()
+}
