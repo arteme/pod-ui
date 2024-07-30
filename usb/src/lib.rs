@@ -147,7 +147,15 @@ pub fn usb_start() -> Result<()> {
             match msg {
                 UsbEvent::DeviceAdded(DeviceAddedEvent{ vid, pid, bus, address }) => {
                     let usb_dev = find_device(vid, pid).unwrap();
-                    //let Some(h) = rusb::open_device_with_vid_pid(vid, pid) else { continue };
+                    /*
+                    let device_list = rusb::devices().unwrap();
+                    let dev = device_list.iter().find(|dev| {
+                        let desc = dev.device_descriptor().unwrap();
+                        desc.vendor_id() == vid && desc.product_id() == pid
+                    }).map(|dev| dev.open().unwrap());
+                    let Some(h) = dev;
+                     */
+
                     let Some(h) = rusb::open_device_with_vid_pid(vid, pid) else { continue };
                     let handler = match Device::new(h, usb_dev) {
                         Ok(h) => { h }

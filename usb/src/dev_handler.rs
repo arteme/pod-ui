@@ -46,6 +46,7 @@ pub struct DevHandler<T: UsbContext> {
 }
 
 const READ_DURATION: Duration = Duration::from_millis(500);
+const WRITE_DURATION: Duration = Duration::from_millis(1000);
 
 impl <T: UsbContext + 'static> Device<T> {
     pub fn new(handle: DeviceHandle<T>, usb_dev: &UsbDevice) -> Result<Self> {
@@ -130,13 +131,31 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
                 debug!("USB read thread {:?} start", name);
 
                 let mut buf = [0u8; 1024];
+                let buf_ptr = buf.as_ptr();
+                let mut read_ptr: &mut [u8] = &mut [];
+                let mut sysex = false;
+
+                let mut reset_read_ptr = || unsafe {
+                    std::slice::from_raw_parts_mut(
+                        buf.as_mut_ptr(),
+                        buf.len()
+                    )
+                };
+                let mut advance_read_ptr = |len: usize| unsafe {
+                    std::slice::from_raw_parts_mut(
+                        read_ptr.as_mut_ptr().add(len),
+                        read_ptr.len().checked_sub(len).unwrap_or(0)
+                    )
+                };
+                read_ptr = reset_read_ptr();
+
                 while !closed.load(Ordering::Relaxed) {
                     let res = match read_ep.transfer_type {
                         TransferType::Bulk => {
-                            handle.read_bulk(read_ep.address, &mut buf, READ_DURATION)
+                            handle.read_bulk(read_ep.address, &mut read_ptr, READ_DURATION)
                         }
                         TransferType::Interrupt => {
-                            handle.read_interrupt(read_ep.address, &mut buf, READ_DURATION)
+                            handle.read_interrupt(read_ep.address, &mut read_ptr, READ_DURATION)
                         }
                         tt => {
                             error!("Transfer type {:?} not supported!", tt);
@@ -145,8 +164,40 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
                     };
                     match res {
                         Ok(len) => {
-                            let b = buf.chunks(len).next().unwrap();
-                            trace!("<< {:02x?} len={}", &b, len);
+                            if len == 0 { continue; } // does this ever happen?
+                            let start_read = read_ptr.as_ptr() == buf_ptr;
+                            if start_read {
+                                // correct PODxt lower nibble 0010 in command byte, see
+                                // https://github.com/torvalds/linux/blob/8508fa2e7472f673edbeedf1b1d2b7a6bb898ecc/sound/usb/line6/midibuf.c#L148
+                                if read_ptr[0] == 0xb2 || read_ptr[0] == 0xc2 || read_ptr[0] == 0xf2 {
+                                    read_ptr[0] = read_ptr[0] & 0xf0;
+                                }
+
+                                sysex = read_ptr[0] == 0xf0;
+                            }
+                            let mut b = read_ptr.chunks(len).next().unwrap();
+                            let sysex_done = sysex && b[b.len() - 1] == 0xf7;
+                            let mark = match (start_read, sysex, sysex_done) {
+                                (true, true, false) => &"<<-",
+                                (false, true, false) => &"<--",
+                                (false, true, true) => &"-<<",
+                                _ => "<<"
+                            };
+                            trace!("{} {:02x?} len={}", mark, &b, len);
+
+                            if sysex {
+                                if !sysex_done {
+                                    // advance read_ptr
+                                    read_ptr = advance_read_ptr(len);
+                                    continue;
+                                }
+                                if !start_read {
+                                    // return full buffer
+                                    let len = read_ptr.as_ptr() as u64 - buf_ptr as u64 + len as u64;
+                                    b = buf.chunks(len as usize).next().unwrap();
+                                }
+                            }
+
                             match tx.send(b.to_vec()) {
                                 Ok(_) => {}
                                 Err(e) => {
@@ -166,6 +217,11 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
                     }
                 }
 
+                handle.release_interface(read_ep.iface).ok();
+                if has_kernel_driver {
+                    handle.attach_kernel_driver(read_ep.iface).ok();
+                }
+
                 debug!("USB read thread {:?} finish", name);
             }
         });
@@ -179,15 +235,22 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
     }
 
     fn send(&self, bytes: &[u8]) -> Result<()> {
+        if self.closed.load(Ordering::Relaxed) {
+            bail!("Device already closed");
+        }
+
         trace!(">> {:02x?} len={}", bytes, bytes.len());
+        // TODO: this write will stall the executioner for the max
+        //       WRITE_DURATION if something goes wrong. Instead,
+        //       this should go through a channel to a `tokio::task::spawn_blocking`
+        //       TX thread similar to how the RX thread does libusb polling...
         let res = match self.write_ep.transfer_type {
             TransferType::Bulk => {
-                self.handle.write_bulk(self.write_ep.address, bytes, Duration::MAX)
+                self.handle.write_bulk(self.write_ep.address, bytes, WRITE_DURATION)
             }
-            /*
             TransferType::Interrupt => {
-                self.handle.write_bulk(self.write_ep.address, buf, Duration::MAX)
-            }*/
+                self.handle.write_interrupt(self.write_ep.address, bytes, WRITE_DURATION)
+            }
             tt => {
                 bail!("Transfer type {:?} not supported!", tt);
             }
@@ -219,7 +282,7 @@ impl <T: UsbContext> MidiIn for DeviceInput<T> {
     }
 
     fn close(&mut self) {
-        debug!("midi in close");
+        debug!("midi in close - nop");
     }
 }
 
@@ -234,6 +297,6 @@ impl <T: UsbContext> MidiOut for DeviceOutput<T> {
     }
 
     fn close(&mut self) {
-        debug!("midi out close");
+        debug!("midi out close - nop");
     }
 }
