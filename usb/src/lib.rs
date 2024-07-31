@@ -4,7 +4,7 @@ mod line6;
 mod dev_handler;
 mod endpoint;
 
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use anyhow::*;
 use core::result::Result::Ok;
 use std::sync::Arc;
@@ -25,7 +25,11 @@ struct HotplugHandler {
 
 impl<T: UsbContext> Hotplug<T> for HotplugHandler {
     fn device_arrived(&mut self, device: Device<T>) {
-        let Ok(desc) = device.device_descriptor() else { return };
+        trace!("device arrived: {:?}", device);
+        let Ok(desc) = device.device_descriptor() else {
+            trace!("can't read desc");
+            return;
+        };
 
         if find_device(desc.vendor_id(), desc.product_id()).is_some() {
             debug!("device added: {:?}", device);
@@ -67,6 +71,11 @@ static INIT_DONE_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| {
 });
 
 pub fn usb_start() -> Result<()> {
+    let v = rusb::version();
+    info!("libusb v{}.{}.{}.{}{}",
+        v.major(), v.minor(), v.micro(), v.nano(), v.rc().unwrap_or("")
+    );
+
     if !rusb::has_hotplug() {
         bail!("Libusb hotplug API not supported");
     }
@@ -78,6 +87,7 @@ pub fn usb_start() -> Result<()> {
         event_tx: event_tx.clone(),
         num_devices: Some(ctx.devices()?.len() as isize)
     };
+    println!("num: {:?}", hh.num_devices);
     let hotplug = HotplugBuilder::new()
         .enumerate(true)
         .register(&ctx, Box::new(hh))?;
