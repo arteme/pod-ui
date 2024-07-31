@@ -10,10 +10,11 @@ pub struct Endpoint {
     pub iface: u8,
     pub setting: u8,
     pub address: u8,
+    pub transfer_type: TransferType
 }
 
 pub fn configure_endpoint<T: UsbContext>(
-    handle: &mut DeviceHandle<T>,
+    handle: &DeviceHandle<T>,
     endpoint: &Endpoint,
 ) -> Result<()> {
     handle.set_active_configuration(endpoint.config)?;
@@ -25,9 +26,10 @@ pub fn configure_endpoint<T: UsbContext>(
 
 
 pub fn find_endpoint<T: UsbContext>(
-    device: &mut Device<T>,
+    device: &Device<T>,
     device_desc: &DeviceDescriptor,
     direction: Direction,
+    transfer_type: TransferType,
     address: u8,
     setting: u8,
 ) -> Option<Endpoint> {
@@ -40,7 +42,7 @@ pub fn find_endpoint<T: UsbContext>(
 
                 for endpoint_desc in interface_desc.endpoint_descriptors() {
                     if endpoint_desc.direction() == direction &&
-                        endpoint_desc.transfer_type() == TransferType::Interrupt &&
+                        endpoint_desc.transfer_type() == transfer_type &&
                         endpoint_desc.address() == address
                     {
                         return Some(Endpoint {
@@ -48,6 +50,7 @@ pub fn find_endpoint<T: UsbContext>(
                             iface: interface_desc.interface_number(),
                             setting: interface_desc.setting_number(),
                             address: endpoint_desc.address(),
+                            transfer_type: endpoint_desc.transfer_type(),
                         });
                     }
                 }

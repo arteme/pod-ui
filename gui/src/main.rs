@@ -7,6 +7,7 @@ mod widgets;
 mod autodetect;
 mod check;
 mod icon;
+mod usb;
 
 use std::collections::HashMap;
 use std::sync::{Arc, atomic, Mutex};
@@ -45,6 +46,7 @@ use crate::panic::*;
 use crate::registry::*;
 use crate::settings::*;
 use crate::util::{next_thread_id, SenderExt as SenderExt2};
+use crate::usb::start_usb;
 use crate::widgets::*;
 use crate::widgets::templated::Templated;
 
@@ -77,6 +79,7 @@ pub struct State {
     pub midi_out_handle: Option<JoinHandle<()>>,
 
     pub midi_channel_num: u8,
+    pub midi_is_usb: bool,
 
     pub app_event_tx: broadcast::Sender<AppEvent>,
     pub ui_event_tx: glib::Sender<UIEvent>,
@@ -146,9 +149,10 @@ pub fn midi_in_out_stop(state: &mut State) -> JoinAll<JoinHandle<()>> {
 }
 
 pub fn midi_in_out_start(state: &mut State,
-                         midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
-                         midi_channel: u8, quirks: MidiQuirks,
-                         config_changed: bool) {
+                         midi_in: Option<BoxedMidiIn>, midi_out: Option<BoxedMidiOut>,
+                         midi_channel: u8, midi_is_usb: bool, quirks: MidiQuirks,
+                         config_changed: bool)
+{
 
     let notify = |state: &mut State| {
         sentry_set_midi_tags(state.midi_in_name.as_ref(), state.midi_out_name.as_ref());
@@ -168,6 +172,7 @@ pub fn midi_in_out_start(state: &mut State,
         state.midi_out_name = None;
         state.midi_out_cancel = None;
         state.midi_channel_num = midi_channel;
+        state.midi_is_usb = false;
         notify(state);
         return;
     }
@@ -178,13 +183,14 @@ pub fn midi_in_out_start(state: &mut State,
     let (in_cancel_tx, in_cancel_rx) = oneshot::channel::<()>();
     let (out_cancel_tx, out_cancel_rx) = oneshot::channel::<()>();
 
-    state.midi_in_name = Some(midi_in.name.clone());
+    state.midi_in_name = Some(midi_in.name());
     state.midi_in_cancel = Some(in_cancel_tx);
 
-    state.midi_out_name = Some(midi_out.name.clone());
+    state.midi_out_name = Some(midi_out.name());
     state.midi_out_cancel = Some(out_cancel_tx);
 
     state.midi_channel_num = midi_channel;
+    state.midi_is_usb = midi_is_usb;
 
     notify(state);
 
@@ -275,8 +281,9 @@ pub fn midi_in_out_start(state: &mut State,
     state.midi_out_handle = Some(midi_out_handle);
 }
 
-pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Option<MidiOut>,
-                       midi_channel: u8, config: Option<&'static Config>) -> bool {
+pub fn set_midi_in_out(state: &mut State, midi_in: Option<BoxedMidiIn>, midi_out: Option<BoxedMidiOut>,
+                       midi_channel: u8, midi_is_usb: bool, config: Option<&'static Config>) -> bool
+{
     if state.midi_in_cancel.is_some() || state.midi_out_cancel.is_some() {
         error!("Midi still running when entering send_midi_in_out");
         // Not sure if we ever end up in this situation anymore,
@@ -301,7 +308,7 @@ pub fn set_midi_in_out(state: &mut State, midi_in: Option<MidiIn>, midi_out: Opt
 
     let quirks = state.config.map(|c| c.midi_quirks)
         .unwrap_or_else(|| MidiQuirks::empty());
-    midi_in_out_start(state, midi_in, midi_out, midi_channel, quirks, config_changed);
+    midi_in_out_start(state, midi_in, midi_out, midi_channel, midi_is_usb, quirks, config_changed);
 
     config_changed
 }
@@ -567,17 +574,6 @@ pub fn ui_modified_handler(ctx: &Ctx, event: &ModifiedEvent, ui_event_tx: &glib:
     }
 }
 
-#[cfg(feature = "usb")]
-fn start_usb() {
-    pod_usb::usb_start().unwrap();
-    executor::block_on(
-        pod_usb::usb_init_wait()
-    );
-}
-
-#[cfg(not(feature = "usb"))]
-fn start_usb() -> Result<()> {
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -641,7 +637,11 @@ async fn main() -> Result<()> {
         }
     });
 
-    app.run_with_args::<String>(&[]);
+    let exit_code = app.run_with_args::<String>(&[]);
+    // HACK: instead of dealing with USB thread clean-up (and in case there are any other
+    // threads still running), we just call `process::exit` and let libraries clean up
+    // after themselves
+    std::process::exit(exit_code);
     Ok(())
 }
 
@@ -656,6 +656,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
         midi_out_cancel: None,
         midi_out_handle: None,
         midi_channel_num: 0,
+        midi_is_usb: false,
         app_event_tx: app_event_tx.clone(),
         ui_event_tx: ui_event_tx.clone(),
         config: None,

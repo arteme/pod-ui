@@ -9,6 +9,7 @@ use pod_core::model::Config;
 use pod_gtk::prelude::*;
 use crate::opts::Opts;
 use crate::{set_midi_in_out, State};
+use crate::usb::{usb_open_addr, usb_open_name};
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
     use std::str::FromStr;
@@ -38,31 +39,48 @@ fn config_for_str(config_str: &str) -> Result<&'static Config> {
     Ok(found.unwrap())
 }
 
-pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Result<()> {
-    let mut ports = None;
+pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Result<()>
+{
+    let mut ports: Option<(BoxedMidiIn, BoxedMidiOut)> = None;
     let mut config = None;
 
     // autodetect/open midi
-    let autodetect = match (&opts.input, &opts.output, &opts.model) {
-        (None, None, None) => true,
-        (None, None, Some(_)) => {
+    let autodetect = match (&opts.input, &opts.output, &opts.usb, &opts.model) {
+        (None, None, None, None) => true,
+        (None, None, None, Some(_)) => {
             warn!("Model set on command line, but not input/output ports. \
                    The model parameter will be ignored!");
             true
         }
-        (Some(_), None, _) | (None, Some(_), _) => {
+        (Some(_), None, None, _) | (None, Some(_), None, _) => {
             bail!("Both input and output port need to be set on command line to skip autodetect!")
         }
-        (Some(i), Some(o), None) => {
-            let midi_in = MidiIn::new_for_address(i)?;
-            let midi_out = MidiOut::new_for_address(o)?;
-            ports = Some((midi_in, midi_out));
+        (Some(_), _, Some(_), _) | (_, Some(_), Some(_), _) => {
+            bail!("MIDI and USB inputs cannot be set on command line together, use either MIDI or USB!")
+        }
+        // MIDI
+        (Some(i), Some(o), None, None) => {
+            let midi_in = MidiInPort::new_for_address(i)?;
+            let midi_out = MidiOutPort::new_for_address(o)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
             true
         }
-        (Some(i), Some(o), Some(m)) => {
-            let midi_in = MidiIn::new_for_address(i)?;
-            let midi_out = MidiOut::new_for_address(o)?;
-            ports = Some((midi_in, midi_out));
+        (Some(i), Some(o), None, Some(m)) => {
+            let midi_in = MidiInPort::new_for_address(i)?;
+            let midi_out = MidiOutPort::new_for_address(o)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
+            config = Some(config_for_str(m)?);
+            false
+        }
+        // USB
+        (None, None, Some(u), None) => {
+            let (midi_in, midi_out) = usb_open_addr(u)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
+            true
+        }
+        (None, None, Some(u), Some(m)) => {
+            let (midi_in, midi_out) = usb_open_addr(u)?;
+            ports = Some((Box::new(midi_in), Box::new(midi_out)));
             config = Some(config_for_str(m)?);
             false
         }
@@ -93,19 +111,21 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                 // autodetect device
                 pod_core::midi_io::autodetect(midi_channel).await
             };
+            let res = res.and_then(|(midi_in, midi_out, chan, config)|
+                Ok((midi_in, midi_out, chan, false, config)));
             tx.send(res).ok();
         });
     } else {
         // manually configured device
         let (midi_in, midi_out) = ports.unwrap();
-        tx.send(Ok((midi_in, midi_out, midi_channel_u8, config.unwrap()))).ok();
+        tx.send(Ok((midi_in, midi_out, midi_channel_u8, false, config.unwrap()))).ok();
     }
 
     rx.attach(None, move |autodetect| {
         match autodetect {
-            Ok((midi_in, midi_out, midi_channel, config)) => {
+            Ok((midi_in, midi_out, midi_channel, is_usb, config)) => {
                 set_midi_in_out(&mut state.lock().unwrap(),
-                                Some(midi_in), Some(midi_out), midi_channel, Some(config));
+                                Some(midi_in), Some(midi_out), midi_channel, is_usb, Some(config));
             }
             Err(e) => {
                 error!("MIDI autodetect failed: {}", e);
@@ -130,7 +150,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                     .and_then(|str| config_for_str(&str).ok())
                     .or_else(|| configs().iter().next());
                 set_midi_in_out(&mut state.lock().unwrap(),
-                                None, None, midi_channel_u8, config);
+                                None, None, midi_channel_u8, false, config);
             }
         };
 
@@ -138,4 +158,24 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
     });
 
     Ok(())
+}
+
+pub async fn test(in_name: &str, out_name: &str, channel: u8, is_usb: bool, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let (midi_in, midi_out) = open(in_name, out_name, is_usb)?;
+    test_with_ports(midi_in, midi_out, channel, config).await
+}
+
+pub fn open(in_name: &str, out_name: &str, is_usb: bool) -> Result<(BoxedMidiIn, BoxedMidiOut)> {
+    let res = if is_usb {
+        if in_name != out_name {
+            bail!("USB device input/output names do not match");
+        }
+        let (midi_in, midi_out) = usb_open_name(in_name)?;
+        (box_midi_in(midi_in), box_midi_out(midi_out))
+    } else {
+        let midi_in = MidiInPort::new_for_name(in_name)?;
+        let midi_out = MidiOutPort::new_for_name(out_name)?;
+        (box_midi_in(midi_in), box_midi_out(midi_out))
+    };
+    Ok(res)
 }

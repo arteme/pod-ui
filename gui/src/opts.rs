@@ -2,7 +2,8 @@ use clap::Parser;
 use anyhow::Result;
 use std::fmt::Write;
 use pod_core::config::configs;
-use pod_core::midi_io::{MidiIn, MidiOut, MidiPorts};
+use pod_core::midi_io::{MidiInPort, MidiOutPort, MidiPorts};
+use crate::usb::*;
 
 #[derive(Parser, Clone)]
 pub struct Opts {
@@ -31,6 +32,18 @@ pub struct Opts {
     /// This setting may not be relevant for all different devices supported.
     pub channel: Option<u8>,
 
+    /// Select the USB device to be connected as MIDI input/output. <USB> must be
+    /// an integer index of a recognized USB device present on this system. This
+    /// can also be an <bus>:<address> pair, such as "5:8".
+    /// When `-u` is provided, neither `-i` nor `-o` can be provided, or an error
+    /// will be reported.
+    #[cfg(feature = "usb")]
+    #[clap(short, long)]
+    pub usb: Option<String>,
+
+    #[cfg(not(feature = "usb"))]
+    pub usb: Option<String>,
+
     #[clap(short, long)]
     /// Select the model of the device. <MODEL> must be either an
     /// integer index of a supported device model or a string name
@@ -56,15 +69,23 @@ pub fn generate_help_text() -> Result<String> {
     }
     writeln!(s, "")?;
     writeln!(s, "MIDI input ports (-i):")?;
-    for (i, n) in MidiIn::ports().ok().unwrap_or_default().iter().enumerate() {
+    for (i, n) in MidiInPort::ports().ok().unwrap_or_default().iter().enumerate() {
         writeln!(s, "{}[{}] {}", tab, i, n)?;
     }
     writeln!(s, "")?;
     writeln!(s, "MIDI output ports (-o):")?;
-    for (i, n) in MidiOut::ports().ok().unwrap_or_default().iter().enumerate() {
+    for (i, n) in MidiOutPort::ports().ok().unwrap_or_default().iter().enumerate() {
         writeln!(s, "{}[{}] {}", tab, i, n)?;
     }
     writeln!(s, "")?;
+
+    if cfg!(feature = "usb") {
+        writeln!(s, "USB devices (-u):")?;
+        for (i, n) in usb_list_devices().iter().enumerate() {
+            writeln!(s, "{}[{}] {}", tab, i, n)?;
+        }
+        writeln!(s, "")?;
+    }
 
     Ok(s)
 }
