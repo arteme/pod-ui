@@ -4,6 +4,7 @@ mod line6;
 mod dev_handler;
 mod endpoint;
 mod util;
+mod usb;
 
 use log::{debug, error, info, trace};
 use anyhow::*;
@@ -15,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
 
-use rusb::{Context, Device as UsbDevice, GlobalContext, Hotplug, HotplugBuilder, UsbContext};
+use rusb::{Context, Device as UsbDevice, Hotplug, UsbContext};
 use tokio::sync::{broadcast, Notify};
 use tokio::sync::broadcast::error::RecvError;
 use pod_core::midi_io::{MidiIn, MidiOut};
@@ -23,6 +24,7 @@ use regex::Regex;
 use crate::dev_handler::Device;
 use crate::devices::find_device;
 use crate::event::*;
+use crate::usb::Usb;
 use crate::util::usb_address_string;
 
 struct HotplugHandler {
@@ -86,7 +88,7 @@ static mut INIT_DONE: AtomicBool = AtomicBool::new(false);
 static INIT_DONE_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| {
     Arc::new(Notify::new())
 });
-static DEVICES: Lazy<Arc<Mutex<HashMap<String, Device<GlobalContext>>>>> = Lazy::new(|| {
+static DEVICES: Lazy<Arc<Mutex<HashMap<String, Device>>>> = Lazy::new(|| {
    Arc::new(Mutex::new(HashMap::new()))
 });
 
@@ -104,28 +106,8 @@ pub fn usb_start() -> Result<()> {
         init_devices: Some(num_devices)
     };
     hh.device_init_notify(0);
-    let hotplug = HotplugBuilder::new()
-        .enumerate(true)
-        .register(&ctx, Box::new(hh))?;
 
-    // libusb's handle_events may need to go on the blocking tasks queue
-    tokio::task::spawn_blocking(move || {
-        info!("USB hotplug thread start");
-        let mut reg = Some(hotplug);
-        loop {
-            match ctx.handle_events(None) {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("Error in USB hotplug thread: {}", e);
-                    break;
-                }
-            }
-        }
-        if let Some(reg) = reg.take() {
-            ctx.unregister_callback(reg);
-        }
-        info!("USB hotplug thread finish");
-    });
+    let usb = Usb::new(Box::new(hh))?;
 
     let devices = DEVICES.clone();
 
@@ -147,16 +129,13 @@ pub fn usb_start() -> Result<()> {
             match msg {
                 UsbEvent::DeviceAdded(DeviceAddedEvent{ vid, pid, bus, address }) => {
                     let usb_dev = find_device(vid, pid).unwrap();
-                    /*
-                    let device_list = rusb::devices().unwrap();
-                    let dev = device_list.iter().find(|dev| {
-                        let desc = dev.device_descriptor().unwrap();
-                        desc.vendor_id() == vid && desc.product_id() == pid
-                    }).map(|dev| dev.open().unwrap());
-                    let Some(h) = dev;
-                     */
-
-                    let Some(h) = rusb::open_device_with_vid_pid(vid, pid) else { continue };
+                    let h = match usb.open(vid, pid) {
+                        Ok(h) => { h }
+                        Err(e) => {
+                            error!("Failed to open device {:04x}{:04x}: {}", vid, pid, e);
+                            continue
+                        }
+                    };
                     let handler = match Device::new(h, usb_dev) {
                         Ok(h) => { h }
                         Err(e) => {
@@ -209,7 +188,7 @@ pub fn usb_list_devices() -> Vec<String> {
     devices.values().map(|i| i.name.clone()).collect()
 }
 
-fn usb_add_device(key: String, device: Device<GlobalContext>) {
+fn usb_add_device(key: String, device: Device) {
     let mut devices = DEVICES.lock().unwrap();
     devices.insert(key, device);
 }

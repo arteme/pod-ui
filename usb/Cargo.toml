@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 rusb = "0.9.4"
+structbuf = "0.3.4"
 
 async-trait = "*" # defined in pod-core
 log = "*" # defined in pod-core

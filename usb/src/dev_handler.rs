@@ -5,51 +5,53 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use async_trait::async_trait;
 use log::{debug, error, info, trace};
-use rusb::{DeviceHandle, Direction, Error, TransferType, UsbContext};
+use rusb::{Direction, UsbContext};
 use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
 use crate::devices::UsbDevice;
 use crate::endpoint::{configure_endpoint, Endpoint, find_endpoint};
 use crate::line6::line6_read_serial;
+use crate::usb::{DeviceHandle, SubmittedTransfer, Transfer, TransferCommand};
 use crate::util::usb_address_string;
 
-pub struct Device<T: UsbContext + 'static> {
+pub struct Device {
     pub name: String,
-    handle: Arc<DeviceHandle<T>>,
+    handle: Arc<DeviceHandle>,
     read_ep: Endpoint,
     write_ep: Endpoint,
-    inner: Weak<DeviceInner<T>>
+    inner: Weak<DeviceInner>
 }
 
-pub struct DeviceInner<T: UsbContext + 'static> {
+pub struct DeviceInner {
     name: String,
-    handle: Arc<DeviceHandle<T>>,
+    handle: Arc<DeviceHandle>,
     write_ep: Endpoint,
     closed: Arc<AtomicBool>,
+    read: SubmittedTransfer
 }
 
-pub struct DeviceInput<T: UsbContext + 'static> {
-    inner: Arc<DeviceInner<T>>,
+pub struct DeviceInput {
+    inner: Arc<DeviceInner>,
     rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
-pub struct DeviceOutput<T: UsbContext + 'static> {
-    inner: Arc<DeviceInner<T>>
+pub struct DeviceOutput {
+    inner: Arc<DeviceInner>
 }
 
-pub struct DevHandler<T: UsbContext> {
-    handle: Arc<DeviceHandle<T>>,
+pub struct DevHandler {
+    handle: Arc<DeviceHandle>,
     read_ep: Endpoint,
     write_ep: Endpoint,
     tx: mpsc::UnboundedSender<Vec<u8>>,
     rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
-const READ_DURATION: Duration = Duration::from_millis(500);
-const WRITE_DURATION: Duration = Duration::from_millis(1000);
+const READ_DURATION: Duration = Duration::from_millis(10 * 1000);
+const WRITE_DURATION: Duration = Duration::from_millis(10 * 1000);
 
-impl <T: UsbContext + 'static> Device<T> {
-    pub fn new(handle: DeviceHandle<T>, usb_dev: &UsbDevice) -> Result<Self> {
+impl Device {
+    pub fn new(handle: DeviceHandle, usb_dev: &UsbDevice) -> Result<Self> {
         let serial = line6_read_serial(&handle).ok()
             .map(|s| format!(" {}", s))
             .unwrap_or("".to_string());
@@ -77,7 +79,7 @@ impl <T: UsbContext + 'static> Device<T> {
         })
     }
 
-    pub fn open(&mut self) -> Result<(DeviceInput<T>, DeviceOutput<T>)> {
+    pub fn open(&mut self) -> Result<(DeviceInput, DeviceOutput)> {
         if self.inner.upgrade().is_some() {
             bail!("Device already open")
         }
@@ -105,132 +107,91 @@ impl <T: UsbContext + 'static> Device<T> {
     }
 }
 
-impl <T: UsbContext + 'static> DeviceInner<T> {
-    fn new(name: String, handle: Arc<DeviceHandle<T>>,
+impl DeviceInner {
+    fn new(name: String, handle: Arc<DeviceHandle>,
            read_ep: Endpoint, write_ep: Endpoint,
            tx: mpsc::UnboundedSender<Vec<u8>>) -> Self {
-        let has_kernel_driver = match handle.kernel_driver_active(read_ep.iface) {
-            Ok(true) => {
-                handle.detach_kernel_driver(read_ep.iface).ok();
-                true
-            }
-            _ => false
-        };
 
-        configure_endpoint(&handle, &read_ep).ok();
+        //handle.detach_kernel_driver(read_ep.iface).ok();
+        handle.detach_kernel_driver(read_ep.iface).ok();
+        configure_endpoint(&handle, &read_ep).map_err(|e| {
+            error!("Failed to configure end-points: {}", e);
+        }).ok();
+        configure_endpoint(&handle, &read_ep).map_err(|e| {
+            error!("Failed to configure end-points: {}", e);
+        }).ok();
 
         let closed = Arc::new(AtomicBool::new(false));
 
-        // libusb's reads DEFINITELY need to go on the blocking tasks queue
-        tokio::task::spawn_blocking({
-            let name = name.clone();
-            let handle = handle.clone();
-            let closed = closed.clone();
+        const LEN: usize = 1024;
+        let mut read_buffer = [0u8; LEN];
+        let mut read_offset = 0;
 
-            move || {
-                debug!("USB read thread {:?} start", name);
+        let mut read_transfer = Transfer::new_bulk(&handle, read_ep.address, 1024);
+        read_transfer.set_timeout(READ_DURATION);
+        read_transfer.set_callback(move |buf| {
+            let Some(buf) = buf else {
+                // read transfer cancelled, nothing to do here
+                trace!("<< failed or cancelled");
+                return TransferCommand::Drop // doesn't really matter what we return
+            };
 
-                let mut buf = [0u8; 1024];
-                let buf_ptr = buf.as_ptr();
-                let mut read_ptr: &mut [u8] = &mut [];
-                let mut sysex = false;
+            if buf.len() == 0 {
+                // read timed out, continue
+                return TransferCommand::Resubmit
+            }
 
-                let mut reset_read_ptr = || unsafe {
-                    std::slice::from_raw_parts_mut(
-                        buf.as_mut_ptr(),
-                        buf.len()
-                    )
-                };
-                let mut advance_read_ptr = |len: usize| unsafe {
-                    std::slice::from_raw_parts_mut(
-                        read_ptr.as_mut_ptr().add(len),
-                        read_ptr.len().checked_sub(len).unwrap_or(0)
-                    )
-                };
-                read_ptr = reset_read_ptr();
+            // add received data to the read buffer at current read offset
+            let mut read_ptr = &mut read_buffer[read_offset .. read_offset + buf.len()];
+            read_ptr.copy_from_slice(buf);
+            trace!("<< {:02x?} len={}", &read_ptr, read_ptr.len());
 
-                while !closed.load(Ordering::Relaxed) {
-                    let res = match read_ep.transfer_type {
-                        TransferType::Bulk => {
-                            handle.read_bulk(read_ep.address, &mut read_ptr, READ_DURATION)
-                        }
-                        TransferType::Interrupt => {
-                            handle.read_interrupt(read_ep.address, &mut read_ptr, READ_DURATION)
-                        }
-                        tt => {
-                            error!("Transfer type {:?} not supported!", tt);
-                            break;
+            // go through the whole receive buffer from offset 0, check for
+            // for messages as send them to the MIDI thread
+            let process_len = read_offset + read_ptr.len();
+            let mut process_buf = read_buffer[..process_len].as_mut();
+            let mut process_offset = 0;
+            loop {
+                let process_buf = process_buf[process_offset .. process_len].as_mut();
+                let buf = Self::find_message(process_buf);
+                if buf.len() > 0 {
+                    // message found
+                    trace!("<< msg {:02x?} len={}", &buf, buf.len());
+                    match tx.send(buf.to_vec()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("USB read thread tx failed: {}", e);
                         }
                     };
-                    match res {
-                        Ok(len) => {
-                            if len == 0 { continue; } // does this ever happen?
-                            let start_read = read_ptr.as_ptr() == buf_ptr;
-                            if start_read {
-                                // correct PODxt lower nibble 0010 in command byte, see
-                                // https://github.com/torvalds/linux/blob/8508fa2e7472f673edbeedf1b1d2b7a6bb898ecc/sound/usb/line6/midibuf.c#L148
-                                if read_ptr[0] == 0xb2 || read_ptr[0] == 0xc2 || read_ptr[0] == 0xf2 {
-                                    read_ptr[0] = read_ptr[0] & 0xf0;
-                                }
-
-                                sysex = read_ptr[0] == 0xf0;
-                            }
-                            let mut b = read_ptr.chunks(len).next().unwrap();
-                            let sysex_done = sysex && b[b.len() - 1] == 0xf7;
-                            let mark = match (start_read, sysex, sysex_done) {
-                                (true, true, false) => &"<<-",
-                                (false, true, false) => &"<--",
-                                (false, true, true) => &"-<<",
-                                _ => "<<"
-                            };
-                            trace!("{} {:02x?} len={}", mark, &b, len);
-
-                            if sysex {
-                                if !sysex_done {
-                                    // advance read_ptr
-                                    read_ptr = advance_read_ptr(len);
-                                    continue;
-                                }
-                                if !start_read {
-                                    // return full buffer
-                                    let len = read_ptr.as_ptr() as u64 - buf_ptr as u64 + len as u64;
-                                    b = buf.chunks(len as usize).next().unwrap();
-                                }
-                            }
-
-                            match tx.send(b.to_vec()) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("USB read thread tx failed: {}", e);
-                                }
-                            };
-                        }
-                        Err(e) => {
-                            match e {
-                                Error::Busy | Error::Timeout | Error::Overflow => { continue }
-                                _ => {
-                                    error!("USB read failed: {}", e);
-                                    break
-                                }
-                            }
-                        }
-                    }
                 }
-
-                handle.release_interface(read_ep.iface).ok();
-                if has_kernel_driver {
-                    handle.attach_kernel_driver(read_ep.iface).ok();
-                }
-
-                debug!("USB read thread {:?} finish", name);
+                process_offset += buf.len();
+                if buf.len() == 0 || process_offset == process_len { break }
             }
+            if process_offset > 0 {
+                // at least one message consumed
+                if process_buf.len() - process_offset > 0 {
+                    // data left in the buffer, move it to the beginning of the read buffer
+                    read_buffer.copy_within(process_offset .. process_len, 0);
+                    read_offset = process_len - process_offset;
+                } else {
+                    // all data consumed
+                    read_offset = 0;
+                }
+            } else {
+                // unfinished message, adjust read offset
+                read_offset = process_len;
+            }
+
+            TransferCommand::Resubmit
         });
+        let read = read_transfer.submit().ok().unwrap();
 
         DeviceInner {
             name,
             handle,
             closed,
-            write_ep
+            write_ep,
+            read
         }
     }
 
@@ -239,40 +200,56 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
             bail!("Device already closed");
         }
 
-        trace!(">> {:02x?} len={}", bytes, bytes.len());
-        // TODO: this write will stall the executioner for the max
-        //       WRITE_DURATION if something goes wrong. Instead,
-        //       this should go through a channel to a `tokio::task::spawn_blocking`
-        //       TX thread similar to how the RX thread does libusb polling...
-        let res = match self.write_ep.transfer_type {
-            TransferType::Bulk => {
-                self.handle.write_bulk(self.write_ep.address, bytes, WRITE_DURATION)
+        let mut transfer = Transfer::new_bulk_with_data(&self.handle, self.write_ep.address, bytes);
+        transfer.set_timeout(WRITE_DURATION);
+        transfer.set_callback(|buf| {
+            if let Some(buf) = buf {
+                trace!(">> {:02x?} len={}", buf, buf.len());
+            } else {
+                trace!(">> failed or cancelled");
             }
-            TransferType::Interrupt => {
-                self.handle.write_interrupt(self.write_ep.address, bytes, WRITE_DURATION)
-            }
-            tt => {
-                bail!("Transfer type {:?} not supported!", tt);
-            }
-        };
-
-        res.map(|_| ()).map_err(|e| anyhow!("USB write failed: {}", e))
+            TransferCommand::Drop
+        });
+        transfer.submit()
+            .map(|_| ())
+            .map_err(|e| anyhow!("USB write transfer failed: {}", e))
     }
 
-    fn close(&self) {
+    fn close(&mut self) {
         self.closed.store(true, Ordering::Relaxed);
+        self.read.cancel().ok();
+    }
+
+    fn find_message(read_ptr: &mut [u8]) -> &[u8] {
+        // correct PODxt lower nibble 0010 in command byte, see
+        // https://github.com/torvalds/linux/blob/8508fa2e7472f673edbeedf1b1d2b7a6bb898ecc/sound/usb/line6/midibuf.c#L148
+        if read_ptr[0] == 0xb2 || read_ptr[0] == 0xc2 || read_ptr[0] == 0xf2 {
+            read_ptr[0] = read_ptr[0] & 0xf0;
+        }
+
+        let sysex = read_ptr[0] == 0xf0;
+        if sysex {
+            for i in 0 .. read_ptr.len() {
+                if read_ptr[i] == 0xf7 {
+                    return &read_ptr[..i + 1];
+                }
+            }
+            return &[];
+
+        } else {
+            return read_ptr;
+        }
     }
 }
 
-impl <T: UsbContext + 'static> Drop for DeviceInner<T> {
+impl Drop for DeviceInner {
     fn drop(&mut self) {
-        debug!("DeviceInner for {:?} dropped", &self.name);
         self.close();
     }
 }
 
 #[async_trait]
-impl <T: UsbContext> MidiIn for DeviceInput<T> {
+impl MidiIn for DeviceInput {
     fn name(&self) -> String {
         self.inner.name.clone()
     }
@@ -287,7 +264,7 @@ impl <T: UsbContext> MidiIn for DeviceInput<T> {
 }
 
 #[async_trait]
-impl <T: UsbContext> MidiOut for DeviceOutput<T> {
+impl MidiOut for DeviceOutput {
     fn name(&self) -> String {
         self.inner.name.clone()
     }

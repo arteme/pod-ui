@@ -2,6 +2,7 @@
 
 use anyhow::*;
 use core::result::Result::Ok;
+use log::error;
 use rusb::{Device, DeviceDescriptor, DeviceHandle, Direction, TransferType, UsbContext};
 
 #[derive(Debug, Clone)]
@@ -17,9 +18,18 @@ pub fn configure_endpoint<T: UsbContext>(
     handle: &DeviceHandle<T>,
     endpoint: &Endpoint,
 ) -> Result<()> {
-    handle.set_active_configuration(endpoint.config)?;
-    handle.claim_interface(endpoint.iface)?;
-    handle.set_alternate_setting(endpoint.iface, endpoint.setting)?;
+    handle.claim_interface(endpoint.iface).map_err(|e| {
+        error!("Claim interface 1 error: {}", e);
+    }).ok();
+    handle.set_active_configuration(endpoint.config).map_err(|e| {
+        error!("Set active config error: {}", e);
+    }).ok();
+    handle.claim_interface(endpoint.iface).map_err(|e| {
+        error!("Claim interface 2 error: {}", e);
+    }).ok();
+    handle.set_alternate_setting(endpoint.iface, endpoint.setting).map_err(|e| {
+        error!("Set alt setting error: {}", e);
+    }).ok();
     Ok(())
 }
 
