@@ -54,7 +54,9 @@ impl Usb {
                 .ok_or(rusb::Error::NotFound)?,
         )?;
          */
-        let hdl = self.ctx.open_device_with_vid_pid(vid, pid).unwrap();
+        let hdl = self.ctx.open_device_with_vid_pid(vid, pid)
+            .ok_or(rusb::Error::NotFound)?;
+
         Ok(hdl)
     }
 
