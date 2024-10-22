@@ -1,9 +1,7 @@
 // from rusb example code
 
-use anyhow::*;
 use core::result::Result::Ok;
-use log::error;
-use rusb::{Device, DeviceDescriptor, DeviceHandle, Direction, TransferType, UsbContext};
+use rusb::{Device, DeviceDescriptor, Direction, TransferType, UsbContext};
 
 #[derive(Debug, Clone)]
 pub struct Endpoint {
@@ -13,27 +11,6 @@ pub struct Endpoint {
     pub address: u8,
     pub transfer_type: TransferType
 }
-
-pub fn configure_endpoint<T: UsbContext>(
-    handle: &DeviceHandle<T>,
-    endpoint: &Endpoint,
-) -> Result<()> {
-    handle.claim_interface(endpoint.iface).map_err(|e| {
-        error!("Claim interface 1 error: {}", e);
-    }).ok();
-    handle.set_active_configuration(endpoint.config).map_err(|e| {
-        error!("Set active config error: {}", e);
-    }).ok();
-    handle.claim_interface(endpoint.iface).map_err(|e| {
-        error!("Claim interface 2 error: {}", e);
-    }).ok();
-    handle.set_alternate_setting(endpoint.iface, endpoint.setting).map_err(|e| {
-        error!("Set alt setting error: {}", e);
-    }).ok();
-    Ok(())
-}
-
-
 
 pub fn find_endpoint<T: UsbContext>(
     device: &Device<T>,

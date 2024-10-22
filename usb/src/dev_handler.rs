@@ -9,7 +9,7 @@ use rusb::{Direction, UsbContext};
 use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
 use crate::devices::UsbDevice;
-use crate::endpoint::{configure_endpoint, Endpoint, find_endpoint};
+use crate::endpoint::{Endpoint, find_endpoint};
 use crate::line6::line6_read_serial;
 use crate::usb::{DeviceHandle, SubmittedTransfer, Transfer, TransferCommand};
 use crate::util::usb_address_string;
@@ -22,12 +22,20 @@ pub struct Device {
     inner: Weak<DeviceInner>
 }
 
+struct DevOpenState {
+    /// Active configuration when opening the device
+    config: u8,
+    /// Kernel driver attach status per interface
+    attach: Vec<(u8, bool)>
+}
+
 pub struct DeviceInner {
     name: String,
     handle: Arc<DeviceHandle>,
     write_ep: Endpoint,
     closed: Arc<AtomicBool>,
-    read: SubmittedTransfer
+    read: SubmittedTransfer,
+    kernel_state: DevOpenState,
 }
 
 pub struct DeviceInput {
@@ -91,7 +99,7 @@ impl Device {
             self.read_ep.clone(),
             self.write_ep.clone(),
             tx
-        ));
+        )?);
         self.inner = Arc::downgrade(&inner);
 
         let input = DeviceInput {
@@ -110,16 +118,27 @@ impl Device {
 impl DeviceInner {
     fn new(name: String, handle: Arc<DeviceHandle>,
            read_ep: Endpoint, write_ep: Endpoint,
-           tx: mpsc::UnboundedSender<Vec<u8>>) -> Self {
+           tx: mpsc::UnboundedSender<Vec<u8>>) -> Result<Self> {
 
-        //handle.detach_kernel_driver(read_ep.iface).ok();
-        handle.detach_kernel_driver(read_ep.iface).ok();
-        configure_endpoint(&handle, &read_ep).map_err(|e| {
-            error!("Failed to configure end-points: {}", e);
+        let kernel_state = Self::detach_kernel_driver(&handle).map_err(|e| {
+            anyhow!("Failed to detach kernel driver when opening device: {e}")
+        })?;
+
+        handle.reset().map_err(|e| {
+            error!("Failed to reset USB device: {}", e);
         }).ok();
-        configure_endpoint(&handle, &read_ep).map_err(|e| {
-            error!("Failed to configure end-points: {}", e);
+
+        handle.set_active_configuration(read_ep.config).map_err(|e| {
+            error!("Set active config error: {}", e);
         }).ok();
+
+        Self::claim_interfaces(&handle, &kernel_state);
+
+        if read_ep.setting != 0 {
+            handle.set_alternate_setting(read_ep.iface, read_ep.setting).map_err(|e| {
+                error!("Set alt setting error: {}", e);
+            }).ok();
+        }
 
         let closed = Arc::new(AtomicBool::new(false));
 
@@ -184,15 +203,20 @@ impl DeviceInner {
 
             TransferCommand::Resubmit
         });
-        let read = read_transfer.submit().ok().unwrap();
+        let read = read_transfer.submit()
+            .map_err(|e| {
+                Self::close_inner(&handle, &kernel_state);
+                anyhow!("Failed to set up read thread: {e}")
+            })?;
 
-        DeviceInner {
+        Ok(DeviceInner {
             name,
             handle,
             closed,
             write_ep,
-            read
-        }
+            read,
+            kernel_state
+        })
     }
 
     fn send(&self, bytes: &[u8]) -> Result<()> {
@@ -218,6 +242,65 @@ impl DeviceInner {
     fn close(&mut self) {
         self.closed.store(true, Ordering::Relaxed);
         self.read.cancel().ok();
+
+        Self::close_inner(&self.handle, &self.kernel_state);
+    }
+
+    fn close_inner(handle: &DeviceHandle, state: &DevOpenState) {
+        Self::release_interfaces(handle, state);
+        Self::attach_kernel_driver(handle, state);
+    }
+
+    fn detach_kernel_driver(handle: &DeviceHandle) -> Result<DevOpenState> {
+        let dev = handle.device();
+        let config = handle.active_configuration()?;
+        let desc = dev.active_config_descriptor()?;
+        let attach = desc.interfaces()
+            .map(|iface| {
+                let num = iface.number();
+                let kernel_driver_attached = handle.kernel_driver_active(num)
+                    .ok().unwrap_or(false);
+
+                debug!("Kernel driver detach (iface={}): attached={}", num, kernel_driver_attached);
+                if kernel_driver_attached {
+                    handle.detach_kernel_driver(num).map_err(|e| {
+                        error!("Failed to detach kernel driver (iface={}): {}", num, e);
+                    }).ok();
+                }
+
+                (num, kernel_driver_attached)
+            })
+            .collect::<Vec<_>>();
+        Ok(DevOpenState { config, attach })
+    }
+
+    fn attach_kernel_driver(handle: &DeviceHandle, state: &DevOpenState) {
+        for (num, kernel_driver_attached) in state.attach.iter() {
+            debug!("Kernel driver attach (iface={}): attached={}", num, kernel_driver_attached);
+            if *kernel_driver_attached {
+                handle.attach_kernel_driver(*num).map_err(|e| {
+                    error!("Failed to attach kernel driver (iface={}): {}", num, e);
+                }).ok();
+            }
+        }
+    }
+
+    fn claim_interfaces(handle: &DeviceHandle, state: &DevOpenState) {
+        for (num, _) in state.attach.iter() {
+            debug!("Claiming interface (iface={})", num);
+            handle.claim_interface(*num).map_err(|e| {
+                error!("Failed to claim interface (iface{}): {}", num, e);
+            }).ok();
+        }
+    }
+
+    fn release_interfaces(handle: &DeviceHandle, state: &DevOpenState) {
+        for (num, _) in state.attach.iter() {
+            debug!("Releasing interface (iface={})", num);
+            handle.release_interface(*num).map_err(|e| {
+                error!("Failed to release interface (iface{}): {}", num, e);
+            }).ok();
+        }
     }
 
     fn find_message(read_ptr: &mut [u8]) -> &[u8] {

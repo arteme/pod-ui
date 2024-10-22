@@ -48,6 +48,7 @@ impl Usb {
     /// Vendor/Product ID.
     pub fn open(&self, vid: u16, pid: u16) -> Result<DeviceHandle> {
         info!("Opening {:04X}:{:04X}", vid, pid);
+        // For now skip the full reset...
         /*
         let hdl = libusb::reset(
             self.ctx.open_device_with_vid_pid(vid, pid)
@@ -237,8 +238,18 @@ impl Transfer
                 cb(None);
                 TransferCommand::Drop
             }
-            (TransferStatus::Error(_), _) | (TransferStatus::Cancel, _) => {
-                // Transfer submit failed or cancelled without callback
+            (TransferStatus::Error(e), _) => {
+                // Transfer submit failed
+                let dir = match inner.endpoint & LIBUSB_ENDPOINT_DIR_MASK {
+                    LIBUSB_ENDPOINT_OUT => "write",
+                    LIBUSB_ENDPOINT_IN => "read",
+                    _ => unreachable!(),
+                };
+                error!("Failed to submit {} transfer: {}", dir, e);
+                TransferCommand::Drop
+            }
+            (TransferStatus::Cancel, _) => {
+                // Transfer cancelled without callback
                 TransferCommand::Drop
             }
             (TransferStatus::Ok, Some(cb)) => {
@@ -323,8 +334,12 @@ pub mod libusb {
         ($x:expr) => {
             // SAFETY: C API call
             match unsafe { $x } {
-                LIBUSB_SUCCESS => Ok(()),
-                e => Err($crate::usb::libusb::from_libusb(e)),
+                rusb::constants::LIBUSB_SUCCESS => {
+                    Ok(())
+                },
+                e => {
+                    Err($crate::usb::libusb::from_libusb(e))
+                },
             }
         };
     }
