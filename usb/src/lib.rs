@@ -5,6 +5,9 @@ mod dev_handler;
 mod endpoint;
 mod util;
 mod usb;
+mod midi_framer;
+mod podxt_framer;
+mod framer;
 
 use log::{debug, error, info, trace};
 use anyhow::*;

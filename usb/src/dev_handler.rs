@@ -10,7 +10,10 @@ use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
 use crate::devices::UsbDevice;
 use crate::endpoint::{Endpoint, find_endpoint};
+use crate::framer::{BoxedInFramer, BoxedOutFramer, InFramer};
 use crate::line6::line6_read_serial;
+use crate::midi_framer::new_usb_midi_framer;
+use crate::podxt_framer::new_pod_xt_framer;
 use crate::usb::{DeviceHandle, SubmittedTransfer, Transfer, TransferCommand};
 use crate::util::usb_address_string;
 
@@ -36,6 +39,7 @@ pub struct DeviceInner {
     closed: Arc<AtomicBool>,
     read: SubmittedTransfer,
     kernel_state: DevOpenState,
+    out_framer: BoxedOutFramer
 }
 
 pub struct DeviceInput {
@@ -141,10 +145,7 @@ impl DeviceInner {
         }
 
         let closed = Arc::new(AtomicBool::new(false));
-
-        const LEN: usize = 1024;
-        let mut read_buffer = [0u8; LEN];
-        let mut read_offset = 0;
+        let (mut framer, out_framer) = Self::init_framers(&handle, &read_ep);
 
         let mut read_transfer = Transfer::new_bulk(&handle, read_ep.address, 1024);
         read_transfer.set_timeout(READ_DURATION);
@@ -159,48 +160,18 @@ impl DeviceInner {
                 // read timed out, continue
                 return TransferCommand::Resubmit
             }
+            trace!("<< {:02x?} len={}", &buf, buf.len());
 
-            // add received data to the read buffer at current read offset
-            let mut read_ptr = &mut read_buffer[read_offset .. read_offset + buf.len()];
-            read_ptr.copy_from_slice(buf);
-            trace!("<< {:02x?} len={}", &read_ptr, read_ptr.len());
-
-            // go through the whole receive buffer from offset 0, check for
-            // for messages as send them to the MIDI thread
-            let process_len = read_offset + read_ptr.len();
-            let mut process_buf = read_buffer[..process_len].as_mut();
-            let mut process_offset = 0;
-            loop {
-                let process_buf = process_buf[process_offset .. process_len].as_mut();
-                let buf = Self::find_message(process_buf);
-                if buf.len() > 0 {
-                    // message found
-                    trace!("<< msg {:02x?} len={}", &buf, buf.len());
-                    match tx.send(buf.to_vec()) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("USB read thread tx failed: {}", e);
-                        }
-                    };
-                }
-                process_offset += buf.len();
-                if buf.len() == 0 || process_offset == process_len { break }
-            }
-            if process_offset > 0 {
-                // at least one message consumed
-                if process_buf.len() - process_offset > 0 {
-                    // data left in the buffer, move it to the beginning of the read buffer
-                    read_buffer.copy_within(process_offset .. process_len, 0);
-                    read_offset = process_len - process_offset;
-                } else {
-                    // all data consumed
-                    read_offset = 0;
-                }
-            } else {
-                // unfinished message, adjust read offset
-                read_offset = process_len;
-            }
-
+            framer.decode_incoming(buf).into_iter().for_each(|msg| {
+                // message found
+                trace!("<< msg {:02x?} len={}", &msg, msg.len());
+                match tx.send(msg) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("USB read thread tx failed: {}", e);
+                    }
+                };
+            });
             TransferCommand::Resubmit
         });
         let read = read_transfer.submit()
@@ -215,7 +186,8 @@ impl DeviceInner {
             closed,
             write_ep,
             read,
-            kernel_state
+            kernel_state,
+            out_framer
         })
     }
 
@@ -224,19 +196,24 @@ impl DeviceInner {
             bail!("Device already closed");
         }
 
-        let mut transfer = Transfer::new_bulk_with_data(&self.handle, self.write_ep.address, bytes);
-        transfer.set_timeout(WRITE_DURATION);
-        transfer.set_callback(|buf| {
-            if let Some(buf) = buf {
-                trace!(">> {:02x?} len={}", buf, buf.len());
-            } else {
-                trace!(">> failed or cancelled");
-            }
-            TransferCommand::Drop
-        });
-        transfer.submit()
-            .map(|_| ())
-            .map_err(|e| anyhow!("USB write transfer failed: {}", e))
+        trace!(">> msg {:02x?} len={}", &bytes, bytes.len());
+
+        self.out_framer.encode_outgoing(bytes).into_iter().map(|msg| {
+            let mut transfer = Transfer::new_bulk_with_data(&self.handle, self.write_ep.address, &msg);
+            transfer.set_timeout(WRITE_DURATION);
+            transfer.set_callback(|buf| {
+                if let Some(buf) = buf {
+                    trace!(">> {:02x?} len={}", buf, buf.len());
+                } else {
+                    trace!(">> failed or cancelled");
+                }
+                TransferCommand::Drop
+            });
+            transfer.submit()
+                .map(|_| ())
+                .map_err(|e| anyhow!("USB write transfer failed: {}", e))
+        }).collect::<Result<Vec<_>, _>>()?;
+        Ok(())
     }
 
     fn close(&mut self) {
@@ -303,24 +280,32 @@ impl DeviceInner {
         }
     }
 
-    fn find_message(read_ptr: &mut [u8]) -> &[u8] {
-        // correct PODxt lower nibble 0010 in command byte, see
-        // https://github.com/torvalds/linux/blob/8508fa2e7472f673edbeedf1b1d2b7a6bb898ecc/sound/usb/line6/midibuf.c#L148
-        if read_ptr[0] == 0xb2 || read_ptr[0] == 0xc2 || read_ptr[0] == 0xf2 {
-            read_ptr[0] = read_ptr[0] & 0xf0;
+    fn init_framers(handle: &DeviceHandle, endpoint: &Endpoint) -> (BoxedInFramer, BoxedOutFramer) {
+        let dev = handle.device();
+        let desc = dev.active_config_descriptor().ok();
+
+        let mut class_code = 0;
+        let mut sub_class_code = 0;
+        if let Some(desc) = desc {
+            for id in desc.interfaces().flat_map(|i| i.descriptors()) {
+                if id.interface_number() == endpoint.iface && id.setting_number() == endpoint.setting {
+                    class_code = id.class_code();
+                    sub_class_code = id.sub_class_code();
+                }
+
+            }
         }
 
-        let sysex = read_ptr[0] == 0xf0;
-        if sysex {
-            for i in 0 .. read_ptr.len() {
-                if read_ptr[i] == 0xf7 {
-                    return &read_ptr[..i + 1];
-                }
+        match (class_code, sub_class_code) {
+            // class = 1 (audio), sub-class = 3 (MIDI streaming)
+            (1, 3) => {
+                info!("Using USB-MIDI framer");
+                new_usb_midi_framer()
             }
-            return &[];
-
-        } else {
-            return read_ptr;
+            _ => {
+                info!("Using PodXT USB framer");
+                new_pod_xt_framer()
+            }
         }
     }
 }
