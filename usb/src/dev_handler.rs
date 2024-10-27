@@ -5,12 +5,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use async_trait::async_trait;
 use log::{debug, error, info, trace};
-use rusb::{Direction, UsbContext};
+use rusb::Direction;
 use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
 use crate::devices::UsbDevice;
 use crate::endpoint::{Endpoint, find_endpoint};
-use crate::framer::{BoxedInFramer, BoxedOutFramer, InFramer};
+use crate::framer::{BoxedInFramer, BoxedOutFramer};
 use crate::line6::line6_read_serial;
 use crate::midi_framer::new_usb_midi_framer;
 use crate::podxt_framer::new_pod_xt_framer;
@@ -49,14 +49,6 @@ pub struct DeviceInput {
 
 pub struct DeviceOutput {
     inner: Arc<DeviceInner>
-}
-
-pub struct DevHandler {
-    handle: Arc<DeviceHandle>,
-    read_ep: Endpoint,
-    write_ep: Endpoint,
-    tx: mpsc::UnboundedSender<Vec<u8>>,
-    rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
 const READ_DURATION: Duration = Duration::from_millis(10 * 1000);

@@ -246,7 +246,7 @@ pub fn usb_device_for_address(dev_addr: &str) -> Result<(impl MidiIn, impl MidiO
     let port_n_re = Regex::new(r"\d+").unwrap();
     let port_id_re = Regex::new(r"\d+:\d+").unwrap();
 
-    let mut found;
+    let found;
     if port_id_re.is_match(dev_addr) {
         found = devices.get_mut(dev_addr);
     } else if port_n_re.is_match(dev_addr) {

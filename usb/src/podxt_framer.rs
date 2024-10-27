@@ -46,13 +46,13 @@ impl PodXtInFramer {
 impl InFramer for PodXtInFramer {
     fn decode_incoming(&mut self, bytes: &[u8]) -> Vec<Vec<u8>> {
         // add received data to the read buffer at current read offset
-        let mut read_ptr = &mut self.read_buffer[self.read_offset .. self.read_offset + bytes.len()];
+        let read_ptr = &mut self.read_buffer[self.read_offset .. self.read_offset + bytes.len()];
         read_ptr.copy_from_slice(bytes);
 
         // go through the whole receive buffer from offset 0, check for
         // for messages as send them to the MIDI thread
         let process_len = self.read_offset + read_ptr.len();
-        let mut process_buf = self.read_buffer[..process_len].as_mut();
+        let process_buf = self.read_buffer[..process_len].as_mut();
         let mut process_offset = 0;
         let mut ret = vec![];
         loop {

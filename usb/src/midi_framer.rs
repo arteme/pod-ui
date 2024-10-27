@@ -31,7 +31,7 @@ impl InFramer for UsbMidiInFramer {
         let mut ret = vec![];
         bytes.chunks_exact(4).for_each(|b| {
             let mut push_sysex = false;
-            let mut sysex_ptr = &mut self.sysex_buffer[self.sysex_offset .. self.sysex_offset + 3];
+            let sysex_ptr = &mut self.sysex_buffer[self.sysex_offset .. self.sysex_offset + 3];
             match b[0] {
                 0x0b => ret.push( b[1 .. 4].to_vec() ),
                 0x0c => ret.push( b[1 .. 3].to_vec() ),

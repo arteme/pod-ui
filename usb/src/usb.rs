@@ -9,7 +9,7 @@ use std::thread;
 use std::time::Duration;
 use log::{debug, error, info};
 use rusb::{Context, Hotplug, HotplugBuilder, Registration, UsbContext};
-use rusb::constants::{LIBUSB_ENDPOINT_DIR_MASK, LIBUSB_ENDPOINT_IN, LIBUSB_ENDPOINT_OUT, LIBUSB_ERROR_INTERRUPTED, LIBUSB_TRANSFER_CANCELLED, LIBUSB_TRANSFER_TYPE_BULK};
+use rusb::constants::{LIBUSB_ENDPOINT_DIR_MASK, LIBUSB_ENDPOINT_IN, LIBUSB_ENDPOINT_OUT, LIBUSB_TRANSFER_TYPE_BULK};
 use rusb::ffi::{libusb_alloc_transfer, libusb_cancel_transfer, libusb_free_transfer, libusb_submit_transfer, libusb_transfer};
 use crate::check;
 use crate::util::usb_address_string;
@@ -390,7 +390,7 @@ pub mod libusb {
     }
 
     /// Resets the specified device handle.
-    pub(super) fn reset<T: UsbContext>(mut hdl: DeviceHandle<T>) -> rusb::Result<DeviceHandle<T>> {
+    pub(super) fn reset<T: UsbContext>(hdl: DeviceHandle<T>) -> rusb::Result<DeviceHandle<T>> {
         let dev = hdl.device();
         let port = dev.port_numbers()?;
         // WinUSB API with libusbK driver requires interface 0 to be claimed in
