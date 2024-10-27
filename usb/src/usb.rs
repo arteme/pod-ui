@@ -5,13 +5,14 @@ use std::mem::align_of;
 use std::ptr::{NonNull, null_mut};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{ptr, thread};
+use std::thread;
 use std::time::Duration;
 use log::{debug, error, info};
 use rusb::{Context, Hotplug, HotplugBuilder, Registration, UsbContext};
 use rusb::constants::{LIBUSB_ENDPOINT_DIR_MASK, LIBUSB_ENDPOINT_IN, LIBUSB_ENDPOINT_OUT, LIBUSB_ERROR_INTERRUPTED, LIBUSB_TRANSFER_CANCELLED, LIBUSB_TRANSFER_TYPE_BULK};
 use rusb::ffi::{libusb_alloc_transfer, libusb_cancel_transfer, libusb_free_transfer, libusb_submit_transfer, libusb_transfer};
 use crate::check;
+use crate::util::usb_address_string;
 
 pub type Device = rusb::Device<Context>;
 pub type DeviceHandle = rusb::DeviceHandle<Context>;
@@ -44,21 +45,18 @@ impl Usb {
         self.thread.take().map(thread::JoinHandle::join);
     }
 
-    /// Convenience function for opening the first device with the matching
-    /// Vendor/Product ID.
-    pub fn open(&self, vid: u16, pid: u16) -> Result<DeviceHandle> {
-        info!("Opening {:04X}:{:04X}", vid, pid);
-        // For now skip the full reset...
-        /*
-        let hdl = libusb::reset(
-            self.ctx.open_device_with_vid_pid(vid, pid)
-                .ok_or(rusb::Error::NotFound)?,
-        )?;
-         */
-        let hdl = self.ctx.open_device_with_vid_pid(vid, pid)
-            .ok_or(rusb::Error::NotFound)?;
+    pub fn open(&self, vid: u16, pid: u16, bus: u8, address: u8) -> Result<DeviceHandle> {
+        let addr_str = usb_address_string(bus, address);
+        info!("Opening {:04X}:{:04X} at {}", vid, pid, addr_str);
 
-        Ok(hdl)
+        for dev in self.ctx.devices()?.iter() {
+            if dev.bus_number() != bus || dev.address() != address { continue }
+            return dev.open().map_err(|e| {
+                anyhow!("Failed to open USB device {:04X}:{:04X} at {}: {}", vid, pid, addr_str, e)
+            });
+        }
+
+        bail!("USB device not found!");
     }
 
     /// Dedicated thread for async transfer and hotplug events.
@@ -168,7 +166,7 @@ impl Transfer
             status, callback: None
         };
 
-        let mut inner = transfer.inner.as_mut();
+        let inner = transfer.inner.as_mut();
         inner.endpoint = endpoint;
         inner.transfer_type = transfer_type;
         inner.callback = Self::callback;
