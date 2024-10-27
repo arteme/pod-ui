@@ -81,8 +81,9 @@ pub fn generate_help_text() -> Result<String> {
 
     if cfg!(feature = "usb") {
         writeln!(s, "USB devices (-u):")?;
-        for (i, n) in usb_list_devices().iter().enumerate() {
-            writeln!(s, "{}[{}] {}", tab, i, n)?;
+        for (i, (n, is_ok)) in usb_list_devices().iter().enumerate() {
+            let prefix = if *is_ok { "" } else { "ERROR: " };
+            writeln!(s, "{}[{}] {}{}", tab, i, prefix, n)?;
         }
         writeln!(s, "")?;
     }

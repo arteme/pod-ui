@@ -205,7 +205,7 @@ fn populate_midi_channel_combo(settings: &SettingsDialog) {
     CHANNELS.iter().for_each(|i| settings.midi_channel_combo.append_text(i));
 }
 
-fn combo_model_populate(model: &gtk::ListStore, midi_devices: &Vec<String>, usb_devices: &Vec<String>) {
+fn combo_model_populate(model: &gtk::ListStore, midi_devices: &Vec<String>, usb_devices: &Vec<(String, bool)>) {
     model.clear();
 
     let mut n: u32 = 0;
@@ -227,8 +227,9 @@ fn combo_model_populate(model: &gtk::ListStore, midi_devices: &Vec<String>, usb_
 
     add("USB", EntryFlags::ENTRY_HEADER);
     if !usb_devices.is_empty() {
-        for name in usb_devices {
-            add(name, EntryFlags::ENTRY_USB);
+        for (name, is_ok) in usb_devices {
+            let flag = if *is_ok { EntryFlags::empty() } else { EntryFlags::ENTRY_TEXT };
+            add(name, EntryFlags::ENTRY_USB | flag);
         }
     } else {
         add("No devices found...", EntryFlags::ENTRY_TEXT);

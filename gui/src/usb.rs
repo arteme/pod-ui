@@ -20,7 +20,7 @@ mod imp {
         );
     }
 
-    pub fn usb_list_devices() -> Vec<String> {
+    pub fn usb_list_devices() -> Vec<(String, bool)> {
         pod_usb::usb_list_devices()
     }
 
@@ -41,7 +41,7 @@ mod nop {
     fn start_usb() {
     }
 
-    fn usb_list_devices() -> Vec<String> {
+    fn usb_list_devices() -> Vec<(String, bool)> {
         vec![]
     }
 

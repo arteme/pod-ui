@@ -91,6 +91,10 @@ enum UsbFoundDevice {
     Found(DeviceAddedEvent),
     Open(Device)
 }
+enum UsbEnumeratedDevice {
+    Device(Device),
+    Error(String)
+}
 
 static mut INIT_DONE: AtomicBool = AtomicBool::new(false);
 static INIT_DONE_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| {
@@ -177,7 +181,7 @@ pub async fn usb_init_wait() {
     debug!("Waiting for USB init over");
 }
 
-fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<&mut Device> {
+fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<UsbEnumeratedDevice> {
     let Some(usb) = USB.get() else {
         error!("Cannot enumerate USB: usb not ready!");
         return vec![];
@@ -186,6 +190,7 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<&
 
     info!("Enumerating USB devices...");
     let mut update = HashMap::new();
+    let mut enumerated = Vec::with_capacity(devices.len());
     for (key, value) in devices.iter() {
         match value {
             &UsbFoundDevice::Found(DeviceAddedEvent { vid, pid, bus, address }) => {
@@ -194,6 +199,7 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<&
                     Ok(h) => { h }
                     Err(e) => {
                         error!("Failed to open device: {}", e);
+                        enumerated.push(UsbEnumeratedDevice::Error(e.to_string()));
                         continue
                     }
                 };
@@ -201,13 +207,16 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<&
                     Ok(h) => { h }
                     Err(e) => {
                         error!("Filed to initialize device {:?}: {}", usb_dev.name, e);
+                        enumerated.push(UsbEnumeratedDevice::Error(format!("Failed to initialize device {:?}: {}", usb_dev.name, e)));
                         continue
                     }
                 };
 
                 update.insert(key.clone(), UsbFoundDevice::Open(handler));
             }
-            UsbFoundDevice::Open(_) => {}
+            UsbFoundDevice::Open(dev) => {
+                enumerated.push(UsbEnumeratedDevice::Device(dev.clone()))
+            }
         }
     }
     let updated = update.len();
@@ -215,18 +224,17 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<&
         devices.insert(key, value);
     }
     info!("Enumerating USB devices finished: {updated} entries updated");
-
-    devices.values_mut().flat_map(|v| match v {
-        UsbFoundDevice::Found(_) => { None }
-        UsbFoundDevice::Open(dev) => { Some(dev) }
-    })
-        .collect()
+    enumerated
 }
 
 
-pub fn usb_list_devices() -> Vec<String> {
+pub fn usb_list_devices() -> Vec<(String, bool)> {
     let mut devices = DEVICES.lock().unwrap();
-    usb_enumerate_devices(&mut devices).iter().map(|i| i.name.clone()).collect()
+    usb_enumerate_devices(&mut devices).iter()
+        .map(|i| match i {
+            UsbEnumeratedDevice::Device(dev) => { (dev.name.clone(), true) }
+            UsbEnumeratedDevice::Error(err) => { (err.clone(), false) }
+        }).collect()
 }
 
 fn usb_add_device(key: String, event: DeviceAddedEvent) {

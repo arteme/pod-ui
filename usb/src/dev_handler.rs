@@ -17,6 +17,7 @@ use crate::podxt_framer::new_pod_xt_framer;
 use crate::usb::{DeviceHandle, SubmittedTransfer, Transfer, TransferCommand};
 use crate::util::usb_address_string;
 
+#[derive(Clone)]
 pub struct Device {
     pub name: String,
     handle: Arc<DeviceHandle>,
