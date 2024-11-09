@@ -9,9 +9,9 @@ use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
 use log::*;
 use pod_core::config::configs;
 use pod_core::midi::Channel;
-use pod_core::midi_io::{MidiInPort, MidiOutPort, MidiPorts};
+use pod_core::midi_io::{AutodetectResult, MidiInPort, MidiOutPort, MidiPorts};
 use pod_gtk::prelude::glib::bitflags::bitflags;
-use crate::autodetect::{open, test};
+use crate::autodetect::{open, run_autodetect, test};
 use crate::usb;
 
 #[derive(Clone)]
@@ -318,7 +318,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
     settings.autodetect_button.clone().connect_clicked(move |button| {
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         tokio::spawn(async move {
-            let res = pod_core::midi_io::autodetect(None).await;
+            let res = run_autodetect(None).await;
             tx.send(res).ok();
         });
 
@@ -327,13 +327,13 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
 
         rx.attach(None, move |autodetect| {
             match autodetect {
-                Ok((in_, out_, channel, config)) => {
+                Ok(AutodetectResult { in_port, out_port, channel, config }) => {
                     let msg = format!("Autodetect successful!");
                     settings.work_finish("dialog-ok", &msg);
 
                     // update in/out port selection, channel, device
                     populate_midi_combos(&settings,
-                                         &Some(in_.name()), &Some(out_.name()));
+                                         &Some(in_port.name()), &Some(out_port.name()));
                     let index = midi_channel_to_combo_index(channel);
                     settings.midi_channel_combo.set_active(index);
                     populate_model_combo(&settings, &Some(config.name.clone()));

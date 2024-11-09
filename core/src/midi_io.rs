@@ -417,7 +417,14 @@ async fn detect_channel(in_port: &mut BoxedMidiIn, out_port: &mut BoxedMidiOut) 
     Ok(channel)
 }
 
-pub async fn autodetect(channel: Option<u8>) -> Result<(BoxedMidiIn, BoxedMidiOut, u8, &'static Config)> {
+pub struct AutodetectResult {
+    pub in_port: BoxedMidiIn,
+    pub out_port: BoxedMidiOut,
+    pub channel: u8,
+    pub config: &'static Config
+}
+
+pub async fn autodetect(channel: Option<u8>) -> Result<AutodetectResult> {
 
     let in_port_names = MidiInPort::ports()?;
     let mut in_port_errors = vec![];
@@ -464,7 +471,7 @@ pub async fn autodetect(channel: Option<u8>) -> Result<(BoxedMidiIn, BoxedMidiOu
 }
 
 pub async fn autodetect_with_ports(in_ports: Vec<BoxedMidiIn>, out_ports: Vec<BoxedMidiOut>,
-                                   channel: Option<u8>) -> Result<(BoxedMidiIn, BoxedMidiOut, u8, &'static Config)> {
+                                   channel: Option<u8>) -> Result<AutodetectResult> {
     let config: Option<&Config>;
     let mut in_ports = in_ports.into_iter().collect::<Vec<_>>();
     let mut out_ports = out_ports.into_iter().collect::<Vec<_>>();
@@ -546,8 +553,9 @@ pub async fn autodetect_with_ports(in_ports: Vec<BoxedMidiIn>, out_ports: Vec<Bo
     if channel.is_none() {
         bail!("Can't determine POD channel");
     }
-
-    Ok((in_port, out_port, channel.unwrap(), config.unwrap()))
+    Ok(AutodetectResult {
+        in_port, out_port, channel: channel.unwrap(), config: config.unwrap()
+    })
 }
 
 pub async fn test_with_ports(in_port: BoxedMidiIn, out_port: BoxedMidiOut, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
