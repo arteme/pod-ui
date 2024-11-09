@@ -203,7 +203,7 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<U
                         continue
                     }
                 };
-                let handler = match Device::new(h, usb_dev) {
+                let dev = match Device::new(h, usb_dev) {
                     Ok(h) => { h }
                     Err(e) => {
                         error!("Filed to initialize device {:?}: {}", usb_dev.name, e);
@@ -212,7 +212,8 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<U
                     }
                 };
 
-                update.insert(key.clone(), UsbFoundDevice::Open(handler));
+                update.insert(key.clone(), UsbFoundDevice::Open(dev.clone()));
+                enumerated.push(UsbEnumeratedDevice::Device(dev));
             }
             UsbFoundDevice::Open(dev) => {
                 enumerated.push(UsbEnumeratedDevice::Device(dev.clone()))
