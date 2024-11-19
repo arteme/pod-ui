@@ -44,8 +44,8 @@ mod imp {
             bail!("No compatible USB devices found")
         }
 
-        for (name, is_error) in usb_list_devices() {
-            if is_error { continue }
+        for (name, is_ok) in usb_list_devices() {
+            if !is_ok { continue }
 
             let (in_port, out_port) = match usb_open_name(&name) {
                 Ok(r) => r,
