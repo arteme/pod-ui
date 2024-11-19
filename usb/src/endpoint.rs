@@ -9,7 +9,8 @@ pub struct Endpoint {
     pub iface: u8,
     pub setting: u8,
     pub address: u8,
-    pub transfer_type: TransferType
+    pub transfer_type: TransferType,
+    pub max_packet_size: usize,
 }
 
 pub fn find_endpoint<T: UsbContext>(
@@ -38,6 +39,7 @@ pub fn find_endpoint<T: UsbContext>(
                             setting: interface_desc.setting_number(),
                             address: endpoint_desc.address(),
                             transfer_type: endpoint_desc.transfer_type(),
+                            max_packet_size: endpoint_desc.max_packet_size() as usize,
                         });
                     }
                 }

@@ -140,7 +140,7 @@ impl DeviceInner {
         let closed = Arc::new(AtomicBool::new(false));
         let (mut framer, out_framer) = Self::init_framers(&handle, &read_ep);
 
-        let mut read_transfer = Transfer::new_bulk(&handle, read_ep.address, 1024);
+        let mut read_transfer = Transfer::new_bulk(&handle, read_ep.address, read_ep.max_packet_size);
         read_transfer.set_timeout(READ_DURATION);
         read_transfer.set_callback(move |buf| {
             let Some(buf) = buf else {
