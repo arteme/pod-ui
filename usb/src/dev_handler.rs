@@ -322,6 +322,10 @@ impl MidiIn for DeviceInput {
     fn close(&mut self) {
         debug!("midi in close - nop");
     }
+
+    fn no_reply_retry(&self) -> usize {
+        3
+    }
 }
 
 #[async_trait]

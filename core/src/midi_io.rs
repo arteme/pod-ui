@@ -1,5 +1,6 @@
 use midir::*;
 use anyhow::*;
+use core::result::Result::Ok;
 use regex::Regex;
 use std::str::FromStr;
 use std::time::Duration;
@@ -21,6 +22,8 @@ pub trait MidiIn {
     fn name(&self) -> String;
     async fn recv(&mut self) -> Option<Vec<u8>>;
     fn close(&mut self);
+
+    fn no_reply_retry(&self) -> usize;
 }
 
 #[async_trait]
@@ -96,6 +99,10 @@ impl MidiIn for MidiInPort {
             debug!("closed in");
         });
         self.rx.close();
+    }
+
+    fn no_reply_retry(&self) -> usize {
+        0
     }
 }
 
@@ -307,7 +314,27 @@ fn list_ports<T: MidiIO>(midi: T) -> Result<Vec<String>> {
 const DETECT_DELAY: Duration = Duration::from_millis(1000);
 
 async fn detect(in_ports: &mut [BoxedMidiIn], out_ports: &mut [BoxedMidiOut]) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
-    detect_with_channel(in_ports, out_ports, Channel::all()).await
+    let mut no_reply_retries = in_ports.iter().map(|m| m.no_reply_retry()).max().unwrap_or(0);
+    let mut res;
+
+    loop {
+        res = detect_with_channel(in_ports, out_ports, Channel::all()).await;
+        if let Ok((replied, error)) = &res {
+            if error.is_none() && replied.is_empty() {
+                // no reply retry
+                if no_reply_retries == 0 {
+                    break
+                } else {
+                    no_reply_retries -= 1;
+                    continue
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    res
 }
 
 async fn detect_with_channel(in_ports: &mut [BoxedMidiIn], out_ports: &mut [BoxedMidiOut], channel: u8) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
@@ -559,21 +586,31 @@ pub async fn autodetect_with_ports(in_ports: Vec<BoxedMidiIn>, out_ports: Vec<Bo
 }
 
 pub async fn test_with_ports(in_port: BoxedMidiIn, out_port: BoxedMidiOut, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let mut no_response_retries = in_port.no_reply_retry();
     let mut in_ports = vec![in_port];
     let mut out_ports = vec![out_port];
 
-    let (rep, error) = detect_with_channel(
-        in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
-    ).await?;
-    if rep.len() == 0 {
-        if let Some(e) = error {
-            bail!("{}", e);
-        } else {
-            bail!("Received no device response");
+    loop {
+        let (rep, error) = detect_with_channel(
+            in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
+        ).await?;
+        if rep.len() == 0 {
+            if let Some(e) = error {
+                bail!("{}", e);
+            } else {
+                if no_response_retries == 0 {
+                    bail!("Received no device response");
+                } else {
+                    no_response_retries -= 1;
+                    continue
+                }
+            }
         }
-    }
-    if *rep[0].1 != *config {
-        bail!("Incorrect device type");
+        if *rep[0].1 != *config {
+            bail!("Incorrect device type");
+        } else {
+            break
+        }
     }
 
     Ok((in_ports.remove(0), out_ports.remove(0), channel))
