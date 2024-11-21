@@ -8,14 +8,23 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use log::{debug, error, info};
-use rusb::{Context, Hotplug, HotplugBuilder, Registration, UsbContext};
+use rusb::{Context, Hotplug, UsbContext};
 use rusb::constants::{LIBUSB_ENDPOINT_DIR_MASK, LIBUSB_ENDPOINT_IN, LIBUSB_ENDPOINT_OUT, LIBUSB_TRANSFER_TYPE_BULK};
 use rusb::ffi::{libusb_alloc_transfer, libusb_cancel_transfer, libusb_free_transfer, libusb_submit_transfer, libusb_transfer};
 use crate::check;
+use crate::devices::find_device;
 use crate::util::usb_address_string;
 
 pub type Device = rusb::Device<Context>;
 pub type DeviceHandle = rusb::DeviceHandle<Context>;
+
+#[derive(Clone, Debug)]
+pub struct ListedDevice {
+    pub vid: u16,
+    pub pid: u16,
+    pub bus: u8,
+    pub address: u8,
+}
 
 pub struct Usb {
     ctx: Context,
@@ -24,19 +33,38 @@ pub struct Usb {
 }
 
 impl Usb {
-    pub fn new(hotplug: Box<dyn Hotplug<Context>>) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let ctx = libusb::new_ctx(rusb::constants::LIBUSB_LOG_LEVEL_INFO)?;
         let running = Arc::new(AtomicBool::new(true));
 
-        let hotplug= HotplugBuilder::new()
-            .enumerate(true)
-            .register(&ctx, hotplug)?;
-
         let thread = {
             let (ctx, run) = (ctx.clone(), Arc::clone(&running));
-            Some(thread::spawn(move || Self::event_thread(ctx, run, hotplug)))
+            Some(thread::spawn(move || Self::event_thread(ctx, run)))
         };
         Ok(Self { ctx, running, thread })
+    }
+
+    pub fn list_devices(&self) -> Result<Vec<ListedDevice>> {
+        let devices = self.ctx.devices()?;
+        let devices = devices.iter()
+            .flat_map(|dev| {
+                let Ok(desc) = dev.device_descriptor() else {
+                    return None;
+                };
+                let vid = desc.vendor_id();
+                let pid = desc.product_id();
+                if find_device(vid, pid).is_some() {
+                    let bus = dev.bus_number();
+                    let address = dev.address();
+
+                    Some(ListedDevice { vid, pid, bus, address })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Ok(devices)
     }
 
     pub fn close(&mut self) {
@@ -60,7 +88,7 @@ impl Usb {
     }
 
     /// Dedicated thread for async transfer and hotplug events.
-    fn event_thread(ctx: Context, run: Arc<AtomicBool>, hotplug: Registration<Context>) {
+    fn event_thread(ctx: Context, run: Arc<AtomicBool>) {
         debug!("USB event thread start");
         while run.load(Ordering::Acquire) {
             if let Err(e) = ctx.handle_events(None) {
@@ -69,8 +97,6 @@ impl Usb {
                 break;
             }
         }
-
-        ctx.unregister_callback(hotplug);
         debug!("USB event thread finish");
     }
 }

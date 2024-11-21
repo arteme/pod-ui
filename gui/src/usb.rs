@@ -9,7 +9,6 @@ pub use nop::*;
 mod imp {
     use anyhow::*;
     use core::result::Result::Ok;
-    use futures::executor;
     use log::warn;
     use pod_core::midi::Channel;
     use pod_core::midi_io;
@@ -17,9 +16,6 @@ mod imp {
 
     pub fn start_usb() {
         pod_usb::usb_start().unwrap();
-        executor::block_on(
-            pod_usb::usb_init_wait()
-        );
     }
 
     pub fn usb_list_devices() -> Vec<(String, bool)> {

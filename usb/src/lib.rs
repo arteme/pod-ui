@@ -1,4 +1,3 @@
-mod event;
 mod devices;
 mod line6;
 mod dev_handler;
@@ -9,98 +8,29 @@ mod midi_framer;
 mod podxt_framer;
 mod framer;
 
-use log::{debug, error, info, trace};
+use log::{error, info};
 use anyhow::*;
-use anyhow::Context as _;
 use core::result::Result::Ok;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
 
-use rusb::{Context, Device as UsbDevice, Hotplug, UsbContext};
-use tokio::sync::{broadcast, Notify};
-use tokio::sync::broadcast::error::RecvError;
 use pod_core::midi_io::{MidiIn, MidiOut};
 use regex::Regex;
 use crate::dev_handler::Device;
 use crate::devices::find_device;
-use crate::event::*;
 use crate::usb::Usb;
 use crate::util::usb_address_string;
 
-struct HotplugHandler {
-    event_tx: broadcast::Sender<UsbEvent>,
-    init_devices: Option<isize>
-}
-
-impl HotplugHandler {
-    /// Notify the hotplug handler that `num` devices have been initialized.
-    /// This is used for `UsbEvent::InitDone` event tracking.
-    fn device_init_notify(&mut self, added: isize) {
-        if let Some(mut num) = self.init_devices.take() {
-            num -= added;
-            self.init_devices = if num > 1 {
-                Some(num)
-            } else {
-                self.event_tx.send(UsbEvent::InitDone).unwrap();
-                None
-            };
-        }
-    }
-}
-
-impl<T: UsbContext> Hotplug<T> for HotplugHandler {
-    fn device_arrived(&mut self, device: UsbDevice<T>) {
-        let Ok(desc) = device.device_descriptor() else { return };
-
-        trace!("device arrived: {:?}", device);
-        if find_device(desc.vendor_id(), desc.product_id()).is_some() {
-            trace!("device added: {:?}", device);
-            let e = DeviceAddedEvent {
-                vid: desc.vendor_id(),
-                pid: desc.product_id(),
-                bus: device.bus_number(),
-                address: device.address(),
-            };
-            self.event_tx.send(UsbEvent::DeviceAdded(e)).unwrap();
-        }
-
-        self.device_init_notify(1);
-    }
-
-    fn device_left(&mut self, device: UsbDevice<T>) {
-        let Ok(desc) = device.device_descriptor() else { return };
-
-        trace!("device left: {:?}", device);
-        if find_device(desc.vendor_id(), desc.product_id()).is_some() {
-            trace!("device removed: {:?}", device);
-            let e = DeviceRemovedEvent {
-                vid: desc.vendor_id(),
-                pid: desc.product_id(),
-                bus: device.bus_number(),
-                address: device.address(),
-            };
-            self.event_tx.send(UsbEvent::DeviceRemoved(e)).unwrap();
-        }
-    }
-}
-
-enum UsbFoundDevice {
-    Found(DeviceAddedEvent),
-    Open(Device)
-}
 enum UsbEnumeratedDevice {
     Device(Device),
     Error(String)
 }
 
-static mut INIT_DONE: AtomicBool = AtomicBool::new(false);
-static INIT_DONE_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| {
-    Arc::new(Notify::new())
-});
-static DEVICES: Lazy<Arc<Mutex<HashMap<String, UsbFoundDevice>>>> = Lazy::new(|| {
+type DeviceMap = HashMap<String, Device>;
+
+static DEVICES: Lazy<Arc<Mutex<DeviceMap>>> = Lazy::new(|| {
    Arc::new(Mutex::new(HashMap::new()))
 });
 
@@ -112,81 +42,13 @@ pub fn usb_start() -> Result<()> {
         v.major(), v.minor(), v.micro(), v.nano(), v.rc().unwrap_or("")
     );
 
-    if !rusb::has_hotplug() {
-        bail!("Libusb hotplug API not supported");
-    }
-
-    let (event_tx, mut event_rx) = broadcast::channel::<UsbEvent>(512);
-
-    let ctx = Context::new()?;
-    let num_devices = ctx.devices()?.len() as isize;
-    let mut hh = HotplugHandler {
-        event_tx: event_tx.clone(),
-        init_devices: Some(num_devices)
-    };
-    hh.device_init_notify(0);
-
-    let usb = Usb::new(Box::new(hh))?;
+    let usb = Usb::new()?;
     USB.set(Arc::new(Mutex::new(usb))).map_err(|_| anyhow!("Failed to set global USB var"))?;
-
-    tokio::spawn(async move {
-        info!("USB event RX thread start");
-        loop {
-            let msg = match event_rx.recv().await {
-                Ok(msg) => { msg }
-                Err(RecvError::Closed) => {
-                    info!("Event bus closed");
-                    break;
-                }
-                Err(RecvError::Lagged(n)) => {
-                    error!("Event bus lagged: {}", n);
-                    continue;
-                }
-            };
-
-            match msg {
-                UsbEvent::DeviceAdded(e @ DeviceAddedEvent{ bus, address, .. }) => {
-                    let address = usb_address_string(bus, address);
-                    usb_add_device(address, e);
-                }
-                UsbEvent::DeviceRemoved(DeviceRemovedEvent{ bus, address, .. }) => {
-                    let address = usb_address_string(bus, address);
-                    usb_remove_device(address);
-
-                }
-                UsbEvent::InitDone => {
-                    usb_init_set_done();
-                }
-            }
-        }
-        info!("USB event RX thread finish");
-    });
 
     Ok(())
 }
 
-fn usb_init_set_done()  {
-    unsafe { INIT_DONE.store(true, Ordering::Relaxed) }
-
-    debug!("USB init done");
-    INIT_DONE_NOTIFY.notify_waiters()
-}
-
-fn usb_init_done() -> bool {
-    unsafe { INIT_DONE.load(Ordering::Relaxed) }
-}
-
-pub async fn usb_init_wait() {
-    if usb_init_done() {
-        return;
-    }
-
-    debug!("Waiting for USB init...");
-    INIT_DONE_NOTIFY.notified().await;
-    debug!("Waiting for USB init over");
-}
-
-fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<UsbEnumeratedDevice> {
+fn usb_enumerate_devices(devices: &mut DeviceMap) -> Vec<UsbEnumeratedDevice> {
     let Some(usb) = USB.get() else {
         error!("Cannot enumerate USB: usb not ready!");
         return vec![];
@@ -194,13 +56,29 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<U
     let usb = usb.lock().unwrap();
 
     info!("Enumerating USB devices...");
-    let mut update = HashMap::new();
-    let mut enumerated = Vec::with_capacity(devices.len());
-    for (key, value) in devices.iter() {
-        match value {
-            &UsbFoundDevice::Found(DeviceAddedEvent { vid, pid, bus, address }) => {
-                let usb_dev = find_device(vid, pid).unwrap();
-                let h = match usb.open(vid, pid, bus, address) {
+
+    let listed_devices = match usb.list_devices() {
+        Ok(devices) => { devices }
+        Err(err) => {
+            error!("Failed to list USB devices: {err}");
+            return vec![];
+        }
+    };
+
+    let mut add = HashMap::new();
+    let mut enumerated = Vec::with_capacity(listed_devices.len());
+    let mut listed_keys = HashSet::new();
+    for dev in listed_devices {
+        let key = usb_address_string(dev.bus, dev.address);
+        match devices.get(&key) {
+            Some(dev) => {
+                // device already open
+                enumerated.push(UsbEnumeratedDevice::Device(dev.clone()))
+            }
+            None => {
+                // attempt to open a new device
+                let usb_dev = find_device(dev.vid, dev.pid).unwrap();
+                let h = match usb.open(dev.vid, dev.pid, dev.bus, dev.address) {
                     Ok(h) => { h }
                     Err(e) => {
                         error!("Failed to open device: {}", e);
@@ -217,19 +95,28 @@ fn usb_enumerate_devices(devices: &mut HashMap<String, UsbFoundDevice>) -> Vec<U
                     }
                 };
 
-                update.insert(key.clone(), UsbFoundDevice::Open(dev.clone()));
+                add.insert(key.clone(), dev.clone());
                 enumerated.push(UsbEnumeratedDevice::Device(dev));
             }
-            UsbFoundDevice::Open(dev) => {
-                enumerated.push(UsbEnumeratedDevice::Device(dev.clone()))
-            }
         }
+        listed_keys.insert(key);
+
     }
-    let updated = update.len();
-    for (key, value) in update {
+
+    let added = add.len();
+    for (key, value) in add {
         devices.insert(key, value);
     }
-    info!("Enumerating USB devices finished: {updated} entries updated");
+    let keys_to_remove = devices.keys()
+        .filter(|key| !listed_keys.contains(*key))
+        .cloned()
+        .collect::<Vec<_>>();
+    let removed = keys_to_remove.len();
+    for key in keys_to_remove {
+        devices.remove(&key);
+    }
+
+    info!("Enumerating USB devices finished: +{added}/-{removed} entries");
     enumerated
 }
 
@@ -241,11 +128,6 @@ pub fn usb_list_devices() -> Vec<(String, bool)> {
             UsbEnumeratedDevice::Device(dev) => { (dev.name.clone(), true) }
             UsbEnumeratedDevice::Error(err) => { (err.clone(), false) }
         }).collect()
-}
-
-fn usb_add_device(key: String, event: DeviceAddedEvent) {
-    let mut devices = DEVICES.lock().unwrap();
-    devices.insert(key, UsbFoundDevice::Found(event));
 }
 
 fn usb_remove_device(key: String) {
@@ -272,10 +154,7 @@ pub fn usb_device_for_address(dev_addr: &str) -> Result<(impl MidiIn, impl MidiO
     }
 
     match found {
-        Some(UsbFoundDevice::Open(dev)) => { dev.open() }
-        Some(_) => {
-            bail!("USB device for address {:?} found, but couldn't be opened", dev_addr);
-        }
+        Some(dev) => { dev.open() }
         None => {
             bail!("USB device for address {:?} not found!", dev_addr);
         }
@@ -286,16 +165,10 @@ pub fn usb_device_for_name(dev_name: &str) -> Result<(impl MidiIn, impl MidiOut)
     let mut devices = DEVICES.lock().unwrap();
     let _ = usb_enumerate_devices(&mut devices);
 
-    let found = devices.values_mut().find(|dev|
-        match dev {
-            UsbFoundDevice::Open(dev) if dev.name == dev_name => { true }
-            _ => { false }
-        }
-    );
-
+    let found = devices.values_mut().find(|dev| dev.name == dev_name);
     match found {
-        Some(UsbFoundDevice::Open(dev)) => { dev.open() }
-        _ => {
+        Some(dev) => { dev.open() }
+        None => {
             bail!("USB device for name {:?} not found!", dev_name);
         }
     }
