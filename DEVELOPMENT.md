@@ -127,10 +127,9 @@ systems. This requires developer keys for signing. Create the `.codesign`
 file in the root of your `pod-ui` check-out containing the following: 
 
 ```shell
-# security find-identity -v -p codesigning
-IDENTITY="Developer ID Application: Xxxxx Xxxxx (XXXXXXXXXX)"
-DEVELOPER="xxxxx@xxxxx.com"
-DEVELOPER_KEY="notarization"
+TEAM_ID="XXXXXXXXXX"
+APPLE_ID="xxxxx@xxxxx.com"
+APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 ```
 
 Now you can build, sign, notarize and staple the app:

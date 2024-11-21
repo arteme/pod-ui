@@ -79,9 +79,11 @@ hdiutil create -fs HFS+ -volname "Pod-UI $V" -srcfolder $DIR "target/$N.dmg"
 
 $TOOLS_DIR/osx-sign-dmg.sh "target/$N.dmg"
 
-xcnotary notarize "target/$N.dmg" \
-	--developer-account "$DEVELOPER" \
-	--developer-password-keychain-item "$DEVELOPER_KEY"
+xcrun notarytool submit --wait \
+  --apple-id "$APPLE_ID" \
+  --team-id "$TEAM_ID" \
+  --password "$APPLE_PASSWORD" \
+  "target/$N.dmg"
 xcrun stapler staple -v "target/$N.dmg"
 
 echo "!!! $DIR"
