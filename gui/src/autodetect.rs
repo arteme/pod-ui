@@ -8,8 +8,7 @@ use pod_core::midi_io::*;
 use pod_core::model::Config;
 use pod_gtk::prelude::*;
 use crate::opts::Opts;
-use crate::{set_midi_in_out, State};
-use crate::usb::{usb_open_addr, usb_open_name};
+use crate::{set_midi_in_out, State, usb};
 
 fn config_for_str(config_str: &str) -> Result<&'static Config> {
     use std::str::FromStr;
@@ -42,6 +41,7 @@ fn config_for_str(config_str: &str) -> Result<&'static Config> {
 pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Result<()>
 {
     let mut ports: Option<(BoxedMidiIn, BoxedMidiOut)> = None;
+    let mut midi_channel: Option<u8> = None;
     let mut config = None;
 
     // autodetect/open midi
@@ -74,19 +74,20 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
         }
         // USB
         (None, None, Some(u), None) => {
-            let (midi_in, midi_out) = usb_open_addr(u)?;
+            let (midi_in, midi_out) = usb::usb_open_addr(u)?;
             ports = Some((Box::new(midi_in), Box::new(midi_out)));
+            midi_channel = Some(Channel::num(0)); // USB devices don't care about the MIDI channel
             true
         }
         (None, None, Some(u), Some(m)) => {
-            let (midi_in, midi_out) = usb_open_addr(u)?;
+            let (midi_in, midi_out) = usb::usb_open_addr(u)?;
             ports = Some((Box::new(midi_in), Box::new(midi_out)));
             config = Some(config_for_str(m)?);
             false
         }
     };
     let midi_channel = match opts.channel {
-        None  => None,
+        None => midi_channel, // use channel default of None, unless set by the logic above
         Some(x) if x == 0 => Some(Channel::all()),
         Some(x) if (1u8 ..= 16).contains(&x) => Some(x - 1),
         Some(x) => {
@@ -109,10 +110,10 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
                 ).await
             } else {
                 // autodetect device
-                pod_core::midi_io::autodetect(midi_channel).await
+                run_autodetect(midi_channel).await
             };
-            let res = res.and_then(|(midi_in, midi_out, chan, config)|
-                Ok((midi_in, midi_out, chan, false, config)));
+            let res = res.and_then(|res|
+                Ok((res.in_port, res.out_port, res.channel, false, res.config)));
             tx.send(res).ok();
         });
     } else {
@@ -170,7 +171,7 @@ pub fn open(in_name: &str, out_name: &str, is_usb: bool) -> Result<(BoxedMidiIn,
         if in_name != out_name {
             bail!("USB device input/output names do not match");
         }
-        let (midi_in, midi_out) = usb_open_name(in_name)?;
+        let (midi_in, midi_out) = usb::usb_open_name(in_name)?;
         (box_midi_in(midi_in), box_midi_out(midi_out))
     } else {
         let midi_in = MidiInPort::new_for_name(in_name)?;
@@ -178,4 +179,30 @@ pub fn open(in_name: &str, out_name: &str, is_usb: bool) -> Result<(BoxedMidiIn,
         (box_midi_in(midi_in), box_midi_out(midi_out))
     };
     Ok(res)
+}
+
+/**
+ * Run MIDI device auto-detect.
+ *
+ * Run MIDI-specific device auto-detect and, if failed, USB-specific
+ * device auto-detect. The latter ignores the MIDI channel that may
+ * have been previously set.
+ */
+pub async fn run_autodetect(channel: Option<u8>) -> Result<AutodetectResult> {
+    match autodetect(channel).await {
+        res @ Ok(_) => res,
+        Err(e) => {
+            if !usb::autodetect_supported() {
+                return Err(e);
+            }
+
+            match usb::autodetect().await {
+                res @ Ok(_) => res,
+                Err(e1) => {
+                   // do something clever with the replies here
+                    bail!("MIDI: {}\nUSB: {}\n", e.to_string(), e1.to_string())
+                }
+            }
+        }
+    }
 }

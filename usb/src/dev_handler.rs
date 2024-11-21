@@ -5,51 +5,58 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use async_trait::async_trait;
 use log::{debug, error, info, trace};
-use rusb::{DeviceHandle, Direction, Error, TransferType, UsbContext};
+use rusb::Direction;
 use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
 use crate::devices::UsbDevice;
-use crate::endpoint::{configure_endpoint, Endpoint, find_endpoint};
+use crate::endpoint::{Endpoint, find_endpoint};
+use crate::framer::{BoxedInFramer, BoxedOutFramer};
 use crate::line6::line6_read_serial;
+use crate::midi_framer::new_usb_midi_framer;
+use crate::podxt_framer::new_pod_xt_framer;
+use crate::usb::{DeviceHandle, SubmittedTransfer, Transfer, TransferCommand};
 use crate::util::usb_address_string;
 
-pub struct Device<T: UsbContext + 'static> {
+#[derive(Clone)]
+pub struct Device {
     pub name: String,
-    handle: Arc<DeviceHandle<T>>,
+    handle: Arc<DeviceHandle>,
     read_ep: Endpoint,
     write_ep: Endpoint,
-    inner: Weak<DeviceInner<T>>
+    inner: Weak<DeviceInner>
 }
 
-pub struct DeviceInner<T: UsbContext + 'static> {
+struct DevOpenState {
+    /// Active configuration when opening the device
+    config: u8,
+    /// Kernel driver attach status per interface
+    attach: Vec<(u8, bool)>
+}
+
+pub struct DeviceInner {
     name: String,
-    handle: Arc<DeviceHandle<T>>,
+    handle: Arc<DeviceHandle>,
     write_ep: Endpoint,
     closed: Arc<AtomicBool>,
+    read: SubmittedTransfer,
+    kernel_state: DevOpenState,
+    out_framer: BoxedOutFramer
 }
 
-pub struct DeviceInput<T: UsbContext + 'static> {
-    inner: Arc<DeviceInner<T>>,
+pub struct DeviceInput {
+    inner: Arc<DeviceInner>,
     rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
-pub struct DeviceOutput<T: UsbContext + 'static> {
-    inner: Arc<DeviceInner<T>>
+pub struct DeviceOutput {
+    inner: Arc<DeviceInner>
 }
 
-pub struct DevHandler<T: UsbContext> {
-    handle: Arc<DeviceHandle<T>>,
-    read_ep: Endpoint,
-    write_ep: Endpoint,
-    tx: mpsc::UnboundedSender<Vec<u8>>,
-    rx: mpsc::UnboundedReceiver<Vec<u8>>
-}
+const READ_DURATION: Duration = Duration::from_millis(10 * 1000);
+const WRITE_DURATION: Duration = Duration::from_millis(10 * 1000);
 
-const READ_DURATION: Duration = Duration::from_millis(500);
-const WRITE_DURATION: Duration = Duration::from_millis(1000);
-
-impl <T: UsbContext + 'static> Device<T> {
-    pub fn new(handle: DeviceHandle<T>, usb_dev: &UsbDevice) -> Result<Self> {
+impl Device {
+    pub fn new(handle: DeviceHandle, usb_dev: &UsbDevice) -> Result<Self> {
         let serial = line6_read_serial(&handle).ok()
             .map(|s| format!(" {}", s))
             .unwrap_or("".to_string());
@@ -77,7 +84,7 @@ impl <T: UsbContext + 'static> Device<T> {
         })
     }
 
-    pub fn open(&mut self) -> Result<(DeviceInput<T>, DeviceOutput<T>)> {
+    pub fn open(&mut self) -> Result<(DeviceInput, DeviceOutput)> {
         if self.inner.upgrade().is_some() {
             bail!("Device already open")
         }
@@ -89,7 +96,7 @@ impl <T: UsbContext + 'static> Device<T> {
             self.read_ep.clone(),
             self.write_ep.clone(),
             tx
-        ));
+        )?);
         self.inner = Arc::downgrade(&inner);
 
         let input = DeviceInput {
@@ -105,133 +112,76 @@ impl <T: UsbContext + 'static> Device<T> {
     }
 }
 
-impl <T: UsbContext + 'static> DeviceInner<T> {
-    fn new(name: String, handle: Arc<DeviceHandle<T>>,
+impl DeviceInner {
+    fn new(name: String, handle: Arc<DeviceHandle>,
            read_ep: Endpoint, write_ep: Endpoint,
-           tx: mpsc::UnboundedSender<Vec<u8>>) -> Self {
-        let has_kernel_driver = match handle.kernel_driver_active(read_ep.iface) {
-            Ok(true) => {
-                handle.detach_kernel_driver(read_ep.iface).ok();
-                true
-            }
-            _ => false
-        };
+           tx: mpsc::UnboundedSender<Vec<u8>>) -> Result<Self> {
 
-        configure_endpoint(&handle, &read_ep).ok();
+        let kernel_state = Self::detach_kernel_driver(&handle).map_err(|e| {
+            anyhow!("Failed to detach kernel driver when opening device: {e}")
+        })?;
+
+        handle.reset().map_err(|e| {
+            error!("Failed to reset USB device: {}", e);
+        }).ok();
+
+        handle.set_active_configuration(read_ep.config).map_err(|e| {
+            error!("Set active config error: {}", e);
+        }).ok();
+
+        Self::claim_interfaces(&handle, &kernel_state);
+
+        if read_ep.setting != 0 {
+            handle.set_alternate_setting(read_ep.iface, read_ep.setting).map_err(|e| {
+                error!("Set alt setting error: {}", e);
+            }).ok();
+        }
 
         let closed = Arc::new(AtomicBool::new(false));
+        let (mut framer, out_framer) = Self::init_framers(&handle, &read_ep);
 
-        // libusb's reads DEFINITELY need to go on the blocking tasks queue
-        tokio::task::spawn_blocking({
-            let name = name.clone();
-            let handle = handle.clone();
-            let closed = closed.clone();
+        let mut read_transfer = Transfer::new_bulk(&handle, read_ep.address, read_ep.max_packet_size);
+        read_transfer.set_timeout(READ_DURATION);
+        read_transfer.set_callback(move |buf| {
+            let Some(buf) = buf else {
+                // read transfer cancelled, nothing to do here
+                trace!("<< failed or cancelled");
+                return TransferCommand::Drop // doesn't really matter what we return
+            };
 
-            move || {
-                debug!("USB read thread {:?} start", name);
-
-                let mut buf = [0u8; 1024];
-                let buf_ptr = buf.as_ptr();
-                let mut read_ptr: &mut [u8] = &mut [];
-                let mut sysex = false;
-
-                let mut reset_read_ptr = || unsafe {
-                    std::slice::from_raw_parts_mut(
-                        buf.as_mut_ptr(),
-                        buf.len()
-                    )
-                };
-                let mut advance_read_ptr = |len: usize| unsafe {
-                    std::slice::from_raw_parts_mut(
-                        read_ptr.as_mut_ptr().add(len),
-                        read_ptr.len().checked_sub(len).unwrap_or(0)
-                    )
-                };
-                read_ptr = reset_read_ptr();
-
-                while !closed.load(Ordering::Relaxed) {
-                    let res = match read_ep.transfer_type {
-                        TransferType::Bulk => {
-                            handle.read_bulk(read_ep.address, &mut read_ptr, READ_DURATION)
-                        }
-                        TransferType::Interrupt => {
-                            handle.read_interrupt(read_ep.address, &mut read_ptr, READ_DURATION)
-                        }
-                        tt => {
-                            error!("Transfer type {:?} not supported!", tt);
-                            break;
-                        }
-                    };
-                    match res {
-                        Ok(len) => {
-                            if len == 0 { continue; } // does this ever happen?
-                            let start_read = read_ptr.as_ptr() == buf_ptr;
-                            if start_read {
-                                // correct PODxt lower nibble 0010 in command byte, see
-                                // https://github.com/torvalds/linux/blob/8508fa2e7472f673edbeedf1b1d2b7a6bb898ecc/sound/usb/line6/midibuf.c#L148
-                                if read_ptr[0] == 0xb2 || read_ptr[0] == 0xc2 || read_ptr[0] == 0xf2 {
-                                    read_ptr[0] = read_ptr[0] & 0xf0;
-                                }
-
-                                sysex = read_ptr[0] == 0xf0;
-                            }
-                            let mut b = read_ptr.chunks(len).next().unwrap();
-                            let sysex_done = sysex && b[b.len() - 1] == 0xf7;
-                            let mark = match (start_read, sysex, sysex_done) {
-                                (true, true, false) => &"<<-",
-                                (false, true, false) => &"<--",
-                                (false, true, true) => &"-<<",
-                                _ => "<<"
-                            };
-                            trace!("{} {:02x?} len={}", mark, &b, len);
-
-                            if sysex {
-                                if !sysex_done {
-                                    // advance read_ptr
-                                    read_ptr = advance_read_ptr(len);
-                                    continue;
-                                }
-                                if !start_read {
-                                    // return full buffer
-                                    let len = read_ptr.as_ptr() as u64 - buf_ptr as u64 + len as u64;
-                                    b = buf.chunks(len as usize).next().unwrap();
-                                }
-                            }
-
-                            match tx.send(b.to_vec()) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("USB read thread tx failed: {}", e);
-                                }
-                            };
-                        }
-                        Err(e) => {
-                            match e {
-                                Error::Busy | Error::Timeout | Error::Overflow => { continue }
-                                _ => {
-                                    error!("USB read failed: {}", e);
-                                    break
-                                }
-                            }
-                        }
-                    }
-                }
-
-                handle.release_interface(read_ep.iface).ok();
-                if has_kernel_driver {
-                    handle.attach_kernel_driver(read_ep.iface).ok();
-                }
-
-                debug!("USB read thread {:?} finish", name);
+            if buf.len() == 0 {
+                // read timed out, continue
+                return TransferCommand::Resubmit
             }
-        });
+            trace!("<< {:02x?} len={}", &buf, buf.len());
 
-        DeviceInner {
+            framer.decode_incoming(buf).into_iter().for_each(|msg| {
+                // message found
+                trace!("<< msg {:02x?} len={}", &msg, msg.len());
+                match tx.send(msg) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("USB read thread tx failed: {}", e);
+                    }
+                };
+            });
+            TransferCommand::Resubmit
+        });
+        let read = read_transfer.submit()
+            .map_err(|e| {
+                Self::close_inner(&handle, &kernel_state);
+                anyhow!("Failed to set up read thread: {e}")
+            })?;
+
+        Ok(DeviceInner {
             name,
             handle,
             closed,
-            write_ep
-        }
+            write_ep,
+            read,
+            kernel_state,
+            out_framer
+        })
     }
 
     fn send(&self, bytes: &[u8]) -> Result<()> {
@@ -239,40 +189,128 @@ impl <T: UsbContext + 'static> DeviceInner<T> {
             bail!("Device already closed");
         }
 
-        trace!(">> {:02x?} len={}", bytes, bytes.len());
-        // TODO: this write will stall the executioner for the max
-        //       WRITE_DURATION if something goes wrong. Instead,
-        //       this should go through a channel to a `tokio::task::spawn_blocking`
-        //       TX thread similar to how the RX thread does libusb polling...
-        let res = match self.write_ep.transfer_type {
-            TransferType::Bulk => {
-                self.handle.write_bulk(self.write_ep.address, bytes, WRITE_DURATION)
-            }
-            TransferType::Interrupt => {
-                self.handle.write_interrupt(self.write_ep.address, bytes, WRITE_DURATION)
-            }
-            tt => {
-                bail!("Transfer type {:?} not supported!", tt);
-            }
-        };
+        trace!(">> msg {:02x?} len={}", &bytes, bytes.len());
 
-        res.map(|_| ()).map_err(|e| anyhow!("USB write failed: {}", e))
+        self.out_framer.encode_outgoing(bytes).into_iter().map(|msg| {
+            let mut transfer = Transfer::new_bulk_with_data(&self.handle, self.write_ep.address, &msg);
+            transfer.set_timeout(WRITE_DURATION);
+            transfer.set_callback(|buf| {
+                if let Some(buf) = buf {
+                    trace!(">> {:02x?} len={}", buf, buf.len());
+                } else {
+                    trace!(">> failed or cancelled");
+                }
+                TransferCommand::Drop
+            });
+            transfer.submit()
+                .map(|_| ())
+                .map_err(|e| anyhow!("USB write transfer failed: {}", e))
+        }).collect::<Result<Vec<_>, _>>()?;
+        Ok(())
     }
 
-    fn close(&self) {
+    fn close(&mut self) {
         self.closed.store(true, Ordering::Relaxed);
+        self.read.cancel().ok();
+
+        Self::close_inner(&self.handle, &self.kernel_state);
+    }
+
+    fn close_inner(handle: &DeviceHandle, state: &DevOpenState) {
+        Self::release_interfaces(handle, state);
+        Self::attach_kernel_driver(handle, state);
+    }
+
+    fn detach_kernel_driver(handle: &DeviceHandle) -> Result<DevOpenState> {
+        let dev = handle.device();
+        let config = handle.active_configuration()?;
+        let desc = dev.active_config_descriptor()?;
+        let attach = desc.interfaces()
+            .map(|iface| {
+                let num = iface.number();
+                let kernel_driver_attached = handle.kernel_driver_active(num)
+                    .ok().unwrap_or(false);
+
+                debug!("Kernel driver detach (iface={}): attached={}", num, kernel_driver_attached);
+                if kernel_driver_attached {
+                    handle.detach_kernel_driver(num).map_err(|e| {
+                        error!("Failed to detach kernel driver (iface={}): {}", num, e);
+                    }).ok();
+                }
+
+                (num, kernel_driver_attached)
+            })
+            .collect::<Vec<_>>();
+        Ok(DevOpenState { config, attach })
+    }
+
+    fn attach_kernel_driver(handle: &DeviceHandle, state: &DevOpenState) {
+        for (num, kernel_driver_attached) in state.attach.iter() {
+            debug!("Kernel driver attach (iface={}): attached={}", num, kernel_driver_attached);
+            if *kernel_driver_attached {
+                handle.attach_kernel_driver(*num).map_err(|e| {
+                    error!("Failed to attach kernel driver (iface={}): {}", num, e);
+                }).ok();
+            }
+        }
+    }
+
+    fn claim_interfaces(handle: &DeviceHandle, state: &DevOpenState) {
+        for (num, _) in state.attach.iter() {
+            debug!("Claiming interface (iface={})", num);
+            handle.claim_interface(*num).map_err(|e| {
+                error!("Failed to claim interface (iface{}): {}", num, e);
+            }).ok();
+        }
+    }
+
+    fn release_interfaces(handle: &DeviceHandle, state: &DevOpenState) {
+        for (num, _) in state.attach.iter() {
+            debug!("Releasing interface (iface={})", num);
+            handle.release_interface(*num).map_err(|e| {
+                error!("Failed to release interface (iface{}): {}", num, e);
+            }).ok();
+        }
+    }
+
+    fn init_framers(handle: &DeviceHandle, endpoint: &Endpoint) -> (BoxedInFramer, BoxedOutFramer) {
+        let dev = handle.device();
+        let desc = dev.active_config_descriptor().ok();
+
+        let mut class_code = 0;
+        let mut sub_class_code = 0;
+        if let Some(desc) = desc {
+            for id in desc.interfaces().flat_map(|i| i.descriptors()) {
+                if id.interface_number() == endpoint.iface && id.setting_number() == endpoint.setting {
+                    class_code = id.class_code();
+                    sub_class_code = id.sub_class_code();
+                }
+
+            }
+        }
+
+        match (class_code, sub_class_code) {
+            // class = 1 (audio), sub-class = 3 (MIDI streaming)
+            (1, 3) => {
+                info!("Using USB-MIDI framer");
+                new_usb_midi_framer()
+            }
+            _ => {
+                info!("Using PodXT USB framer");
+                new_pod_xt_framer()
+            }
+        }
     }
 }
 
-impl <T: UsbContext + 'static> Drop for DeviceInner<T> {
+impl Drop for DeviceInner {
     fn drop(&mut self) {
-        debug!("DeviceInner for {:?} dropped", &self.name);
         self.close();
     }
 }
 
 #[async_trait]
-impl <T: UsbContext> MidiIn for DeviceInput<T> {
+impl MidiIn for DeviceInput {
     fn name(&self) -> String {
         self.inner.name.clone()
     }
@@ -284,10 +322,14 @@ impl <T: UsbContext> MidiIn for DeviceInput<T> {
     fn close(&mut self) {
         debug!("midi in close - nop");
     }
+
+    fn no_reply_retry(&self) -> usize {
+        3
+    }
 }
 
 #[async_trait]
-impl <T: UsbContext> MidiOut for DeviceOutput<T> {
+impl MidiOut for DeviceOutput {
     fn name(&self) -> String {
         self.inner.name.clone()
     }

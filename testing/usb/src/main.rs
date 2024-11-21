@@ -1,7 +1,9 @@
+/// Based on rust usb-gadget crate example code:
+/// https://github.com/surban/usb-gadget/blob/556727253681a541aa01a28c34bf969f9dea343b/examples/custom_interface_device_async.rs
+
 use std::io::ErrorKind;
 use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::RecvError;
 use std::thread;
 use std::time::Duration;
 use usb_gadget::{Class, Config, default_udc, Gadget, Id, Strings};
@@ -16,10 +18,10 @@ fn reply(req: &[u8]) -> Option<Vec<u8>> {
     match req {
         &[0xf0, 0x7e, channel, 0x06, 0x01, 0xf7] => {
             // UDI
-            // channel can vary, but in practice, this will always ne 0x7f
+            // channel can vary, but in practice, this will always be 0x7f
             let family = u16::to_le_bytes(FAMILY);
             let member = u16::to_le_bytes(MEMBER);
-            let ver = format!("{:4}", "1.01").into_bytes();
+            let ver = format!("{:4}", "0101").into_bytes();
             Some([0xf0, 0x7e, channel, 0x06, 0x02, 0x00, 0x01, 0x0c, family[0], family[1], member[0], member[1],
                   ver[0], ver[1], ver[2], ver[3], 0xf7].to_vec())
         }
@@ -30,7 +32,7 @@ fn reply(req: &[u8]) -> Option<Vec<u8>> {
 fn main() {
     usb_gadget::remove_all().expect("cannot remove all gadgets");
 
-    let (mut cmd_tx, cmd_rx) = mpsc::channel::<Vec<u8>>();
+    let (cmd_tx, cmd_rx) = mpsc::channel::<Vec<u8>>();
 
     let (mut ep1_rx, ep1_dir) = EndpointDirection::host_to_device();
     let (mut ep2_tx, ep2_dir) = EndpointDirection::device_to_host();
@@ -109,7 +111,7 @@ fn main() {
         thread::Builder::new()
             .name("tx".into())
             .spawn_scoped(s, move || {
-                let size = ep2_tx.max_packet_size().unwrap();
+                //let size = ep2_tx.max_packet_size().unwrap();
                 loop {
                 //while !stop.load(Ordering::Relaxed) {
                     let data = match cmd_rx.recv() {

@@ -1,8 +1,7 @@
 // from rusb example code
 
-use anyhow::*;
 use core::result::Result::Ok;
-use rusb::{Device, DeviceDescriptor, DeviceHandle, Direction, TransferType, UsbContext};
+use rusb::{Device, DeviceDescriptor, Direction, TransferType, UsbContext};
 
 #[derive(Debug, Clone)]
 pub struct Endpoint {
@@ -10,20 +9,9 @@ pub struct Endpoint {
     pub iface: u8,
     pub setting: u8,
     pub address: u8,
-    pub transfer_type: TransferType
+    pub transfer_type: TransferType,
+    pub max_packet_size: usize,
 }
-
-pub fn configure_endpoint<T: UsbContext>(
-    handle: &DeviceHandle<T>,
-    endpoint: &Endpoint,
-) -> Result<()> {
-    handle.set_active_configuration(endpoint.config)?;
-    handle.claim_interface(endpoint.iface)?;
-    handle.set_alternate_setting(endpoint.iface, endpoint.setting)?;
-    Ok(())
-}
-
-
 
 pub fn find_endpoint<T: UsbContext>(
     device: &Device<T>,
@@ -51,6 +39,7 @@ pub fn find_endpoint<T: UsbContext>(
                             setting: interface_desc.setting_number(),
                             address: endpoint_desc.address(),
                             transfer_type: endpoint_desc.transfer_type(),
+                            max_packet_size: endpoint_desc.max_packet_size() as usize,
                         });
                     }
                 }
