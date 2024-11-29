@@ -8,6 +8,7 @@ mod autodetect;
 mod check;
 mod icon;
 mod usb;
+mod platform;
 
 use std::collections::HashMap;
 use std::sync::{Arc, atomic, Mutex};
@@ -49,6 +50,7 @@ use crate::util::{next_thread_id, SenderExt as SenderExt2};
 use crate::usb::start_usb;
 use crate::widgets::*;
 use crate::widgets::templated::Templated;
+use crate::platform::*;
 
 const MIDI_OUT_CHANNEL_CAPACITY: usize = 512;
 const CLOSE_QUIET_DURATION_MS: u64 = 1000;
@@ -1253,5 +1255,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
 
     // show the window and do init stuff...
     window.show_all();
+    window.present();
+    raise_app_window();
     window.resize(1, 1);
 }
