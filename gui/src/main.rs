@@ -609,6 +609,15 @@ async fn main() -> Result<()> {
     let opts: Opts = Opts::from_arg_matches(&cli.get_matches())?;
     drop(help_text);
 
+    if let Some(platform) = &opts.platform {
+        set_platform_hack_flags(&platform)?;
+    }
+    let platform_hack_flags = get_platform_hack_flags();
+    sentry::configure_scope(|scope| {
+        scope.set_tag("platform", &platform_hack_flags);
+    });
+    info!("Platform hacks: {}", &platform_hack_flags);
+
     // glib::set_program_name needs to come before gtk::init!
     glib::set_program_name(Some(&title));
 
@@ -639,7 +648,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    let exit_code = app.run_with_args::<String>(&[]);
+    let exit_code = app_run(app);
     // HACK: instead of dealing with USB thread clean-up (and in case there are any other
     // threads still running), we just call `process::exit` and let libraries clean up
     // after themselves
@@ -1233,7 +1242,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
                     r.emit_by_name::<()>("group-changed", &[]);
 
                     // quit
-                    app.quit();
+                    app_quit(&app);
                 }
             }
 
