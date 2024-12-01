@@ -1,10 +1,11 @@
 use anyhow::*;
 use core::result::Result::Ok;
+use std::io;
 use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use async_trait::async_trait;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use rusb::Direction;
 use tokio::sync::mpsc;
 use pod_core::midi_io::{MidiIn, MidiOut};
@@ -117,9 +118,15 @@ impl DeviceInner {
            read_ep: Endpoint, write_ep: Endpoint,
            tx: mpsc::UnboundedSender<Vec<u8>>) -> Result<Self> {
 
-        let kernel_state = Self::detach_kernel_driver(&handle).map_err(|e| {
-            anyhow!("Failed to detach kernel driver when opening device: {e}")
-        })?;
+        let kernel_state = Self::detach_kernel_driver(&handle)
+            .or_else(|e| {
+                warn!("Failed to detach kernel driver when opening device: {e}");
+                // FOR TESTING: This is probably not a good idea, but let's try
+                // to continue if we failed to get active config during detach,
+                // we'll assume that nothing is configured and no kernel drivers
+                // are attached to any interfaces!
+                Ok::<_, io::Error>(DevOpenState { config: 0, attach: vec![] })
+            })?;
 
         handle.reset().map_err(|e| {
             error!("Failed to reset USB device: {}", e);
