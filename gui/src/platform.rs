@@ -19,14 +19,14 @@ bitflags! {
 // platform-specific default hack flags
 
 #[cfg(target_os = "linux")]
-static DEFAULT_HACK_FLAGS: PlatformHackFlags = PlatformHackFlags::empty();
+const DEFAULT_HACK_FLAGS: PlatformHackFlags = PlatformHackFlags::empty();
 
 #[cfg(target_os = "macos")]
 const DEFAULT_HACK_FLAGS: PlatformHackFlags =
     PlatformHackFlags::CUSTOM_MAIN_LOOP.union(PlatformHackFlags::OSX_RAISE);
 
 #[cfg(target_os = "windows")]
-static DEFAULT_HACK_FLAGS: PlatformHackFlags = PlatformHackFlags::empty();
+const DEFAULT_HACK_FLAGS: PlatformHackFlags = PlatformHackFlags::empty();
 
 pub(in crate::platform) fn platform_hack_flags() -> &'static mut PlatformHackFlags {
     static mut FLAGS: OnceLock<PlatformHackFlags> = OnceLock::new();

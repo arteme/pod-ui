@@ -9,7 +9,7 @@ ICONS_SRC_DIR=$SRC_DIR/icons
 DIR=$1
 
 GTK_THEME="Arc-Darker-solid"
-ICON_THEME="Papirus"
+ICON_THEME="Paper"
 ICONS=(
  # gtk 
  # collected from gtk 3.24 source tree:
