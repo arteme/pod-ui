@@ -34,6 +34,9 @@ pod-mod-xt = { path = "../mod-xt" }
 pod-mod-bassxt = { path = "../mod-bassxt" }
 pod-usb = { path = "../usb", optional = true }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.2.7"
+
 [build-dependencies]
 git-version = "0.3.5"
 

@@ -3,6 +3,7 @@ use anyhow::Result;
 use std::fmt::Write;
 use pod_core::config::configs;
 use pod_core::midi_io::{MidiInPort, MidiOutPort, MidiPorts};
+use crate::get_platform_hack_flags;
 use crate::usb::*;
 
 #[derive(Parser, Clone)]
@@ -57,11 +58,21 @@ pub struct Opts {
     /// instead of triggering any events on an already-running
     /// pod-ui application.
     pub standalone: bool,
+
+    #[clap(short, long, value_name = "FLAGS")]
+    /// Set active platform hack flags. <FLAGS> must be a comma-separated
+    /// list of platform hack names. To enable a specific hack, it should
+    /// be specified by name (e.g osx-raise). To disable a specific hack,
+    /// it should be specified with a `no-` prefix (e.g. no-osx-raise).
+    pub platform: Option<String>,
 }
 
 pub fn generate_help_text() -> Result<String> {
     let mut s = String::new();
     let tab = "    ";
+
+    writeln!(s, "Default platform hacks (-p): {}", get_platform_hack_flags())?;
+    writeln!(s, "")?;
 
     writeln!(s, "Device models (-m):")?;
     for (i, c) in configs().iter().enumerate() {
