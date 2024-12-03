@@ -1,0 +1,19 @@
+[package]
+name = "pod-usb"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rusb = "0.9.4"
+structbuf = "0.3.4"
+
+async-trait = "*" # defined in pod-core
+log = "*" # defined in pod-core
+tokio = "*" # defined in pod-core
+anyhow = "*"
+once_cell = "*" # defined in pod-code
+regex = { version = "*", features = [] } # defined in pod-code
+
+pod-core = { path = "../core" }

@@ -14,6 +14,7 @@ sentry = { version = "0.29.2", features = ["debug-images"] }
 simple_logger = "=4.0.0"
 string_template = "0.2.1"
 
+bitflags = "*" # defined in pod-core
 once_cell = "*" # defined in pod-core
 maplit = "*" # defined in mod-pod2
 log = "*" # defined in pod-core
@@ -31,12 +32,18 @@ pod-mod-pod2 = { path = "../mod-pod2" }
 pod-mod-pocket = { path = "../mod-pocket" }
 pod-mod-xt = { path = "../mod-xt" }
 pod-mod-bassxt = { path = "../mod-bassxt" }
+pod-usb = { path = "../usb", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.2.7"
 
 [build-dependencies]
 git-version = "0.3.5"
 
 [features]
-"winrt" = [ "midir/winrt" ]
+default = [ "usb" ]
+winrt = [ "midir/winrt" ]
+usb = [ "dep:pod-usb" ]
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"

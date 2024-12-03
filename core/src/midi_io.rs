@@ -1,9 +1,11 @@
 use midir::*;
 use anyhow::*;
+use core::result::Result::Ok;
 use regex::Regex;
 use std::str::FromStr;
 use std::time::Duration;
 use async_stream::stream;
+use async_trait::async_trait;
 use futures_util::StreamExt;
 use tokio::time::sleep;
 use log::*;
@@ -15,13 +17,40 @@ use crate::model::Config;
 use tokio::sync::mpsc;
 use unicycle::IndexedStreamsUnordered;
 
-pub struct MidiIn {
-    pub name: String,
+#[async_trait]
+pub trait MidiIn {
+    fn name(&self) -> String;
+    async fn recv(&mut self) -> Option<Vec<u8>>;
+    fn close(&mut self);
+
+    fn no_reply_retry(&self) -> usize;
+}
+
+#[async_trait]
+pub trait MidiOut {
+    fn name(&self) -> String;
+    fn send(&mut self, bytes: &[u8]) -> Result<()>;
+    fn close(&mut self);
+}
+
+pub type BoxedMidiIn = Box<dyn MidiIn + Send>;
+pub type BoxedMidiOut = Box<dyn MidiOut + Send>;
+
+pub fn box_midi_in<T: MidiIn + Send + 'static>(x: T) -> BoxedMidiIn {
+    Box::new(x)
+}
+
+pub fn box_midi_out<T: MidiOut + Send + 'static>(x: T) -> BoxedMidiOut {
+    Box::new(x)
+}
+
+pub struct MidiInPort {
+    name: String,
     conn: Option<MidiInputConnection<()>>,
     rx: mpsc::UnboundedReceiver<Vec<u8>>
 }
 
-impl MidiIn {
+impl MidiInPort {
     fn _new() -> Result<MidiInput> {
         let mut midi_in = MidiInput::new("pod midi in")?;
         midi_in.ignore(Ignore::None);
@@ -46,19 +75,24 @@ impl MidiIn {
                 .unwrap_or_else(|_| {
                     error!("midi input ({}): failed to send data to the application", n);
                 });
-
         }, ())
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
 
-        Ok(MidiIn { name, conn: Some(conn), rx })
+        Ok(MidiInPort { name, conn: Some(conn), rx })
+    }
+}
+
+#[async_trait]
+impl MidiIn for MidiInPort {
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
-    pub async fn recv(&mut self) -> Option<Vec<u8>>
-    {
+    async fn recv(&mut self) -> Option<Vec<u8>> {
         self.rx.recv().await
     }
 
-    pub fn close(&mut self) {
+    fn close(&mut self) {
         self.conn.take().map(|conn| {
             debug!("closing in");
             conn.close();
@@ -66,21 +100,25 @@ impl MidiIn {
         });
         self.rx.close();
     }
+
+    fn no_reply_retry(&self) -> usize {
+        0
+    }
 }
 
-impl Drop for MidiIn {
+impl Drop for MidiInPort {
     fn drop(&mut self) {
         self.close();
     }
 }
 
 
-pub struct MidiOut {
-    pub name: String,
+pub struct MidiOutPort {
+    name: String,
     conn: Option<MidiOutputConnection>,
 }
 
-impl MidiOut {
+impl MidiOutPort {
     fn _new() -> Result<MidiOutput> {
         let midi_out = MidiOutput::new("pod midi out")?;
 
@@ -97,10 +135,17 @@ impl MidiOut {
         let conn = midi_out.connect(&port, "pod midi out conn")
             .map_err(|e| anyhow!("Midi connection error: {:?}", e))?;
 
-        Ok(MidiOut { name, conn: Some(conn) })
+        Ok(MidiOutPort { name, conn: Some(conn) })
+    }
+}
+
+#[async_trait]
+impl MidiOut for MidiOutPort {
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
-    pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
+    fn send(&mut self, bytes: &[u8]) -> Result<()> {
         trace!(">> {:02x?} len={}", bytes, bytes.len());
         if let Some(conn) = self.conn.as_mut() {
             conn.send(bytes)
@@ -110,7 +155,7 @@ impl MidiOut {
         }
     }
 
-    pub fn close(&mut self) {
+    fn close(&mut self) {
         self.conn.take().map(|conn| {
             debug!("closing out");
             conn.close();
@@ -119,7 +164,7 @@ impl MidiOut {
     }
 }
 
-impl Drop for MidiOut {
+impl Drop for MidiOutPort {
     fn drop(&mut self) {
         self.close()
     }
@@ -192,33 +237,33 @@ pub trait  MidiOpen {
     }
 }
 
-impl MidiOpen for MidiIn {
+impl MidiOpen for MidiInPort {
     type Class = MidiInput;
     type Port = MidiInputPort;
-    type Out = MidiIn;
+    type Out = MidiInPort;
     const DIR: &'static str = "input";
 
     fn _new() -> Result<Self::Class> {
-        MidiIn::_new()
+        MidiInPort::_new()
     }
 
     fn _new_for_port(class: Self::Class, port: Self::Port) -> Result<Self::Out> {
-        MidiIn::_new_for_port(class, port)
+        MidiInPort::_new_for_port(class, port)
     }
 }
 
-impl MidiOpen for MidiOut {
+impl MidiOpen for MidiOutPort {
     type Class = MidiOutput;
     type Port = MidiOutputPort;
-    type Out = MidiOut;
+    type Out = MidiOutPort;
     const DIR: &'static str = "output";
 
     fn _new() -> Result<Self::Class> {
-        MidiOut::_new()
+        MidiOutPort::_new()
     }
 
     fn _new_for_port(class: Self::Class, port: Self::Port) -> Result<Self::Out> {
-        MidiOut::_new_for_port(class, port)
+        MidiOutPort::_new_for_port(class, port)
     }
 }
 
@@ -228,9 +273,9 @@ pub trait MidiPorts {
     fn ports() -> Result<Vec<String>>;
 }
 
-impl MidiPorts for MidiIn {
+impl MidiPorts for MidiInPort {
     fn all_ports() -> Result<Vec<String>> {
-        let midi = MidiIn::_new()?;
+        let midi = MidiInPort::_new()?;
         list_ports(midi)
     }
 
@@ -243,9 +288,9 @@ impl MidiPorts for MidiIn {
     }
 }
 
-impl MidiPorts for MidiOut {
+impl MidiPorts for MidiOutPort {
     fn all_ports() -> Result<Vec<String>> {
-        let midi = MidiOut::_new()?;
+        let midi = MidiOutPort::_new()?;
         list_ports(midi)
     }
 
@@ -268,13 +313,33 @@ fn list_ports<T: MidiIO>(midi: T) -> Result<Vec<String>> {
 
 const DETECT_DELAY: Duration = Duration::from_millis(1000);
 
-async fn detect(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut]) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
-    detect_with_channel(in_ports, out_ports, Channel::all()).await
+async fn detect(in_ports: &mut [BoxedMidiIn], out_ports: &mut [BoxedMidiOut]) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
+    let mut no_reply_retries = in_ports.iter().map(|m| m.no_reply_retry()).max().unwrap_or(0);
+    let mut res;
+
+    loop {
+        res = detect_with_channel(in_ports, out_ports, Channel::all()).await;
+        if let Ok((replied, error)) = &res {
+            if error.is_none() && replied.is_empty() {
+                // no reply retry
+                if no_reply_retries == 0 {
+                    break
+                } else {
+                    no_reply_retries -= 1;
+                    continue
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    res
 }
 
-async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut], channel: u8) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
+async fn detect_with_channel(in_ports: &mut [BoxedMidiIn], out_ports: &mut [BoxedMidiOut], channel: u8) -> Result<(Vec<(usize, &'static Config)>, Option<String>)> {
 
-    let in_names = in_ports.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
+    let in_names = in_ports.iter().map(|p| p.name()).collect::<Vec<_>>();
     let udi = MidiMessage::UniversalDeviceInquiry { channel }.to_bytes();
 
     let mut streams = IndexedStreamsUnordered::new();
@@ -327,7 +392,7 @@ async fn detect_with_channel(in_ports: &mut [MidiIn], out_ports: &mut [MidiOut],
     Ok((replied_midi_in, error))
 }
 
-async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<Option<u8>> {
+async fn detect_channel(in_port: &mut BoxedMidiIn, out_port: &mut BoxedMidiOut) -> Result<Option<u8>> {
 
     let udi = (0u8..=15).into_iter().map(|n| {
         MidiMessage::UniversalDeviceInquiry { channel: Channel::num(n) }.to_bytes()
@@ -379,30 +444,39 @@ async fn detect_channel(in_port: &mut MidiIn, out_port: &mut MidiOut) -> Result<
     Ok(channel)
 }
 
-pub async fn autodetect(channel: Option<u8>) -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
+pub struct AutodetectResult {
+    pub in_port: BoxedMidiIn,
+    pub out_port: BoxedMidiOut,
+    pub channel: u8,
+    pub config: &'static Config
+}
 
-    let in_port_names = MidiIn::ports()?;
+pub async fn autodetect(channel: Option<u8>) -> Result<AutodetectResult> {
+
+    let in_port_names = MidiInPort::ports()?;
     let mut in_port_errors = vec![];
     let in_ports = in_port_names.iter().enumerate()
         .flat_map(|(i, name)| {
-            MidiIn::new(Some(i)).map_err(|e| {
+            MidiInPort::new(Some(i)).map_err(|e| {
                 let error = format!("Failed to open MIDI in port {:?}: {}", name, e);
                 warn!("{}", error);
                 in_port_errors.push(error);
             }).ok()
         })
+        .map(box_midi_in)
         .collect::<Vec<_>>();
 
-    let out_port_names = MidiOut::ports()?;
+    let out_port_names = MidiOutPort::ports()?;
     let mut out_port_errors = vec![];
-    let out_ports = out_port_names.iter().enumerate()
+    let out_ports: Vec<BoxedMidiOut> = out_port_names.iter().enumerate()
         .flat_map(|(i, name)| {
-            MidiOut::new(Some(i)).map_err(|e| {
+            MidiOutPort::new(Some(i)).map_err(|e| {
                 let error = format!("Failed to open MIDI out port {:?}: {}", name, e);
                 warn!("{}", error);
                 out_port_errors.push(error);
             }).ok()
         })
+        .map(box_midi_out)
         .collect::<Vec<_>>();
 
     if in_ports.len() < 1 {
@@ -423,8 +497,8 @@ pub async fn autodetect(channel: Option<u8>) -> Result<(MidiIn, MidiOut, u8, &'s
     autodetect_with_ports(in_ports, out_ports, channel).await
 }
 
-pub async fn autodetect_with_ports(in_ports: Vec<MidiIn>, out_ports: Vec<MidiOut>,
-                                   channel: Option<u8>) -> Result<(MidiIn, MidiOut, u8, &'static Config)> {
+pub async fn autodetect_with_ports(in_ports: Vec<BoxedMidiIn>, out_ports: Vec<BoxedMidiOut>,
+                                   channel: Option<u8>) -> Result<AutodetectResult> {
     let config: Option<&Config>;
     let mut in_ports = in_ports.into_iter().collect::<Vec<_>>();
     let mut out_ports = out_ports.into_iter().collect::<Vec<_>>();
@@ -506,31 +580,46 @@ pub async fn autodetect_with_ports(in_ports: Vec<MidiIn>, out_ports: Vec<MidiOut
     if channel.is_none() {
         bail!("Can't determine POD channel");
     }
-
-    Ok((in_port, out_port, channel.unwrap(), config.unwrap()))
+    Ok(AutodetectResult {
+        in_port, out_port, channel: channel.unwrap(), config: config.unwrap()
+    })
 }
 
-pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -> Result<(MidiIn, MidiOut, u8)> {
-    let in_port = MidiIn::new_for_name(in_name)?;
-    let out_port = MidiOut::new_for_name(out_name)?;
+pub async fn test_with_ports(in_port: BoxedMidiIn, out_port: BoxedMidiOut, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let mut no_response_retries = in_port.no_reply_retry();
     let mut in_ports = vec![in_port];
     let mut out_ports = vec![out_port];
 
-    let (rep, error) = detect_with_channel(
-        in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
-    ).await?;
-    if rep.len() == 0 {
-        if let Some(e) = error {
-            bail!("{}", e);
-        } else {
-            bail!("Received no device response");
+    loop {
+        let (rep, error) = detect_with_channel(
+            in_ports.as_mut_slice(), out_ports.as_mut_slice(), channel
+        ).await?;
+        if rep.len() == 0 {
+            if let Some(e) = error {
+                bail!("{}", e);
+            } else {
+                if no_response_retries == 0 {
+                    bail!("Received no device response");
+                } else {
+                    no_response_retries -= 1;
+                    continue
+                }
+            }
         }
-    }
-    if *rep[0].1 != *config {
-        bail!("Incorrect device type");
+        if *rep[0].1 != *config {
+            bail!("Incorrect device type");
+        } else {
+            break
+        }
     }
 
     Ok((in_ports.remove(0), out_ports.remove(0), channel))
+}
+
+pub async fn test(in_name: &str, out_name: &str, channel: u8, config: &Config) -> Result<(BoxedMidiIn, BoxedMidiOut, u8)> {
+    let in_port = MidiInPort::new_for_name(in_name)?;
+    let out_port = MidiOutPort::new_for_name(out_name)?;
+    test_with_ports(box_midi_in(in_port), box_midi_out(out_port), channel, config).await
 }
 
 #[cfg(target_os = "linux")]

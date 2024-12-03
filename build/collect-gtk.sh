@@ -87,12 +87,24 @@ mkdir -p $DIR/share/themes
 cp -r $THEMES_SRC_DIR/$GTK_THEME $DIR/share/themes/
 
 echo "2. icons"
-ICONS=$(IFS="|"; echo "${ICONS[*]}")
+ICONS_PATTERN=$(IFS="|"; echo "${ICONS[*]}")
 mkdir -p $DIR/share/icons/$ICON_THEME
 T=$(realpath $DIR/share/icons/$ICON_THEME)
 cp $ICONS_SRC_DIR/$ICON_THEME/index.theme $T
-(cd $ICONS_SRC_DIR/$ICON_THEME; 
- find . -type f | egrep "/($ICONS)\." | cpio -pdm $T)
+(cd $ICONS_SRC_DIR/$ICON_THEME;
+ find . -type f | grep -E "/($ICONS_PATTERN)\." | cpio -pdm $T)
+# Validate that we actually copied at least one image for every mentioned icon
+(cd $T
+ for i in "${ICONS[@]}"; do
+   find . -name "$i.*" -print -quit | grep . -q
+   [[ $? -eq 0 ]] || {
+     echo "ICON NOT FOUND: $i"
+   }
+ done
+)
+
+
+
 $UPDATE_ICON_CACHE $T
 
 echo "3. settings"

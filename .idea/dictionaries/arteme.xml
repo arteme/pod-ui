@@ -7,6 +7,9 @@
       <w>bassman</w>
       <w>flanger</w>
       <w>flextone</w>
+      <w>hotplug</w>
+      <w>iface</w>
+      <w>libusb</w>
       <w>midir</w>
       <w>objs</w>
       <w>pixbuf</w>
