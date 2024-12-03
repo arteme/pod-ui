@@ -15,3 +15,6 @@ anyhow = "*" # defined in pod-code
 pod-core = { path = "../core" }
 pod-gtk = { path = "../gtk" }
 pod-mod-pod2 = { path = "../mod-pod2" }
+
+[features]
+winrt = []

@@ -42,7 +42,7 @@ git-version = "0.3.5"
 
 [features]
 default = [ "usb" ]
-winrt = [ "midir/winrt" ]
+winrt = [ "midir/winrt", "pod-mod-pocket/winrt" ]
 usb = [ "dep:pod-usb" ]
 
 [target.'cfg(windows)'.build-dependencies]
