@@ -429,7 +429,7 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
     ));
 
     Config {
-        name: "Bass PODxt (experimental)".to_string(),
+        name: "Bass PODxt".to_string(),
         family: 0x0003,
         member: 0x0006,
 
@@ -578,7 +578,7 @@ pub static BASS_PODXT_PRO_CONFIG: Lazy<Config> = Lazy::new(|| {
         .collect();
 
     Config {
-        name: "BassPODxt Pro (experimental)".to_string(),
+        name: "BassPODxt Pro".to_string(),
         member: 0x0007,
 
         toggles,
@@ -607,7 +607,7 @@ pub static BASS_PODXT_LIVE_CONFIG: Lazy<Config> = Lazy::new(|| {
 
 
     Config {
-        name: "BassPODxt Live (experimental)".to_string(),
+        name: "BassPODxt Live".to_string(),
         member: 0x000b,
 
         controls,
