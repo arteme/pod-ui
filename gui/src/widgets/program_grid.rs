@@ -63,7 +63,7 @@ impl ProgramGridPriv {
     }
 
     fn set_open(&self, value: bool) {
-        let pb = self.instance();
+        let pb = self.obj();
         let ctx = pb.style_context();
         if value {
             ctx.add_class("open")
@@ -243,7 +243,7 @@ impl ProgramGridPriv {
             }
         };
 
-        self.instance().emit_by_name::<()>("action", &[&action]);
+        self.obj().emit_by_name::<()>("action", &[&action]);
     }
 }
 
@@ -335,7 +335,7 @@ impl ObjectImpl for ProgramGridPriv {
         self.parent_constructed();
         let obj = self.obj();
 
-        let p = ProgramGridPriv::from_instance(&obj);
+        let p = ProgramGridPriv::from_obj(&obj);
         let num_buttons = p.num_buttons.get();
         let num_pages = p.num_pages.get();
 
@@ -390,11 +390,11 @@ impl ObjectImpl for ProgramGridPriv {
                     }
                 }));
                 b.connect_button_press_event(glib::clone!(@weak self as p =>
-                    @default-return Inhibit(false),move |button, event| {
-                        if event.button() != 3 { return Inhibit(false) }
+                    @default-return Propagation::Proceed, move |button, event| {
+                        if event.button() != 3 { return Propagation::Proceed }
 
                         p.show_right_click_menu(i, button, event, program_id.as_str());
-                        Inhibit(true)
+                        Propagation::Stop
                    })
                 );
 
@@ -510,52 +510,52 @@ pub trait ProgramGridExt {
 
 impl ProgramGridExt for ProgramGrid {
     fn size_group(&self) -> gtk::SizeGroup {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.widgets.get().unwrap().size_group.clone()
     }
 
     fn join_radio_group(&self, group: Option<&impl IsA<gtk::RadioButton>>) {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.join_radio_group(group);
     }
 
     fn set_program_modified(&self, program_idx: usize, modified: bool) {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.set_program_modified(program_idx, modified)
     }
 
     fn program_modified(&self, program_idx: usize) -> Option<bool> {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.program_modified(program_idx)
     }
 
     fn set_program_name(&self, program_idx: usize, name: &str) {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.set_program_name(program_idx, name)
     }
 
     fn program_name(&self, program_idx: usize) -> Option<glib::GString> {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.program_name(program_idx)
     }
 
     fn set_open(&self, is_open: bool) {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.set_open(is_open)
     }
 
     fn open(&self) -> bool {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.open()
     }
 
     fn num_pages(&self) -> usize {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.num_pages()
     }
 
     fn num_buttons(&self) -> usize {
-        let p = ProgramGridPriv::from_instance(self);
+        let p = ProgramGridPriv::from_obj(self);
         p.num_buttons()
     }
 

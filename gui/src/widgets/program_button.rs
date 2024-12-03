@@ -64,7 +64,7 @@ impl ProgramButtonPriv {
     }
 
     fn set_modified(&self, modified: bool) {
-        let pb = self.instance();
+        let pb = self.obj();
         let ctx = pb.style_context();
         if modified {
             ctx.add_class("modified")
@@ -170,32 +170,32 @@ pub trait ProgramButtonExt {
 
 impl ProgramButtonExt for ProgramButton {
     fn set_program_id(&self, value: &str) {
-        let p = ProgramButtonPriv::from_instance(self);
+        let p = ProgramButtonPriv::from_obj(self);
         p.set_program_id(value);
     }
 
     fn program_id(&self) -> glib::GString {
-        let p = ProgramButtonPriv::from_instance(self);
+        let p = ProgramButtonPriv::from_obj(self);
         p.program_id()
     }
 
     fn set_program_name(&self, value: &str) {
-        let p = ProgramButtonPriv::from_instance(self);
+        let p = ProgramButtonPriv::from_obj(self);
         p.set_program_name(value)
     }
 
     fn program_name(&self) -> glib::GString {
-        let p = ProgramButtonPriv::from_instance(self);
+        let p = ProgramButtonPriv::from_obj(self);
         p.program_name()
     }
 
     fn set_modified(&self, modified: bool) {
-        let p = ProgramButtonPriv::from_instance(self);
+        let p = ProgramButtonPriv::from_obj(self);
         p.set_modified(modified)
     }
 
     fn modified(&self) -> bool {
-        let p = ProgramButtonPriv::from_instance(self);
+        let p = ProgramButtonPriv::from_obj(self);
         p.modified()
     }
 }

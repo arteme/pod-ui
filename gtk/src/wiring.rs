@@ -6,11 +6,10 @@ use log::*;
 use anyhow::*;
 use glib::SignalHandlerId;
 
-use gtk::prelude::*;
 use pod_core::controller::*;
 use pod_core::controller::StoreOrigin::UI;
 use pod_core::model::{AddrRangeControl, Control, Format, RangeControl, VirtualRangeControl};
-use crate::{Callbacks, ObjectList};
+use crate::prelude::*;
 
 pub struct SignalHandler {
     handler_id: SignalHandlerId,
@@ -364,7 +363,7 @@ pub fn wire_frames(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Res
                     } else {
                         warn!("Control value for {:?} not found", &toggle);
                     }
-                    false
+                    Propagation::Proceed
                 };
 
                 let Some(frame) = w.dynamic_cast_ref::<gtk::Frame>() else {
@@ -380,7 +379,7 @@ pub fn wire_frames(controller: Arc<Mutex<Controller>>, objs: &ObjectList) -> Res
 
 fn wire_frame_double_click<F>(frame: &gtk::Frame, callback: F)
 where
-    F: Fn() -> bool + 'static,
+    F: Fn() -> Propagation + 'static,
 {
     let Some(parent) = frame.parent() else {
         warn!("Not wiring {:?}: no parent", frame);
@@ -404,9 +403,8 @@ where
     b.set_child_position(&event_box, pos);
 
     event_box.connect_button_press_event(move |_, event| {
-        if event.event_type() != gdk::EventType::DoubleButtonPress { return Inhibit(false) }
-        let inhibit = callback();
-        Inhibit(inhibit)
+        if event.event_type() != gdk::EventType::DoubleButtonPress { return Propagation::Proceed }
+        callback()
     });
     event_box.add_events(gdk::EventMask::BUTTON_PRESS_MASK);
 }

@@ -88,7 +88,7 @@ impl ObjectImpl for TunerPriv {
         obj.pack_start(&note, false, false, 0);
 
         let octave = gtk::Label::builder()
-            .label(&"")
+            .label("")
             .margin_top(5)
             .margin_end(20)
             .build();
@@ -121,12 +121,12 @@ pub trait TunerExt {
 
 impl TunerExt for Tuner {
     fn set_note(&self, value: Option<usize>) {
-        let p = TunerPriv::from_instance(self);
+        let p = TunerPriv::from_obj(self);
         p.set_note(value)
     }
 
     fn set_offset(&self, value: Option<f64>) {
-        let p = TunerPriv::from_instance(self);
+        let p = TunerPriv::from_obj(self);
         p.set_offset(value)
     }
 }

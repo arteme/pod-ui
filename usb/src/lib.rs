@@ -130,11 +130,6 @@ pub fn usb_list_devices() -> Vec<(String, bool)> {
         }).collect()
 }
 
-fn usb_remove_device(key: String) {
-    let mut devices = DEVICES.lock().unwrap();
-    devices.remove(&key);
-}
-
 pub fn usb_device_for_address(dev_addr: &str) -> Result<(impl MidiIn, impl MidiOut)> {
     let mut devices = DEVICES.lock().unwrap();
     let _ = usb_enumerate_devices(&mut devices);

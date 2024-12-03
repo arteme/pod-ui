@@ -18,7 +18,6 @@ use clap::{Args, Command, FromArgMatches};
 use core::result::Result::Ok;
 use std::env;
 use std::rc::Rc;
-use futures::executor;
 use futures_util::future::{join_all, JoinAll};
 use futures_util::FutureExt;
 use log::*;
@@ -467,7 +466,7 @@ fn start_controller_rx<F>(controller: Arc<Mutex<Controller>>,
 
     glib::MainContext::default()
         .spawn_local_with_priority(
-            glib::PRIORITY_HIGH,
+            glib::Priority::HIGH,
             async move {
                 let id = next_thread_id();
                 info!("Controller RX thread {:?} start", id);
@@ -548,7 +547,7 @@ fn make_window_smaller(window: gtk::Window) {
                 window.resize(1, 1);
             }
 
-            Continue(cont)
+            if cont { ControlFlow::Continue } else { ControlFlow::Break }
         });
 }
 
@@ -658,7 +657,7 @@ async fn main() -> Result<()> {
 
 fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: bool) {
     let (app_event_tx, mut app_event_rx) = broadcast::channel::<AppEvent>(MIDI_OUT_CHANNEL_CAPACITY);
-    let (ui_event_tx, ui_event_rx) = glib::MainContext::channel::<UIEvent>(glib::PRIORITY_DEFAULT);
+    let (ui_event_tx, ui_event_rx) = glib::MainContext::channel::<UIEvent>(glib::Priority::DEFAULT);
     let state = Arc::new(Mutex::new(State {
         midi_in_name: None,
         midi_in_cancel: None,
@@ -698,7 +697,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
         move |_, _| {
             info!("Window delete...");
             app.activate_action("quit", None);
-            Inhibit(true)
+            Propagation::Stop
         }
     });
 
@@ -712,7 +711,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
             }
         }).build();
     let preferences_action = create_settings_action(state.clone(), &ui);
-    app.add_action_entries([quit_action, preferences_action]).unwrap();
+    app.add_action_entries([quit_action, preferences_action]);
 
     set_app_icon(&window).expect("Failed to test application icon");
     // Re-parent window content into a notification overlay
@@ -940,7 +939,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
                         .ok();
                     let Some(interface) = interface else {
                         // Failed to initialize the interface, so skip the rest
-                        return Continue(true);
+                        return ControlFlow::Continue
                     };
 
                     if let Some(ctx) = &*ctx_share.lock().unwrap() {
@@ -1246,8 +1245,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
                 }
             }
 
-
-            Continue(true)
+            ControlFlow::Continue
         }
     });
 

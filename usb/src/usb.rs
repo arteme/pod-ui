@@ -8,14 +8,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use log::{debug, error, info};
-use rusb::{Context, Hotplug, UsbContext};
+use rusb::{Context, UsbContext};
 use rusb::constants::{LIBUSB_ENDPOINT_DIR_MASK, LIBUSB_ENDPOINT_IN, LIBUSB_ENDPOINT_OUT, LIBUSB_TRANSFER_TYPE_BULK};
 use rusb::ffi::{libusb_alloc_transfer, libusb_cancel_transfer, libusb_free_transfer, libusb_submit_transfer, libusb_transfer};
 use crate::check;
 use crate::devices::find_device;
 use crate::util::usb_address_string;
 
-pub type Device = rusb::Device<Context>;
 pub type DeviceHandle = rusb::DeviceHandle<Context>;
 
 #[derive(Clone, Debug)]

@@ -4,6 +4,7 @@ use bitflags::bitflags;
 use log::warn;
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct DeviceFlags: u16 {
         /// POD 2.0 supports a manual mode (PC 0) which doesn't have a
         /// program dump, but operated on edit buffer alone. Pocket POD
@@ -28,6 +29,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct MidiQuirks: u16 {
         /// To work around buggy PocketPOD drivers for WinMM, we must ensure
         /// there's a quiet time on the MIDI IN line before it is closed,

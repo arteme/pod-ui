@@ -27,7 +27,7 @@ fn line6_read_data<T: UsbContext>(dev: &DeviceHandle<T>, address: u16, buf: &mut
     )?;
 
     let mut len = [0u8];
-    for i in 0..READ_WRITE_MAX_RETRIES {
+    for _i in 0..READ_WRITE_MAX_RETRIES {
         sleep(READ_WRITE_STATUS_DELAY);
 
         dev.read_control(

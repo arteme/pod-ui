@@ -12,6 +12,7 @@ use crate::model::*;
 use crate::builders::*;
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct XtPacks: u8 {
         const MS = 0x01;
         const CC = 0x02;

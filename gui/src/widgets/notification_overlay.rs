@@ -71,7 +71,7 @@ impl NotificationOverlayPriv {
             if rev.reveals_child() {
                 rev.set_reveal_child(false);
             }
-            Inhibit(false)
+            Propagation::Proceed
         });
 
         // dismiss notification after 5 seconds of showing it
@@ -195,17 +195,17 @@ pub trait NotificationOverlayExt {
 
 impl NotificationOverlayExt for NotificationOverlay {
     fn add_notification(&self, label: &str) {
-        let p = NotificationOverlayPriv::from_instance(self);
+        let p = NotificationOverlayPriv::from_obj(self);
         p.add_notification(label, &"");
     }
 
     fn add_notification_with_id(&self, label: &str, id: &str) {
-        let p = NotificationOverlayPriv::from_instance(self);
+        let p = NotificationOverlayPriv::from_obj(self);
         p.add_notification(label, id);
     }
 
     fn update_notification_with_id(&self, label: &str, id: &str) -> bool {
-        let p = NotificationOverlayPriv::from_instance(self);
+        let p = NotificationOverlayPriv::from_obj(self);
         p.update_notification(label, id)
     }
 }

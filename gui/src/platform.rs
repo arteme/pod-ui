@@ -9,7 +9,7 @@ use bitflags::{bitflags, Flags};
 pub use imp::*;
 
 bitflags! {
-    #[derive(Clone)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct PlatformHackFlags: u8 {
         const OSX_RAISE           = 0x01;
         const CUSTOM_MAIN_LOOP    = 0x02;
@@ -72,7 +72,6 @@ mod imp {
     use pod_gtk::prelude::*;
     use std::sync::{Arc, OnceLock};
     use std::sync::atomic::{AtomicBool, Ordering};
-    use bitflags::Flags;
     use crate::platform::platform_hack_flags;
     use crate::PlatformHackFlags;
 
@@ -113,7 +112,7 @@ mod imp {
         if platform_hack_flags().contains(PlatformHackFlags::CUSTOM_MAIN_LOOP) {
             custom_app_run(app)
         } else {
-            app.run_with_args::<String>(&[])
+            app.run_with_args::<String>(&[]).into()
         }
     }
 

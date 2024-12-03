@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::anyhow;
-use futures_util::TryFutureExt;
 use pod_gtk::prelude::*;
 use gtk::{IconSize, ResponseType};
 use crate::{gtk, midi_in_out_start, midi_in_out_stop, set_midi_in_out, State};
@@ -32,6 +31,7 @@ struct SettingsDialog {
 }
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct EntryFlags: u8 {
         const ENTRY_HEADER = 0x01;
         const ENTRY_TEXT   = 0x02;
@@ -316,7 +316,7 @@ fn populate_model_combo(settings: &SettingsDialog, selected: &Option<String>) {
 fn wire_autodetect_button(settings: &SettingsDialog) {
     let settings = settings.clone();
     settings.autodetect_button.clone().connect_clicked(move |button| {
-        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let (tx, rx) = glib::MainContext::channel(glib::Priority::DEFAULT);
         tokio::spawn(async move {
             let res = run_autodetect(None).await;
             tx.send(res).ok();
@@ -344,7 +344,7 @@ fn wire_autodetect_button(settings: &SettingsDialog) {
                     settings.work_finish("dialog-error", &msg);
                 }
             };
-            Continue(false)
+            ControlFlow::Break
         });
     });
 }
@@ -377,7 +377,7 @@ fn wire_test_button(settings: &SettingsDialog) {
         let midi_channel = midi_channel_from_combo_index(midi_channel);
 
 
-        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let (tx, rx) = glib::MainContext::channel(glib::Priority::DEFAULT);
         tokio::spawn(async move {
             let res = test(&midi_in, &midi_out, midi_channel, is_usb, config.unwrap()).await;
             tx.send(res).ok();
@@ -403,7 +403,7 @@ fn wire_test_button(settings: &SettingsDialog) {
                     settings.work_finish("dialog-error", &msg);
                 }
             };
-            Continue(false)
+            ControlFlow::Break
         });
     });
 }
@@ -447,7 +447,7 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
         settings.set_message("", "Waiting for MIDI...");
         settings.set_interactive(false);
 
-        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let (tx, rx) = glib::MainContext::channel(glib::Priority::DEFAULT);
         tokio::spawn(async move {
             let results = midi_io_stop_handle.await;
             let errors = results.into_iter()
@@ -474,7 +474,7 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
                         settings.work_finish("dialog-error", &msg);
                     }
                 };
-                Continue(false)
+                ControlFlow::Break
             });
         }
 

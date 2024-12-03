@@ -99,7 +99,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
 
     let state = state.clone();
     let window = window.clone();
-    let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let (tx, rx) = glib::MainContext::channel(glib::Priority::DEFAULT);
 
     if autodetect {
         tokio::spawn(async move {
@@ -155,7 +155,7 @@ pub fn detect(state: Arc<Mutex<State>>, opts: Opts, window: &gtk::Window) -> Res
             }
         };
 
-        Continue(false)
+        ControlFlow::Break
     });
 
     Ok(())

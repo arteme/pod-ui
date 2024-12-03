@@ -30,7 +30,7 @@ const ROMBUS_SCALE_H: f64 = 0.5;
 impl TuneIndicatorPriv {
     fn set_pos(&self, value: f64) {
         self.pos.set(value);
-        self.instance().queue_draw();
+        self.obj().queue_draw();
     }
 
     fn pos(&self) -> f64 {
@@ -39,7 +39,7 @@ impl TuneIndicatorPriv {
 
     fn set_indicator(&self, value: bool) {
         self.indicator.set(value);
-        self.instance().queue_draw();
+        self.obj().queue_draw();
     }
 
     fn indicator(&self) -> bool {
@@ -185,9 +185,9 @@ impl ObjectImpl for TuneIndicatorPriv {
 }
 
 impl WidgetImpl for TuneIndicatorPriv {
-    fn draw(&self, cr: &Context) -> Inhibit {
+    fn draw(&self, cr: &Context) -> Propagation {
         self.draw(cr, &self.obj().style_context()).ok();
-        Inhibit(true)
+        Propagation::Proceed
     }
 
     fn preferred_width(&self) -> (i32, i32) {
@@ -222,7 +222,7 @@ pub trait TuneIndicatorExt {
 
 impl TuneIndicatorExt for TuneIndicator {
     fn set_pos(&self, value: Option<f64>) {
-        let p = TuneIndicatorPriv::from_instance(self);
+        let p = TuneIndicatorPriv::from_obj(self);
         if let Some(v) = value {
             p.set_pos(v);
             p.set_indicator(true);
@@ -232,7 +232,7 @@ impl TuneIndicatorExt for TuneIndicator {
     }
 
     fn pos(&self) -> Option<f64> {
-        let p = TuneIndicatorPriv::from_instance(self);
+        let p = TuneIndicatorPriv::from_obj(self);
         if p.indicator() {
             Some(p.pos())
         } else {
