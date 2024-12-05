@@ -647,11 +647,11 @@ async fn main() -> Result<()> {
         }
     });
 
-    let exit_code = app_run(app);
+    let exit_code = app.run_with_args::<String>(&[]);
     // HACK: instead of dealing with USB thread clean-up (and in case there are any other
     // threads still running), we just call `process::exit` and let libraries clean up
     // after themselves
-    std::process::exit(exit_code);
+    std::process::exit(exit_code.into());
     Ok(())
 }
 
@@ -1241,7 +1241,7 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
                     r.emit_by_name::<()>("group-changed", &[]);
 
                     // quit
-                    app_quit(&app);
+                    app.quit();
                 }
             }
 

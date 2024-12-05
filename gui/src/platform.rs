@@ -12,7 +12,6 @@ bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct PlatformHackFlags: u8 {
         const OSX_RAISE           = 0x01;
-        const CUSTOM_MAIN_LOOP    = 0x02;
     }
 }
 
@@ -23,7 +22,7 @@ const DEFAULT_HACK_FLAGS: PlatformHackFlags = PlatformHackFlags::empty();
 
 #[cfg(target_os = "macos")]
 const DEFAULT_HACK_FLAGS: PlatformHackFlags =
-    PlatformHackFlags::CUSTOM_MAIN_LOOP.union(PlatformHackFlags::OSX_RAISE);
+    PlatformHackFlags::OSX_RAISE;
 
 #[cfg(target_os = "windows")]
 const DEFAULT_HACK_FLAGS: PlatformHackFlags = PlatformHackFlags::empty();
@@ -70,59 +69,8 @@ pub fn get_platform_hack_flags() -> String {
 
 mod imp {
     use pod_gtk::prelude::*;
-    use std::sync::{Arc, OnceLock};
-    use std::sync::atomic::{AtomicBool, Ordering};
     use crate::platform::platform_hack_flags;
     use crate::PlatformHackFlags;
-
-    // PlatformHackFlags::CUSTOM_MAIN_LOOP
-    //
-    // Due to weird UI hang on macOS (see: https://github.com/arteme/pod-ui/issues/62),
-    // this is a free-form re-implementation of g_application_run() from
-    // https://github.com/GNOME/glib/blob/9cb0e9464e6117c4ff84b648851c6ee2f5873d1b/gio/gapplication.c#L2591
-    // along with a_application_quit(), as there is no way to catch the
-    // quit signal otherwise. Can be useful on other platforms.
-    
-    fn app_running() -> Arc<AtomicBool> {
-        static BOOL: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-        BOOL.get_or_init(|| Arc::new(AtomicBool::new(true))).clone()
-    }
-
-    fn custom_app_run(app: gtk::Application) -> i32 {
-        let context = glib::MainContext::default();
-        let _guard = context.acquire().unwrap();
-
-        let running = app_running();
-
-        app.register(None::<&gio::Cancellable>).unwrap();
-        app.activate();
-
-        while running.load(Ordering::SeqCst) {
-            context.iteration(true);
-        };
-
-        0
-    }
-
-    fn custom_app_quit() {
-        app_running().store(false, Ordering::SeqCst);
-    }
-
-    pub fn app_run(app: gtk::Application) -> i32 {
-        if platform_hack_flags().contains(PlatformHackFlags::CUSTOM_MAIN_LOOP) {
-            custom_app_run(app)
-        } else {
-            app.run_with_args::<String>(&[]).into()
-        }
-    }
-
-    pub fn app_quit(app: &gtk::Application) {
-        if platform_hack_flags().contains(PlatformHackFlags::CUSTOM_MAIN_LOOP) {
-            custom_app_quit()
-        } else {
-            app.quit()
-        }
-    }
 
     // PlatformHackFlags::OSX_RAISE
 

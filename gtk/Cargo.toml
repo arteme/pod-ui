@@ -8,7 +8,7 @@ rust-version.workspace = true
 [dependencies]
 glib = "0.18"
 gdk = "0.18"
-gtk = { version = "0.18", features = ["v3_24"] }
+gtk = { version = "0.18", features = ["v3_24_30"] }
 multimap = "0.10.0"
 
 log = "*" # defined in pod-core
