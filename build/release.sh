@@ -21,7 +21,7 @@ build_release_linux_real() {
     T=target.docker$1
     export CARGO_TARGET_DIR=$T
     export RELEASE_PLATFORM="linux$1"
-    cargo build --release
+    cargo build --release $2
     ./build/linux-split-debuginfo.sh $T/release/pod-gui
     ./build/mk-appimage-dist.sh $1
     [ "$SENTRY" = "1" ] && \
@@ -34,13 +34,13 @@ build_release_linux_real() {
 build_release_linux_in_docker() {
     if [[ -n "$DOCKER_POD_UI_BUILD" ]];
     then
-        build_release_linux_real $1
+        build_release_linux_real "$1" "$2"
         exit
     fi
 }
 
 build_release_linux() {
-    ./build/mk-appimage-dist-docker.sh $1
+    ./build/mk-appimage-dist-docker.sh "$1" "$2"
 }
 
 build_release_win64() {
@@ -59,10 +59,10 @@ case "$(uname)" in
         build_release_osx
         ;;
     Linux)
-        build_release_linux_in_docker $1
+        build_release_linux_in_docker "$1" "$2"
 
-        build_release_linux
-        build_release_linux "-debian10"
+        build_release_linux "" "--no-default-features"
+        build_release_linux "-debian10" "--no-default-features"
         ;;
     MINGW64*)
         build_release_win64
