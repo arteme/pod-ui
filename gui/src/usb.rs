@@ -70,18 +70,18 @@ mod nop {
     use anyhow::*;
     use pod_core::midi_io::{AutodetectResult, MidiInPort, MidiOutPort};
 
-    fn start_usb() {
+    pub fn start_usb() {
     }
 
-    fn usb_list_devices() -> Vec<(String, bool)> {
+    pub fn usb_list_devices() -> Vec<(String, bool)> {
         vec![]
     }
 
-    fn usb_open_addr(_addr: &str) -> Result<(MidiInPort, MidiOutPort)> {
+    pub fn usb_open_addr(_addr: &str) -> Result<(MidiInPort, MidiOutPort)> {
         unimplemented!()
     }
 
-    fn usb_open_name(_addr: &str) -> Result<(MidiInPort, MidiOutPort)> {
+    pub fn usb_open_name(_addr: &str) -> Result<(MidiInPort, MidiOutPort)> {
         unimplemented!()
     }
 
