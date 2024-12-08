@@ -5,32 +5,38 @@ save_as: index.html
 ![Screenshot]({static}/images/pod-ui-v1.0.0-podxt.jpg)
 
 **pod-ui** is a modern cross-platform app to control Line6 POD family
-of guitar modelling amps via MIDI. Currently, it supports **POD 2.0**,
-**POD Pro**, **PocketPOD** and a family of **PODxt** devices (PODxt,
-PODxt Pro, PODxt Live).
+of guitar modelling amps via MIDI. Currently, it supports the
+original **POD**, **POD 2.0**, **POD Pro**, **PocketPOD** and a family
+of **PODxt** (PODxt, PODxt Pro, PODxt Live) and **Bass PODxt** (Bass
+PODxt, Bass PODxt Pro, Bass PODxt Live) devices.
 For pre-built binaries check out the 
 [releases page](https://github.com/arteme/pod-ui/releases).
 
 The app is a work-in-progress and many features may still be missing,
-however I intended to get feature parity with **Line6 Edit** on things like:
+however it intended to get feature parity with **Line6 Edit**. Some of
+the things already supported:
 
- - ☑ controlling the POD;
- - ☑ up-/downloading individual patches;
- - ☑ up-/downloading patch libraries;
- - ☐ loading `.l6t` and `.lib` files;
- - ☑ support for POD device **★new in version 1.3.0★**;
- - ☑ support for POD 2.0/POD Pro device;
- - ☑ support for Pocket POD device;
- - ☑ support for PODxt/PODxt Pro/PODxt Live device;
- - ☑ support for Bass PODxt/Bass PODxt Pro/Bass PODxt Live device **★new in version 1.3.0★**;
- - ☐ support for Bass POD device;
- - ☐ support for Floor POD Plus device;
- - ☐ support for [other compatible]({filename}devices.md) Line6 devices;
+- ☑ controlling the POD;
+    - ☑ up-/downloading individual patches;
+    - ☑ up-/downloading patch libraries;
+- ☑ support for POD device*;
+- ☑ support for POD 2.0/POD Pro devices;
+- ☑ support for Pocket POD device;
+- ☑ support for PODxt/PODxt Pro/PODxt Live devices;
+- ☑ support for Bass PODxt/Bass PODxt Pro/Bass PODxt Live devices;
+- ☑ working over [plain USB]({filename}libusb.md) without Line6 drivers **★new in version 1.5.0★**;
 
-I would like to support other MIDI-based legacy Line6 products, such as
-Bass POD, Floor POD, etc. I do not own any of these and would need
-volunteers to test. If you would like to volunteer for this, please open
-an issue at the [issues page](https://github.com/arteme/pod-ui/issues). 
+Things that are work-in-progress:
+
+- ☐ loading `.l6t` and `.lib` files;
+- ☐ support for Bass POD device;
+- ☐ support for Floor POD Plus device;
+- ☐ support for [other compatible]({filename}devices.md) Line6 devices;
+
+To add support other MIDI-based legacy Line6 products, such as Bass POD,
+Floor POD, etc., I would need volunteers for testing as it is difficult
+to do that without having any of this hardware. If you would like to 
+volunteer for testing, please open an issue at the [issues page](https://github.com/arteme/pod-ui/issues). 
 
 ## Development
 
@@ -43,4 +49,4 @@ The app is developed using MIDI controls references and SysEx protocol
 descriptions published by Line6 and my own POD devices.
 
 The app is developed in Linux, pre-build binaries are provided for
-Windows and MacOS.
+Windows and macOS.
