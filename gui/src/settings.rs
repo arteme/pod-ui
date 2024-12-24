@@ -9,6 +9,7 @@ use log::*;
 use pod_core::config::configs;
 use pod_core::midi::Channel;
 use pod_core::midi_io::{AutodetectResult, MidiInPort, MidiOutPort, MidiPorts};
+use pod_core::model::MidiQuirks;
 use pod_gtk::prelude::glib::bitflags::bitflags;
 use crate::autodetect::{open, run_autodetect, test};
 use crate::usb;
@@ -523,7 +524,8 @@ pub fn create_settings_action(state: Arc<Mutex<State>>, ui: &gtk::Builder) -> gi
                         }
                     }).unzip();
                 let midi_channel_num = state.midi_channel_num;
-                let quirks = state.config.map(|c| c.midi_quirks).unwrap();
+                let quirks = state.config.map(|c| c.midi_quirks)
+                    .unwrap_or_else(|| MidiQuirks::empty());
                 midi_in_out_start(&mut state, midi_in, midi_out, midi_channel_num,
                                   is_usb, quirks, false);
             }

@@ -925,6 +925,11 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
         let transfer_up_sem = Arc::new(atomic::AtomicI32::new(0));
         let transfer_down_sem = Arc::new(atomic::AtomicI32::new(0));
 
+        // HACK: I don't know, why settings button is sensitive by default even though
+        // the glade file says it shouldn't be. Force it to be insensitive here.
+        let settings_button = ui.object::<gtk::Button>("settings_button").unwrap();
+        settings_button.set_sensitive(false);
+
         move |event| {
             match event {
                 UIEvent::NewConfig => {
@@ -1073,6 +1078,10 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
                     } else {
                         open_button.hide();
                     }
+
+                    // enable the settings button that is disabled before the first config is loaded
+                    let settings_button = ui.object::<gtk::Button>("settings_button").unwrap();
+                    settings_button.set_sensitive(true);
 
                     program_grid.replace(g);
 
