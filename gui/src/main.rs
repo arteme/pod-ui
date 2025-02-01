@@ -578,11 +578,20 @@ pub fn ui_modified_handler(ctx: &Ctx, event: &ModifiedEvent, ui_event_tx: &glib:
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _guard = sentry::init((option_env!("SENTRY_DSN"), sentry::ClientOptions {
+    let sentry = sentry::init((option_env!("SENTRY_DSN"), sentry::ClientOptions {
         release: Some(VERSION.as_str().into()),
         ..Default::default()
     }));
-    let sentry_enabled = _guard.is_enabled();
+    let sentry_enabled = sentry.is_enabled();
+    let _crash_reporter = if sentry_enabled {
+        Some(
+            sentry_rust_minidump::init(&sentry)
+                .expect("Failed to start crash reporter")
+        )
+    } else {
+        None
+    };
+
     simple_logger::SimpleLogger::new()
         .with_level(LevelFilter::Trace)
         .env()
@@ -616,6 +625,7 @@ async fn main() -> Result<()> {
         scope.set_tag("platform", &platform_hack_flags);
     });
     info!("Platform hacks: {}", &platform_hack_flags);
+    info!("Sentry enabled: {}", sentry_enabled);
 
     // glib::set_program_name needs to come before gtk::init!
     glib::set_program_name(Some(&title));
@@ -1256,7 +1266,12 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
         info!("THREAD CRASH TESTING");
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(duration)).await;
-            let _ = 1 / 0;
+            if env::var_os("PODUI_CRASH_SEGV").filter(|s| !s.is_empty()).is_some() {
+                #[allow(deref_nullptr)]
+                unsafe { *std::ptr::null_mut() = true; }
+            } else {
+                let _ = 1 / 0;
+            }
         });
     }
 
