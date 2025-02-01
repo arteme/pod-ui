@@ -228,27 +228,35 @@ impl Transfer
         // SAFETY: inner is a valid pointer
         unsafe { (*inner).user_data = raw.cast() };
 
-        {
+        let res = {
             //println!("submitting transfer={raw:?} inner={inner:?}");
             let mut status = status.lock().unwrap();
-            Transfer::submit_inner(raw, inner, &mut status)?;
-        }
+            Transfer::submit_inner(raw, inner, &mut status)
+        };
+        res.map_err(|e| {
+            // SAFETY: We have the only pointer to the original Transfer
+            drop(unsafe { Box::from_raw(raw as _) });
+           e
+        })?;
         Ok(SubmittedTransfer {
             status,
             inner
         })
     }
 
+    #[must_use = "Transfer needs to be dropped if `submit_inner` return true"]
     fn submit_inner(raw: *mut Self, inner: *mut libusb_transfer, status: &mut TransferStatus) -> Result<()> {
         if let Err(e) = check!(libusb_submit_transfer(inner)) {
             *status = TransferStatus::Error(e);
-            Self::callback_inner(raw, inner, status);
+            // Use callback_inner to print an error, will be dropped by the caller
+            let _ = Self::callback_inner(raw, inner, status);
             return Err(e.into());
         }
         Ok(())
     }
 
-    fn callback_inner(raw: *mut Self, inner: *mut libusb_transfer, status: &mut TransferStatus) {
+   #[must_use = "Transfer needs to be dropped if `callback_inner` return true"]
+    fn callback_inner(raw: *mut Self, inner: *mut libusb_transfer, status: &mut TransferStatus) -> bool {
         // SAFETY: raw is a valid reference and we have exclusive access
         let t = unsafe { &mut *raw };
         let inner_ptr = inner;
@@ -290,14 +298,16 @@ impl Transfer
         };
         match command {
             TransferCommand::Resubmit => {
-                Transfer::submit_inner(raw, inner_ptr, status).ok();
+                match Transfer::submit_inner(raw, inner_ptr, status) {
+                    Ok(_) => false,
+                    Err(_) => true // error, transfer must be dropped
+                }
             }
             TransferCommand::Drop => {
                 inner.dev_handle = null_mut();
                 inner.user_data = null_mut();
                 *status = TransferStatus::Cancel;
-                // SAFETY: We have the only pointer to the original Transfer
-                drop(unsafe { Box::from_raw(t as _) });
+                true
             }
         }
 
@@ -311,8 +321,15 @@ impl Transfer
             let raw: *mut Transfer = unsafe { (*inner).user_data.cast() };
             let Some(t) = (unsafe { raw.as_ref() }) else { return };
 
-            let mut status = t.status.lock().unwrap();
-            Transfer::callback_inner(raw, inner, &mut status);
+            let must_drop = {
+                let mut status = t.status.lock().unwrap();
+                Transfer::callback_inner(raw, inner, &mut status)
+            };
+            if must_drop {
+                // SAFETY: We have the only pointer to the original Transfer
+                drop(unsafe { Box::from_raw(raw as _) });
+            }
+
         });
         if let Err(e) = r {
             eprintln!("libusb_transfer callback panic: {e:?}");
