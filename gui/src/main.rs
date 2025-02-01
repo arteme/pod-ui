@@ -11,7 +11,7 @@ mod usb;
 mod platform;
 
 use std::collections::HashMap;
-use std::sync::{Arc, atomic, Mutex};
+use std::sync::{Arc, atomic, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use anyhow::*;
 use clap::{Args, Command, FromArgMatches};
@@ -123,12 +123,27 @@ static VERSION: Lazy<String> = Lazy::new(|| {
     }
 });
 
+static MINIDUMP_HANDLER: OnceLock<sentry_rust_minidump::Handle> = OnceLock::new();
+fn minidump_set_tag<K, V>(key: K, value: V)
+where
+    K: Into<String>,
+    V: Into<String>
+{
+    let Some(handler) = MINIDUMP_HANDLER.get() else { return };
+    handler.set_tag(key.into(), Some(value.into()))
+}
+
 fn sentry_set_midi_tags(in_name: Option<&String>, out_name: Option<&String>) {
     sentry::configure_scope(|scope| {
-        scope.set_tag("midi.in",
-                      in_name.unwrap_or(&"-".to_string()));
-        scope.set_tag("midi.out",
-                      out_name.unwrap_or(&"-".to_string()));
+        let no_name = "-";
+        let in_name = in_name.map(|s| s.as_str()).unwrap_or(&no_name);
+        let out_name = out_name.map(|s| s.as_str()).unwrap_or(&no_name);
+
+        scope.set_tag("midi.in", in_name);
+        scope.set_tag("midi.out", out_name);
+
+        minidump_set_tag("midi.in", in_name);
+        minidump_set_tag("midi.out", out_name);
     })
 }
 
@@ -137,6 +152,10 @@ fn sentry_set_device_tags(detected_name: &String, detected_ver: &String, config_
         scope.set_tag("device.name", detected_name);
         scope.set_tag("device.ver", detected_ver);
         scope.set_tag("device.config", config_name);
+
+        minidump_set_tag("device.name", detected_name);
+        minidump_set_tag("device.ver", detected_ver);
+        minidump_set_tag("device.config", config_name);
     })
 }
 
@@ -583,14 +602,11 @@ async fn main() -> Result<()> {
         ..Default::default()
     }));
     let sentry_enabled = sentry.is_enabled();
-    let _crash_reporter = if sentry_enabled {
-        Some(
-            sentry_rust_minidump::init(&sentry)
-                .expect("Failed to start crash reporter")
-        )
-    } else {
-        None
-    };
+    if sentry_enabled {
+        let handler = sentry_rust_minidump::init(&sentry)
+            .expect("Failed to start crash reporter");
+        MINIDUMP_HANDLER.set(handler).ok();
+    }
 
     simple_logger::SimpleLogger::new()
         .with_level(LevelFilter::Trace)
@@ -623,6 +639,7 @@ async fn main() -> Result<()> {
     let platform_hack_flags = get_platform_hack_flags();
     sentry::configure_scope(|scope| {
         scope.set_tag("platform", &platform_hack_flags);
+        minidump_set_tag("platform", &platform_hack_flags);
     });
     info!("Platform hacks: {}", &platform_hack_flags);
     info!("Sentry enabled: {}", sentry_enabled);
