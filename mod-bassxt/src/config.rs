@@ -360,8 +360,8 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             // TODO: better (more?) points needed. this is often 1Hz off from what L6E shows :(
             //       Maybe the string formatter used does incorrect rounding?
             format: freq_format(
-                vec![(0, 50.0), (16, 56.0), (32, 75.0), (48, 106.0), (64, 150.0),
-                    (80, 206.0), (96, 275.0), (112, 356.0), (128, 450.0)]
+                vec![(0, 50.0), (16, 56.25), (32, 75.0), (48, 106.25), (64, 150.0),
+                    (80, 206.25), (96, 275.0), (112, 356.25), (128, 450.0)]
             ),
             ..def() },
         "eq_1_gain" => RangeControl { cc: 114, addr: 32 + 114,
@@ -400,10 +400,9 @@ pub static BASS_PODXT_CONFIG: Lazy<Config> = Lazy::new(|| {
             format: gain_format(),
             ..def() },
         "eq_6_freq" => RangeControl { cc: 77, addr: 32 + 77,
-            // TODO: same as "eq_1_freq", often off by 1Hz
             format: freq_format(
-                vec![(0, 500.0), (16, 525.0), (32, 563.0), (48, 734.0), (64, 1000.0),
-                    (80, 1359.0), (96, 1813.0), (112, 2395.0), (128, 3000.0)]
+                vec![(0, 500.0), (16, 525.0), (32, 562.5), (48, 734.375), (64, 1000.0),
+                    (80, 1359.4), (96, 1812.5), (112, 2359.4), (128, 3000.0)]
             ),
             ..def() },
         "eq_6_gain" => RangeControl { cc: 119, addr: 32 + 119,
