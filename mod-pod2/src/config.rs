@@ -327,8 +327,8 @@ pub static POD2_CONFIG: Lazy<Config> = Lazy::new(|| {
        )),
         toggles: convert_args!(vec!(
             toggle("noise_gate_enable").non_moving(0),
-            toggle("volume_enable").moving("vol_pedal_position", 3, 1),
-            toggle("amp_enable").non_moving(2),
+            toggle("volume_enable").moving("vol_pedal_position", 3, 1).fixed(true),
+            toggle("amp_enable").non_moving(2).fixed(true),
             toggle("effect_enable").non_moving(4),
             toggle("delay_enable").non_moving(5),
             toggle("reverb_enable").non_moving(6),
@@ -411,3 +411,39 @@ pub static POD_CONFIG: Lazy<Config> = Lazy::new(|| {
         ..pod2_config
     }
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+    use pod_gtk::prelude::*;
+
+    /// Controls with no corresponding widget in `pod.conf` by design: MIDI-only
+    /// halves, the raw (non-virtual) CC-bound twin of a UI-facing virtual
+    /// control, a rule-trigger-only virtual control, and a synthetic callback key.
+    const WIDGETLESS: &[&str] = &[
+        "delay_time:msb", "delay_time:lsb", "effect_select:raw",
+        "digiout_show", "name_change", "vol_pedal_position",
+    ];
+
+    #[test]
+    fn pod_conf_covers_all_controls() {
+        gtk::init().expect("gtk::init failed - is a display available?");
+
+        let widget = pod_gtk::build_ui(include_str!("pod.conf")).expect("pod.conf should build");
+        let objs = pod_gtk::ObjectList::from_widget(&widget);
+        let named: HashSet<String> = objs.named_objects().map(|(_, n)| n).collect();
+
+        for name in POD2_CONFIG.controls.keys() {
+            if WIDGETLESS.contains(&name.as_str()) { continue; }
+            // a radio-group control (e.g. "reverb_type") has no widget of its
+            // own name - only its "{name}:{value}" member buttons are real
+            // widgets. Glade needed a floating unparented anchor object named
+            // "reverb_type" purely to declare the `group` property; gtk-rs's
+            // `RadioButton::join_group` has no such requirement.
+            let bare_or_group_member = named.contains(name)
+                || named.iter().any(|n| n.starts_with(&format!("{}:", name)));
+            assert!(bare_or_group_member, "control {:?} has no widget in pod.conf", name);
+        }
+    }
+}

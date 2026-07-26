@@ -4,7 +4,7 @@ use pod_core::model::Config;
 use pod_core::store::{Signal, StoreSetIm};
 use pod_core::store::Origin::MIDI;
 use pod_gtk::prelude::*;
-use gtk::{Builder, Widget};
+use gtk::Widget;
 use pod_core::handler::BoxedHandler;
 
 use crate::wiring::*;
@@ -36,12 +36,8 @@ struct Pod2Interface {
 
 impl Pod2Interface {
     fn new(config: &'static Config) -> Self {
-        let builder = Builder::from_string(include_str!("pod.glade"));
-        let objects = ObjectList::new(&builder);
-
-        let widow: gtk::Window = builder.object("app_win").unwrap();
-        let widget = widow.child().unwrap();
-        widow.remove(&widget);
+        let widget = build_ui(include_str!("pod.conf")).expect("Failed to build pod.conf UI");
+        let objects = ObjectList::from_widget(&widget);
 
         Self { config, widget, objects }
     }

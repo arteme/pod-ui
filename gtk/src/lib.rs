@@ -3,6 +3,7 @@ mod module;
 mod util;
 mod wiring;
 mod toggles;
+mod layout;
 pub mod prelude;
 pub mod logic;
 
@@ -11,3 +12,4 @@ pub use module::*;
 pub use util::*;
 pub use wiring::*;
 pub use toggles::*;
+pub use layout::*;

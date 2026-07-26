@@ -10,6 +10,8 @@ glib = "0.18"
 gdk = "0.18"
 gtk = { version = "0.18", features = ["v3_24"] }
 multimap = "0.10.0"
+hocon = "0.9"
+serde = { version = "1", features = ["derive"] }
 
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core

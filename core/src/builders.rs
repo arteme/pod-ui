@@ -76,6 +76,12 @@ impl ToggleBuilder {
         self
     }
 
+    pub fn fixed(&mut self, on: bool) -> &mut Self {
+        self.0.on = on;
+        self.0.fixed = true;
+        self
+    }
+
     pub fn build(&self) -> Toggle {
         self.0.clone()
     }

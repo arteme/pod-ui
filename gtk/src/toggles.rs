@@ -25,6 +25,15 @@ pub fn wire_toggles(container_name: &str,
 
     for toggle in toggles.iter() {
         let widget = objs.ref_by_name::<gtk::Widget>(&toggle.name)?;
+        if toggle.on {
+            widget.dynamic_cast_ref::<gtk::ToggleButton>().map(|button| {
+                button.set_active(true);
+            });
+        }
+        if toggle.fixed {
+            widget.set_sensitive(false);
+        }
+
         widget.set_hexpand(true);
         sg.add_widget(&widget);
         if let Some(parent) = widget.parent() {

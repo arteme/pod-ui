@@ -98,6 +98,8 @@ pub struct Toggle {
     pub position_control: String,
     pub on_position: usize,
     pub off_position: usize,
+    pub on: bool,
+    pub fixed: bool,
 }
 
 #[derive(Clone, Debug)]
