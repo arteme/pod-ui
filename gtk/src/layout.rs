@@ -1,10 +1,18 @@
-//! Builds a device panel `gtk::Widget` tree from a HOCON layout description,
-//! replacing what used to be a per-device `.glade` file.
+//! Builds a device panel `gtk::Widget` tree by populating a base `.glade`
+//! layout from a HOCON layout description.
 //!
-//! The DSL only describes *content*: which groups exist, which control each
-//! widget binds to, and any conditional visibility/enable rules. Container
-//! mechanics (Box vs Grid, spacing, margins, orientation) are fixed by the
-//! Rust code for each node kind below, not authored in the `.conf` file.
+//! The base glade file supplies the static chrome that doesn't vary with
+//! content - the top-level `app_win` window, the "Program" name entry/frame -
+//! plus two containers this module fills in:
+//! - `toggles`: a `GtkGrid`, one checkbox attached per top-level toggle
+//! - `controls`: a `GtkBox`, one column box packed per distinct `column`
+//!   value among the parsed groups
+//!
+//! The `.conf` file only describes *content*: which groups exist, which
+//! control each widget binds to, and any conditional visibility/enable
+//! rules. Container mechanics for the dynamic parts (Box vs Grid, spacing,
+//! margins, orientation) are fixed by the Rust code for each node kind
+//! below, not authored in the `.conf` file.
 //!
 //! The resulting widget tree uses exactly the same conventions the existing
 //! generic wiring engine already expects, so `wire()`, `wire_frames()`,
@@ -17,19 +25,26 @@
 //!   `animate()` already parses (action ∈ show/hide/enable/disable/opacity=0/opacity=1)
 //! - a group with a `toggle` control gets a `"toggle:{control}"` class
 
+use std::fs;
+use std::path::Path;
+
 use anyhow::*;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Deserialize;
 
 use crate::prelude::*;
 
-/// Horizontal margin applied around a frame's content (the program-name
-/// entry, each group's control grid).
+/// Horizontal margin applied around a group frame's control grid.
 const CONTENT_MARGIN_H: i32 = 12;
-/// Margin left below a frame's content, before the frame's own edge.
+/// Margin left below a group frame's control grid, before the frame's own edge.
 const CONTENT_MARGIN_BOTTOM: i32 = 4;
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 struct LayoutDef {
+    /// Base Glade layout file path relative to the config file
+    ui: String,
     #[serde(default)]
     toggles: Vec<ToggleDef>,
     #[serde(default)]
@@ -37,6 +52,7 @@ struct LayoutDef {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 struct ToggleDef {
     control: String,
     label: String,
@@ -45,6 +61,7 @@ struct ToggleDef {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 struct GroupDef {
     group: String,
     column: u32,
@@ -57,6 +74,7 @@ struct GroupDef {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 struct ControlDef {
     control: String,
     widget: WidgetKind,
@@ -64,18 +82,13 @@ struct ControlDef {
     label: Option<String>,
     #[serde(default)]
     options: Vec<RadioOption>,
-    /// CSS classes applied to the control widget itself.
+    /// CSS classes applied to the control widget and label.
     #[serde(default)]
     rules: Vec<String>,
-    /// CSS classes applied to this control's label widget - independent of
-    /// `rules`, since a label and its control can legitimately animate
-    /// differently (e.g. a label fades via `opacity` while its control
-    /// actually `show`/`hide`s).
-    #[serde(rename = "label-rules", default)]
-    label_rules: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 struct RadioOption {
     value: u16,
     label: String,
@@ -92,72 +105,64 @@ enum WidgetKind {
     Button,
 }
 
-/// Parse a HOCON device layout and build the corresponding `gtk::Widget` tree.
-pub fn build_ui(conf_str: &str) -> Result<gtk::Widget> {
-    let layout: LayoutDef = hocon::de::from_str(conf_str)
-        .map_err(|e| anyhow!("Failed to parse layout: {}", e))?;
+/// Read and parse `conf_path`, load the base Glade layout file
+/// (relative to the config file path, following resource resolution).
+/// Returns the resulting `gtk::Widget` populated with the layout
+/// and UI constructed from the layout definition.
+pub fn build_ui(conf_path: &str) -> Result<gtk::Widget> {
 
-    let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    root.set_border_width(5);
+    let real_conf_path = pod_core::resources::resolve(conf_path)
+        .map_err(|e| anyhow!("Failed to resolve {:?}: {}", conf_path, e))?;
+    let conf_str = fs::read_to_string(&real_conf_path)
+        .with_context(|| format!("Failed to read conf file {:?}", conf_path))?;
+    let layout: LayoutDef = hocon::de::from_str(&conf_str)
+        .map_err(|e| anyhow!("Failed to parse layout {:?}: {}", conf_path, e))?;
 
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    if !layout.toggles.is_empty() {
-        let bar = build_toggle_bar(&layout.toggles);
-        header.pack_start(&bar, false, true, 0);
-    }
-    header.pack_start(&build_program_name_frame(), true, true, 0);
-    root.pack_start(&header, false, true, 0);
+    let glade_path = Path::new(conf_path).parent().unwrap_or_else(|| Path::new("."))
+        .join(&layout.ui);
+    let real_glade_path = pod_core::resources::resolve(&glade_path.to_string_lossy())
+        .map_err(|e| anyhow!("Failed to resolve {:?}: {}", glade_path, e))?;
+    let base_glade = fs::read_to_string(&real_glade_path)
+        .with_context(|| format!("Failed to read glade file {:?}", glade_path))?;
 
-    root.pack_start(&build_columns(&layout.groups), true, true, 0);
+    let builder = gtk::Builder::from_string(&base_glade);
+
+    let window: gtk::Window = builder.object("app_win")
+        .context("base glade layout is missing an 'app_win' window")?;
+    let root = window.child()
+        .context("base glade layout's 'app_win' window has no child")?;
+    window.remove(&root);
+
+    let toggles_grid: gtk::Grid = builder.object("toggles")
+        .context("base glade layout is missing a 'toggles' grid")?;
+    populate_toggle_bar(&toggles_grid, &layout.toggles);
+
+    let controls_box: gtk::Box = builder.object("controls")
+        .context("base glade layout is missing a 'controls' box")?;
+    populate_columns(&controls_box, &layout.groups);
 
     root.show_all();
-    Ok(root.upcast())
+    Ok(root)
 }
 
-fn build_toggle_bar(toggles: &[ToggleDef]) -> gtk::Grid {
-    let grid = gtk::Grid::new();
-    grid.set_widget_name("toggles");
-    grid.set_column_homogeneous(true);
-    grid.set_valign(gtk::Align::End);
-
+fn populate_toggle_bar(grid: &gtk::Grid, toggles: &[ToggleDef]) {
     for (i, t) in toggles.iter().enumerate() {
         let check = gtk::CheckButton::with_label(t.label.as_str());
         check.set_widget_name(&t.control);
         apply_rules(&check, &t.rules);
         grid.attach(&check, i as i32, 1, 1, 1);
     }
-
-    grid
 }
 
-fn build_program_name_frame() -> gtk::Frame {
-    let entry = gtk::Entry::new();
-    entry.set_widget_name("program_name");
-    entry.set_valign(gtk::Align::Center);
-    apply_content_margins(&entry);
-
-    let frame = gtk::Frame::new(Some("Program"));
-    frame.set_label_align(0.0, 0.5);
-    frame.set_shadow_type(gtk::ShadowType::EtchedOut);
-    frame.add(&entry);
-
-    frame
-}
-
-fn build_columns(groups: &[GroupDef]) -> gtk::Box {
-    let columns_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    columns_box.set_homogeneous(true);
-
+fn populate_columns(controls_box: &gtk::Box, groups: &[GroupDef]) {
     let max_column = groups.iter().map(|g| g.column).max().unwrap_or(0);
     for column in 0..=max_column {
         let col_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
         for g in groups.iter().filter(|g| g.column == column) {
             col_box.pack_start(&build_group(g), false, true, 0);
         }
-        columns_box.pack_start(&col_box, true, true, 0);
+        controls_box.pack_start(&col_box, true, true, 0);
     }
-
-    columns_box
 }
 
 fn build_group(g: &GroupDef) -> gtk::Frame {
@@ -184,19 +189,18 @@ fn build_group(g: &GroupDef) -> gtk::Frame {
 
 fn build_control_row(grid: &gtk::Grid, row: i32, c: &ControlDef) {
     let widget = build_control_widget(c);
+    widget.set_hexpand(true);
     apply_rules(&widget, &c.rules);
 
     match &c.label {
         Some(label) => {
             let l = gtk::Label::new(Some(label.as_str()));
-            l.set_xalign(0.0);
-            apply_rules(&l, &c.label_rules);
+            l.set_halign(gtk::Align::End);
+            apply_rules(&l, &c.rules);
             grid.attach(&l, 0, row, 1, 1);
-            widget.set_hexpand(true);
             grid.attach(&widget, 1, row, 1, 1);
         }
         None => {
-            widget.set_hexpand(true);
             grid.attach(&widget, 0, row, 2, 1);
         }
     }
@@ -254,10 +258,26 @@ fn build_control_widget(c: &ControlDef) -> gtk::Widget {
     }
 }
 
+/// Matches a `"{control}={v1},{v2},...:{action}"` rule (two or more
+/// comma-separated numeric values) so it can be expanded into one rule per
+/// value - see `apply_rules`.
+static MULTI_VALUE_RULE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^([^=]+)=(\d+(?:,\d+)+):(.+)$").unwrap()
+});
+
 fn apply_rules<T: IsA<gtk::Widget>>(widget: &T, rules: &[String]) {
     let style = widget.style_context();
     for rule in rules {
-        style.add_class(rule);
+        match MULTI_VALUE_RULE.captures(rule) {
+            Some(caps) => {
+                let control = &caps[1];
+                let action = &caps[3];
+                for value in caps[2].split(',') {
+                    style.add_class(&format!("{}={}:{}", control, value, action));
+                }
+            }
+            None => style.add_class(rule),
+        }
     }
 }
 
@@ -273,7 +293,42 @@ fn apply_content_margins<T: IsA<gtk::Widget>>(widget: &T) {
 mod tests {
     use super::*;
 
+    // Minimal stand-in for a device's `pod.glade`: just the pieces `build_ui`
+    // requires (`app_win`, `toggles`, `program_name`, `controls`), without any
+    // of the real chrome (spacing, the "Program" frame, etc).
+    const GLADE: &str = r#"
+        <interface>
+          <object class="GtkWindow" id="app_win">
+            <child>
+              <object class="GtkBox">
+                <property name="visible">True</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkGrid" id="toggles">
+                    <property name="name">toggles</property>
+                    <property name="visible">True</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkEntry" id="program_name">
+                    <property name="name">program_name</property>
+                    <property name="visible">True</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox" id="controls">
+                    <property name="name">controls</property>
+                    <property name="visible">True</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </interface>
+    "#;
+
     const CONF: &str = r#"
+        ui = "pod.glade"
         toggles = [
           { control = "noise_gate_enable", label = "Gate" }
           { control = "effect_enable", label = "FX",
@@ -291,8 +346,7 @@ mod tests {
             controls = [
               { control = "amp_select", widget = "combo" }
               { control = "drive2", widget = "slider", label = "Drive 2",
-                rules = [ "amp_select=4:show", "amp_select=*:hide" ],
-                label-rules = [ "amp_select=4:opacity=1", "amp_select=*:opacity=0" ] }
+                rules = [ "amp_select=4:show", "amp_select=*:hide" ] }
             ]
           }
           { group = "Reverb", column = 2,
@@ -311,6 +365,7 @@ mod tests {
     #[test]
     fn parses_layout() {
         let layout: LayoutDef = hocon::de::from_str(CONF).expect("should parse");
+        assert_eq!(layout.ui, "pod.glade");
         assert_eq!(layout.toggles.len(), 2);
         assert_eq!(layout.toggles[0].control, "noise_gate_enable");
         assert!(layout.toggles[0].rules.is_empty());
@@ -327,7 +382,6 @@ mod tests {
         let preamp = &layout.groups[1];
         let drive2 = &preamp.controls[1];
         assert_eq!(drive2.rules, vec!["amp_select=4:show", "amp_select=*:hide"]);
-        assert_eq!(drive2.label_rules, vec!["amp_select=4:opacity=1", "amp_select=*:opacity=0"]);
 
         let reverb = &layout.groups[2];
         assert_eq!(reverb.controls[0].widget, WidgetKind::RadioGroup);
@@ -335,10 +389,42 @@ mod tests {
     }
 
     #[test]
+    fn rejects_misspelled_field() {
+        const TYPO: &str = r#"
+            ui = "pod.glade"
+            groups = [
+              { group = "Noise Gate", column = 1,
+                controls = [
+                  { control = "gate_threshold", widget = "slider", label = "Threshold",
+                    ruels = [ "noise_gate_enable=1:enable" ] }
+                ]
+              }
+            ]
+        "#;
+
+        let err = hocon::de::from_str::<LayoutDef>(TYPO)
+            .expect_err("misspelled field name should fail to parse");
+        assert!(err.to_string().contains("ruels"), "error should name the bad field: {}", err);
+    }
+
+    /// Writes `GLADE`/`CONF` out to a temp directory so `build_ui` (which
+    /// now only takes a conf file path, and reads both files itself) has
+    /// real files to read.
+    fn write_fixture() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("pod-gtk-layout-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("should create temp dir");
+        std::fs::write(dir.join("pod.glade"), GLADE).expect("should write glade fixture");
+        let conf_path = dir.join("pod.conf");
+        std::fs::write(&conf_path, CONF).expect("should write conf fixture");
+        conf_path
+    }
+
+    #[test]
     fn builds_widget_tree() {
         gtk::init().expect("gtk::init failed - is a display available?");
 
-        let widget = build_ui(CONF).expect("should build");
+        let conf_path = write_fixture();
+        let widget = build_ui(&conf_path.to_string_lossy()).expect("should build");
         let objs = ObjectList::from_widget(&widget);
 
         // control widgets are named
@@ -380,11 +466,31 @@ mod tests {
         assert!(classes.contains(&"noise_gate_enable=1:enable".to_string()));
         assert!(classes.contains(&"noise_gate_enable=0:disable".to_string()));
 
-        // a control's label and widget can carry independent rules
+        // a control's rules pass through verbatim onto its widget
         let drive2 = objs.obj_by_name("drive2").expect("drive2 widget");
         let drive2_classes: Vec<String> = drive2.dynamic_cast_ref::<gtk::Widget>().unwrap()
             .style_context().list_classes().iter().map(|c| c.to_string()).collect();
         assert!(drive2_classes.contains(&"amp_select=4:show".to_string()));
-        assert!(!drive2_classes.iter().any(|c| c.contains("opacity")));
+        assert!(drive2_classes.contains(&"amp_select=*:hide".to_string()));
+
+        // apply_rules() expands a "{control}={v1},{v2},...:{action}" rule
+        // into one rule per value - checked here rather than as its own
+        // #[test] since GTK tolerates only one thread touching it per
+        // process, and this crate already spends that one thread on this test
+        let label = gtk::Label::new(None);
+        apply_rules(&label, &[
+            "effect_select=0,1,2:opacity=0".to_string(),
+            "effect_select=*:opacity=1".to_string(),
+        ]);
+        let label_classes: Vec<String> = label.style_context().list_classes()
+            .iter().map(|c| c.to_string()).collect();
+        assert!(label_classes.contains(&"effect_select=0:opacity=0".to_string()));
+        assert!(label_classes.contains(&"effect_select=1:opacity=0".to_string()));
+        assert!(label_classes.contains(&"effect_select=2:opacity=0".to_string()));
+        assert!(!label_classes.iter().any(|c| c.contains(',')));
+        // single-value/wildcard rules still pass through unchanged
+        assert!(label_classes.contains(&"effect_select=*:opacity=1".to_string()));
+
+        std::fs::remove_dir_all(conf_path.parent().unwrap()).ok();
     }
 }

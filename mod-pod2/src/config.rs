@@ -413,10 +413,9 @@ pub static POD_CONFIG: Lazy<Config> = Lazy::new(|| {
 });
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::collections::HashSet;
-    use pod_gtk::prelude::*;
 
     /// Controls with no corresponding widget in `pod.conf` by design: MIDI-only
     /// halves, the raw (non-virtual) CC-bound twin of a UI-facing virtual
@@ -426,11 +425,19 @@ mod tests {
         "digiout_show", "name_change", "vol_pedal_position",
     ];
 
-    #[test]
-    fn pod_conf_covers_all_controls() {
-        gtk::init().expect("gtk::init failed - is a display available?");
-
-        let widget = pod_gtk::build_ui(include_str!("pod.conf")).expect("pod.conf should build");
+    /// Not `#[test]` itself - GTK only tolerates being used from a single
+    /// thread for the lifetime of the process, but Rust's test harness runs
+    /// every `#[test]` fn on its own thread, so every check that touches GTK
+    /// has to be called from the crate's one combined `#[test]` (see
+    /// `lib.rs`) instead of being its own independently-run test.
+    ///
+    /// Relies on `check_module_inits_via_resource_resolution` (see
+    /// `module.rs`) having already run and registered the "pod2/" dev
+    /// override, since this goes through the same `"pod2/pod.conf"` resource
+    /// key rather than reading the file directly.
+    pub(crate) fn check_pod_conf_covers_all_controls() {
+        let widget = pod_gtk::build_ui("pod2/pod.conf")
+            .expect("pod.conf should build");
         let objs = pod_gtk::ObjectList::from_widget(&widget);
         let named: HashSet<String> = objs.named_objects().map(|(_, n)| n).collect();
 

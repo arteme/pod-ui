@@ -36,7 +36,13 @@ struct Pod2Interface {
 
 impl Pod2Interface {
     fn new(config: &'static Config) -> Self {
-        let widget = build_ui(include_str!("pod.conf")).expect("Failed to build pod.conf UI");
+        // in debug build map `pod2/` to `mod-pod2/src`
+        #[cfg(debug_assertions)]
+        pod_core::resources::register(
+            "pod2/", concat!(env!("CARGO_MANIFEST_DIR"), "/src"),
+        );
+
+        let widget = build_ui("pod2/pod.conf").expect("Failed to build device UI");
         let objects = ObjectList::from_widget(&widget);
 
         Self { config, widget, objects }
@@ -94,4 +100,24 @@ impl Interface for Pod2Interface {
 
 pub fn module() -> impl Module {
     Pod2Module
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    /// Exercises the actual startup code path, not just `pod_core::resources`
+    /// in isolation - the running executable's own directory
+    /// (`target/debug/deps/`) definitely has no `pod.conf`, so this only
+    /// passes if the dev-checkout fallback in `Pod2Interface::new` is
+    /// genuinely doing the work.
+    ///
+    /// Not `#[test]` itself - see `check_pod_conf_covers_all_controls` in
+    /// `config.rs` for why.
+    pub(crate) fn check_module_inits_via_resource_resolution() {
+        let module = Pod2Module;
+        let config: &'static Config = &POD2_CONFIG;
+        let interface = module.init(config);
+        interface.widget(); // would already have panicked in Pod2Interface::new otherwise
+    }
 }

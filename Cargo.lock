@@ -1527,7 +1527,9 @@ dependencies = [
  "hocon",
  "log",
  "multimap",
+ "once_cell",
  "pod-core",
+ "regex",
  "serde",
  "tokio",
 ]

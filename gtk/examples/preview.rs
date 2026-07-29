@@ -1,27 +1,33 @@
-// Visual dev tool: renders a HOCON device layout file in a plain GTK window,
-// with no MIDI/controller wiring, so a `.conf` file can be eyeballed without
-// needing a real device.
+// Visual dev tool: renders a HOCON device layout file populated into its base
+// `.glade` layout (named by the conf file's own `ui = ...` field, resolved
+// relative to the conf file), in a plain GTK window with no MIDI/controller
+// wiring, so a `.conf` file can be eyeballed without needing a real device.
 use std::{env, fs, process, time::Duration};
 
 use pod_gtk::prelude::*;
 
 fn main() {
     let mut args = env::args().skip(1);
-    let Some(path) = args.next() else {
+    let Some(conf_path) = args.next() else {
         eprintln!("usage: preview <path-to-conf-file> [screenshot-output-path]");
         process::exit(1);
     };
     let screenshot_path = args.next();
 
-    let conf = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("failed to read {:?}: {}", path, e));
+    // build_ui() resolves its argument through pod_core::resources, which
+    // treats a relative path as relative to the running executable - make
+    // this absolute first so it's instead used exactly as given, regardless
+    // of cwd.
+    let conf_path = fs::canonicalize(&conf_path)
+        .unwrap_or_else(|e| panic!("failed to resolve {:?}: {}", conf_path, e));
+    let conf_path = conf_path.to_string_lossy();
 
     gtk::init().expect("gtk::init failed");
 
-    let widget = pod_gtk::build_ui(&conf).expect("build_ui failed");
+    let widget = pod_gtk::build_ui(&conf_path).expect("build_ui failed");
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    window.set_title(&format!("preview: {}", path));
+    window.set_title(&format!("preview: {}", conf_path));
     window.add(&widget);
     window.connect_delete_event(|_, _| {
         gtk::main_quit();

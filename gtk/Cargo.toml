@@ -16,5 +16,7 @@ serde = { version = "1", features = ["derive"] }
 log = "*" # defined in pod-core
 tokio = "*" # defined in pod-core
 anyhow = "*" # defined in pod-code
+regex = "*" # defined in pod-core
+once_cell = "*" # defined in pod-core
 
 pod-core = { path = "../core" }
