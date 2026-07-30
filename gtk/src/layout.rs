@@ -29,6 +29,7 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::*;
+use gtk::SizeGroupMode;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
@@ -105,6 +106,35 @@ enum WidgetKind {
     Button,
 }
 
+// ---
+
+struct SizeControl {
+    /// all widgets vertical size group
+    v_group: gtk::SizeGroup,
+    /// labels horizontal size group
+    h_group_labels: gtk::SizeGroup,
+}
+
+impl SizeControl {
+    pub fn new() -> Self {
+        SizeControl {
+            v_group: gtk::SizeGroup::new(SizeGroupMode::Vertical),
+            h_group_labels: gtk::SizeGroup::new(SizeGroupMode::Horizontal),
+        }
+    }
+
+    pub fn add_widget<T: IsA<gtk::Widget>>(&self, widget: &T) {
+        self.v_group.add_widget(widget)
+    }
+
+    pub fn add_label<T: IsA<gtk::Widget>>(&self, widget: &T) {
+        self.v_group.add_widget(widget);
+        self.h_group_labels.add_widget(widget);
+    }
+}
+
+// ---
+
 /// Read and parse `conf_path`, load the base Glade layout file
 /// (relative to the config file path, following resource resolution).
 /// Returns the resulting `gtk::Widget` populated with the layout
@@ -133,39 +163,42 @@ pub fn build_ui(conf_path: &str) -> Result<gtk::Widget> {
         .context("base glade layout's 'app_win' window has no child")?;
     window.remove(&root);
 
+    let size_control = SizeControl::new();
+
     let toggles_grid: gtk::Grid = builder.object("toggles")
         .context("base glade layout is missing a 'toggles' grid")?;
-    populate_toggle_bar(&toggles_grid, &layout.toggles);
+    populate_toggle_bar(&toggles_grid, &layout.toggles, &size_control);
 
     let controls_box: gtk::Box = builder.object("controls")
         .context("base glade layout is missing a 'controls' box")?;
-    populate_columns(&controls_box, &layout.groups);
+    populate_columns(&controls_box, &layout.groups, &size_control);
 
     root.show_all();
     Ok(root)
 }
 
-fn populate_toggle_bar(grid: &gtk::Grid, toggles: &[ToggleDef]) {
+fn populate_toggle_bar(grid: &gtk::Grid, toggles: &[ToggleDef], size_control: &SizeControl) {
     for (i, t) in toggles.iter().enumerate() {
         let check = gtk::CheckButton::with_label(t.label.as_str());
         check.set_widget_name(&t.control);
         apply_rules(&check, &t.rules);
+        size_control.add_widget(&check);
         grid.attach(&check, i as i32, 1, 1, 1);
     }
 }
 
-fn populate_columns(controls_box: &gtk::Box, groups: &[GroupDef]) {
+fn populate_columns(controls_box: &gtk::Box, groups: &[GroupDef], size_control: &SizeControl) {
     let max_column = groups.iter().map(|g| g.column).max().unwrap_or(0);
     for column in 0..=max_column {
         let col_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
         for g in groups.iter().filter(|g| g.column == column) {
-            col_box.pack_start(&build_group(g), false, true, 0);
+            col_box.pack_start(&build_group(g, size_control), false, true, 0);
         }
         controls_box.pack_start(&col_box, true, true, 0);
     }
 }
 
-fn build_group(g: &GroupDef) -> gtk::Frame {
+fn build_group(g: &GroupDef, size_control: &SizeControl) -> gtk::Frame {
     let frame = gtk::Frame::new(Some(g.group.as_str()));
     frame.set_label_align(0.0, 0.5);
     frame.set_shadow_type(gtk::ShadowType::EtchedOut);
@@ -180,23 +213,27 @@ fn build_group(g: &GroupDef) -> gtk::Frame {
     apply_content_margins(&grid);
 
     for (row, c) in g.controls.iter().enumerate() {
-        build_control_row(&grid, row as i32, c);
+        build_control_row(&grid, row as i32, c, size_control);
     }
 
     frame.add(&grid);
     frame
 }
 
-fn build_control_row(grid: &gtk::Grid, row: i32, c: &ControlDef) {
-    let widget = build_control_widget(c);
+fn build_control_row(grid: &gtk::Grid, row: i32, c: &ControlDef, size_control: &SizeControl) {
+    let widget = build_control_widget(c, size_control);
     widget.set_hexpand(true);
     apply_rules(&widget, &c.rules);
 
     match &c.label {
         Some(label) => {
             let l = gtk::Label::new(Some(label.as_str()));
-            l.set_halign(gtk::Align::End);
+            // original glade layout has "horizontal size group + halign = end",
+            // but here that produces centered labels. therefore, we set xalign
+            // instead of haligh -- seems to work...
+            l.set_xalign(1.0);
             apply_rules(&l, &c.rules);
+            size_control.add_label(&l);
             grid.attach(&l, 0, row, 1, 1);
             grid.attach(&widget, 1, row, 1, 1);
         }
@@ -206,7 +243,7 @@ fn build_control_row(grid: &gtk::Grid, row: i32, c: &ControlDef) {
     }
 }
 
-fn build_control_widget(c: &ControlDef) -> gtk::Widget {
+fn build_control_widget(c: &ControlDef, size_control: &SizeControl) -> gtk::Widget {
     match c.widget {
         WidgetKind::Slider => {
             let scale = gtk::Scale::new(gtk::Orientation::Horizontal, None::<&gtk::Adjustment>);
@@ -222,11 +259,13 @@ fn build_control_widget(c: &ControlDef) -> gtk::Widget {
             // bakes the label into the checkbox itself (see `build_toggle_bar`).
             let check = gtk::CheckButton::new();
             check.set_widget_name(&c.control);
+            size_control.add_widget(&check);
             check.upcast()
         }
         WidgetKind::Combo => {
             let combo = gtk::ComboBoxText::new();
             combo.set_widget_name(&c.control);
+            size_control.add_widget(&combo);
             combo.upcast()
         }
         WidgetKind::RadioGroup => {
@@ -240,6 +279,8 @@ fn build_control_widget(c: &ControlDef) -> gtk::Widget {
                 } else {
                     group = Some(radio.clone());
                 }
+                radio.set_hexpand(true);
+                size_control.add_widget(&radio);
                 b.pack_start(&radio, false, true, 0);
             }
             b.upcast()
@@ -248,11 +289,13 @@ fn build_control_widget(c: &ControlDef) -> gtk::Widget {
             let entry = gtk::Entry::new();
             entry.set_widget_name(&c.control);
             entry.set_valign(gtk::Align::Center);
+            size_control.add_widget(&entry);
             entry.upcast()
         }
         WidgetKind::Button => {
             let button = gtk::Button::with_label(c.label.as_deref().unwrap_or(""));
             button.set_widget_name(&c.control);
+            size_control.add_widget(&button);
             button.upcast()
         }
     }
