@@ -700,6 +700,15 @@ fn activate(app: &gtk::Application, title: &String, opts: Opts, sentry_enabled: 
             Propagation::Stop
         }
     });
+    // make sure the focus is always visible in the app window
+    // to help with keyboard navigation and to make label click
+    // more noticeable
+    window.set_focus_visible(true);
+    window.connect_focus_visible_notify(move |win| {
+        if !win.gets_focus_visible() {
+            win.set_focus_visible(true);
+        }
+    });
 
     // connect & register signals
     let quit_action = gio::ActionEntry::builder("quit")

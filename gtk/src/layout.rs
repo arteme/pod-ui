@@ -29,7 +29,6 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::*;
-use gtk::SizeGroupMode;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
@@ -118,8 +117,8 @@ struct SizeControl {
 impl SizeControl {
     pub fn new() -> Self {
         SizeControl {
-            v_group: gtk::SizeGroup::new(SizeGroupMode::Vertical),
-            h_group_labels: gtk::SizeGroup::new(SizeGroupMode::Horizontal),
+            v_group: gtk::SizeGroup::new(gtk::SizeGroupMode::Vertical),
+            h_group_labels: gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal),
         }
     }
 
@@ -198,7 +197,7 @@ fn populate_columns(controls_box: &gtk::Box, groups: &[GroupDef], size_control: 
     }
 }
 
-fn build_group(g: &GroupDef, size_control: &SizeControl) -> gtk::Frame {
+fn build_group(g: &GroupDef, size_control: &SizeControl) -> gtk::Widget {
     let frame = gtk::Frame::new(Some(g.group.as_str()));
     frame.set_label_align(0.0, 0.5);
     frame.set_shadow_type(gtk::ShadowType::EtchedOut);
@@ -217,7 +216,7 @@ fn build_group(g: &GroupDef, size_control: &SizeControl) -> gtk::Frame {
     }
 
     frame.add(&grid);
-    frame
+    frame.upcast()
 }
 
 fn build_control_row(grid: &gtk::Grid, row: i32, c: &ControlDef, size_control: &SizeControl) {
@@ -232,9 +231,37 @@ fn build_control_row(grid: &gtk::Grid, row: i32, c: &ControlDef, size_control: &
             // but here that produces centered labels. therefore, we set xalign
             // instead of haligh -- seems to work...
             l.set_xalign(1.0);
-            apply_rules(&l, &c.rules);
-            size_control.add_label(&l);
-            grid.attach(&l, 0, row, 1, 1);
+
+            // Implement click on label to focus the widget.
+            // GtkLabel needs an event box, but when the frame is
+            // set insensitive, the insensitive event box will
+            // swallow mouse clicks. Place event box and
+            // label into an overlay and when the label is set
+            // insensitive, the event box is toggled hidden
+            let event_box = gtk::EventBox::builder().visible_window(false).build();
+            event_box.connect_button_press_event({
+                let widget = widget.clone();
+                move |_, event| {
+                    if event.event_type() != gdk::EventType::ButtonPress { return Propagation::Proceed }
+                    widget.grab_focus();
+                    Propagation::Stop
+                }
+            });
+            l.connect_state_flags_changed({
+                let event_box = event_box.clone();
+                move |l, _| {
+                    event_box.set_visible(l.is_sensitive());
+                }
+            });
+
+            let overlay = gtk::Overlay::new();
+            overlay.add(&l);
+            overlay.add_overlay(&event_box);
+
+            apply_rules(&overlay, &c.rules);
+            size_control.add_label(&overlay);
+
+            grid.attach(&overlay, 0, row, 1, 1);
             grid.attach(&widget, 1, row, 1, 1);
         }
         None => {
@@ -283,6 +310,23 @@ fn build_control_widget(c: &ControlDef, size_control: &SizeControl) -> gtk::Widg
                 size_control.add_widget(&radio);
                 b.pack_start(&radio, false, true, 0);
             }
+            // when the label calls `grab_focus`, forward the
+            // focus to the radio group
+            b.connect_grab_focus(move |_| {
+                if let Some(group) = group.as_ref() {
+                    let mut focus_set = false;
+                    for radio in &group.group() {
+                        if radio.is_active() {
+                            focus_set = true;
+                            radio.grab_focus();
+                            break
+                        }
+                    }
+                    if !focus_set {
+                        group.grab_focus();
+                    }
+                }
+            });
             b.upcast()
         }
         WidgetKind::Entry => {
